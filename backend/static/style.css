@@ -68,15 +68,20 @@ html.sidebar-open {
 .hamburger.hidden { display: none; }
 .sidebar {
     position: fixed; top: 0; left: 0; width: 280px; height: 100dvh; max-height: 100dvh;
-    background: transparent;
-    border-right: 1px solid rgba(255,255,255,0.32); z-index: 1000;
+    background:
+        linear-gradient(180deg, rgba(245,252,255,0.34), rgba(225,241,255,0.18));
+    border-right: 1px solid rgba(255,255,255,0.22); z-index: 1000;
     transform: translate3d(-100%, 0, 0);
     transition: transform 0.28s cubic-bezier(.2,.8,.2,1); padding: 40px 20px 18px; overflow-y: auto;
     display: flex; flex-direction: column;
     overscroll-behavior: contain;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    box-shadow: 18px 0 46px rgba(80, 120, 180, 0.12), inset -1px 0 0 rgba(255,255,255,0.22);
+    box-shadow:
+        inset 0 1px 1px rgba(255,255,255,0.30),
+        18px 0 46px rgba(80, 120, 180, 0.10);
+    backdrop-filter: blur(20px) saturate(142%);
+    -webkit-backdrop-filter: blur(20px) saturate(142%);
     will-change: transform;
     contain: paint;
 }
@@ -90,19 +95,6 @@ html.sidebar-open {
     flex-direction: column;
     min-height: 100%;
     z-index: 3;
-}
-.sidebar-glass-canvas {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.14s ease 0.16s;
-}
-.sidebar.open .sidebar-glass-canvas {
-    opacity: 1;
 }
 .sidebar-main {
     position: relative;
@@ -160,8 +152,11 @@ html.sidebar-open {
 .sidebar-language-switch button:focus-visible {
     transform: translateY(-1px);
     color: rgba(18, 62, 96, 0.98);
-    background: transparent;
-    box-shadow: none;
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.26), rgba(235,248,255,0.10));
+    box-shadow:
+        inset 0 1px 1px rgba(255,255,255,0.26),
+        0 10px 24px rgba(80,120,180,0.07);
 }
 .sidebar-menu-item:active,
 .sidebar-about-button:active,
@@ -171,6 +166,8 @@ html.sidebar-open {
 .sidebar-menu-item.active {
     color: var(--primary);
     font-weight: 900;
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.24), rgba(235,248,255,0.10));
 }
 .sidebar-about-button {
     position: relative;
@@ -598,22 +595,22 @@ input[type="range"]::-webkit-slider-runnable-track {
 }
 input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 54px;
-    height: 30px;
-    margin-top: -10px;
+    width: 58px;
+    height: 31px;
+    margin-top: -10.5px;
     border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.36);
+    border: 0;
     background:
-        radial-gradient(circle at 20% 34%, rgba(255,255,255,0.82), rgba(255,255,255,0.18) 28%, transparent 54%),
-        radial-gradient(circle at 75% 66%, rgba(110,210,235,0.14), transparent 56%),
-        linear-gradient(135deg, rgba(255,255,255,0.22), rgba(235,252,255,0.045));
+        radial-gradient(circle at 22% 32%, rgba(255,255,255,0.58), rgba(255,255,255,0.12) 25%, transparent 54%),
+        radial-gradient(circle at 72% 70%, rgba(255,255,255,0.12), transparent 58%),
+        linear-gradient(135deg, rgba(255,255,255,0.045), rgba(255,255,255,0.006));
     box-shadow:
-        inset 1px 1px 1px rgba(255,255,255,0.58),
-        inset -1px -1px 1px rgba(55,125,180,0.10),
-        inset -12px -7px 18px rgba(80,160,210,0.08),
-        0 10px 24px rgba(60,130,190,0.13);
-    backdrop-filter: blur(18px) saturate(170%) contrast(1.08);
-    -webkit-backdrop-filter: blur(18px) saturate(170%) contrast(1.08);
+        inset 1px 1px 1px rgba(255,255,255,0.46),
+        inset -1px -1px 1px rgba(45,100,150,0.06),
+        0 0 0 1px rgba(255,255,255,0.14),
+        0 10px 22px rgba(50,120,180,0.10);
+    backdrop-filter: blur(22px) saturate(175%) contrast(1.12);
+    -webkit-backdrop-filter: blur(22px) saturate(175%) contrast(1.12);
 }
 input[type="range"]::-moz-range-track {
     height: 10px;
@@ -626,19 +623,19 @@ input[type="range"]::-moz-range-track {
         0 1px 1px rgba(255,255,255,0.34);
 }
 input[type="range"]::-moz-range-thumb {
-    width: 54px;
-    height: 30px;
+    width: 58px;
+    height: 31px;
     border-radius: 999px;
-    border: 1px solid rgba(255,255,255,0.36);
+    border: 0;
     background:
-        radial-gradient(circle at 20% 34%, rgba(255,255,255,0.82), rgba(255,255,255,0.18) 28%, transparent 54%),
-        radial-gradient(circle at 75% 66%, rgba(110,210,235,0.14), transparent 56%),
-        linear-gradient(135deg, rgba(255,255,255,0.22), rgba(235,252,255,0.045));
+        radial-gradient(circle at 22% 32%, rgba(255,255,255,0.58), rgba(255,255,255,0.12) 25%, transparent 54%),
+        radial-gradient(circle at 72% 70%, rgba(255,255,255,0.12), transparent 58%),
+        linear-gradient(135deg, rgba(255,255,255,0.045), rgba(255,255,255,0.006));
     box-shadow:
-        inset 1px 1px 1px rgba(255,255,255,0.58),
-        inset -1px -1px 1px rgba(55,125,180,0.10),
-        inset -12px -7px 18px rgba(80,160,210,0.08),
-        0 10px 24px rgba(60,130,190,0.13);
+        inset 1px 1px 1px rgba(255,255,255,0.46),
+        inset -1px -1px 1px rgba(45,100,150,0.06),
+        0 0 0 1px rgba(255,255,255,0.14),
+        0 10px 22px rgba(50,120,180,0.10);
 }
 input[type="text"], input[type="email"], input[type="password"], textarea {
     color: var(--text-color);

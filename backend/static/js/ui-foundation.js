@@ -189,9 +189,6 @@ function toggleSidebar() {
     overlay.classList.toggle('open', willOpen);
     document.body.classList.toggle('sidebar-open', willOpen);
     document.documentElement.classList.toggle('sidebar-open', willOpen);
-    if (willOpen) {
-        window.setTimeout(updateSidebarGlassTarget, 180);
-    }
 }
 
 let sidebarGlassRenderer = null;
@@ -524,7 +521,6 @@ function renderSidebar() {
     };
 
     sidebar.innerHTML = `
-        <canvas class="sidebar-glass-canvas" aria-hidden="true"></canvas>
         <div class="sidebar-body">
             <div class="sidebar-main">
                 <h2 class="sidebar-title">${t('menu_title')}</h2>
@@ -563,9 +559,6 @@ function renderSidebar() {
             </div>
         </div>
     `;
-    sidebarGlassRenderer = null;
-    bindSidebarGlassTarget();
-    requestAnimationFrame(updateSidebarGlassTarget);
 }
 
 function sidebarSelectCategory(category) { toggleSidebar(); selectCategory(category); }
