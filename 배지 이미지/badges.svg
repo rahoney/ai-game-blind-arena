@@ -1,0 +1,201 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <defs>
+    <linearGradient id="grad-gold" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#FFFDE7"/><stop offset="100%" stop-color="#FFF59D"/></linearGradient>
+    <linearGradient id="grad-silver" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#F5F5F5"/><stop offset="100%" stop-color="#E0E0E0"/></linearGradient>
+    <linearGradient id="grad-bronze" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#FFCCBC"/><stop offset="100%" stop-color="#8D6E63"/></linearGradient>
+    <linearGradient id="grad-sky" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#E3F2FD"/><stop offset="100%" stop-color="#90CAF9"/></linearGradient>
+    <linearGradient id="grad-purple" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#F3E5F5"/><stop offset="100%" stop-color="#E1BEE7"/></linearGradient>
+
+    <g id="owl-base">
+      <path d="M30,35 Q20,20 35,25 Q50,15 65,25 Q80,20 70,35 Q85,50 80,75 Q50,85 20,75 Q15,50 30,35 Z" fill="#795548"/>
+      <path d="M35,35 Q50,30 65,35 Q70,55 65,75 Q50,80 35,75 Q30,55 35,35 Z" fill="#D7CCC8"/>
+      <g fill="none" stroke="#5D4037" stroke-width="1.5" opacity="0.6">
+        <path d="M38,45 Q42,50 46,45 M54,45 Q58,50 62,45"/>
+        <path d="M40,52 Q44,57 48,52 M52,52 Q56,57 60,52"/>
+        <path d="M42,59 Q46,64 50,59 M50,59 Q54,64 58,59"/>
+        <path d="M45,66 Q50,71 55,66"/>
+      </g>
+      <path d="M30,35 Q15,50 25,70 L35,65 Z" fill="#795548" filter="brightness(0.9)"/>
+      <path d="M70,35 Q85,50 75,70 L65,65 Z" fill="#795548" filter="brightness(0.9)"/>
+    </g>
+    <g id="owl-face">
+      <circle cx="40" cy="40" r="11" fill="#FFECB3"/> <circle cx="60" cy="40" r="11" fill="#FFECB3"/>
+      <circle cx="40" cy="40" r="8" fill="#FF9800"/> <circle cx="60" cy="40" r="8" fill="#FF9800"/>
+      <circle cx="40" cy="40" r="5" fill="#3E2723"/> <circle cx="60" cy="40" r="5" fill="#3E2723"/>
+      <circle cx="38" cy="38" r="2" fill="white"/> <circle cx="58" cy="38" r="2" fill="white"/>
+      <path d="M50,45 L45,55 L55,55 Z" fill="#FFC107"/>
+    </g>
+  </defs>
+
+  <symbol id="badge-owl-baby" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="url(#grad-bronze)" stroke="#BDBDBD" stroke-width="3"/>
+    <g transform="translate(5, 10) scale(0.9)">
+      <use href="#owl-base"/> <use href="#owl-face"/>
+    </g>
+    <path d="M35,25 Q50,5 65,25 L65,25 L60,15 L55,25 L50,18 L45,25 L40,15 L35,25 Z" fill="#FFF9C4" stroke="#F0F4C3" stroke-width="2"/>
+    <path d="M25,70 Q50,95 75,70 L70,80 L65,75 L60,82 L50,78 L40,82 L35,75 L30,80 L25,70 Z" fill="#FFF9C4" stroke="#F0F4C3" stroke-width="2"/>
+  </symbol>
+
+  <symbol id="badge-owl-curious" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="url(#grad-sky)" stroke="#BDBDBD" stroke-width="3"/>
+    <use href="#owl-base"/> <use href="#owl-face"/>
+    <g transform="rotate(-20, 65, 65)">
+      <circle cx="65" cy="55" r="12" fill="rgba(255,255,255,0.3)" stroke="#424242" stroke-width="3"/>
+      <line x1="65" y1="67" x2="65" y2="85" stroke="#5D4037" stroke-width="4" stroke-linecap="round"/>
+    </g>
+  </symbol>
+
+  <symbol id="badge-owl-student" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="url(#grad-sky)" stroke="#BDBDBD" stroke-width="3"/>
+    <use href="#owl-base"/> <use href="#owl-face"/>
+    <g transform="translate(0, -5)">
+      <path d="M30,25 L50,15 L70,25 L50,35 Z" fill="#37474F"/>
+      <rect x="35" y="25" width="30" height="8" fill="#37474F"/>
+      <line x1="70" y1="25" x2="70" y2="40" stroke="#FFC107" stroke-width="2"/>
+    </g>
+    <path d="M30,70 Q50,75 70,70 L70,85 Q50,90 30,85 Z" fill="#ECEFF1"/>
+    <path d="M30,70 Q50,75 70,70" fill="none" stroke="#CFD8DC" stroke-width="1"/>
+  </symbol>
+  
+  <symbol id="badge-owl-knowledge" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="url(#grad-purple)" stroke="#BDBDBD" stroke-width="3"/>
+    <g transform="translate(0, 10)">
+      <rect x="25" y="65" width="50" height="10" fill="#5D4037" rx="2"/>
+      <rect x="30" y="75" width="40" height="8" fill="#3E2723" rx="2"/>
+    </g>
+    <g transform="translate(0, -5)">
+      <use href="#owl-base"/> <use href="#owl-face"/>
+      <g fill="none" stroke="#FFC107" stroke-width="1.5">
+        <circle cx="40" cy="40" r="11"/> <circle cx="60" cy="40" r="11"/>
+        <line x1="51" y1="40" x2="49" y2="40"/>
+      </g>
+    </g>
+  </symbol>
+
+  <symbol id="badge-owl-sage" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="url(#grad-gold)" stroke="#BDBDBD" stroke-width="3"/>
+    <use href="#owl-base"/> <use href="#owl-face"/>
+    <path d="M35,30 Q50,25 65,30" stroke="#FAFAFA" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M40,55 Q50,75 60,55 L50,65 Z" fill="#FAFAFA"/>
+    <g transform="rotate(10, 75, 50)">
+      <line x1="75" y1="30" x2="75" y2="80" stroke="#8D6E63" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="75" cy="30" r="6" fill="#FFC107"/>
+    </g>
+  </symbol>
+
+  <symbol id="badge-journalist-trainee" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#F5F5F5" stroke="#BDBDBD" stroke-width="3"/>
+    <path d="M50 10 L50 25" stroke="#1976D2" stroke-width="3"/>
+    <path d="M35 10 Q50 0 65 10" stroke="#1976D2" stroke-width="3" fill="none"/>
+    <rect x="30" y="25" width="40" height="50" rx="3" ry="3" fill="white" stroke="#757575" stroke-width="2"/>
+    <rect x="35" y="32" width="30" height="25" fill="#E0E0E0"/>
+    <line x1="35" y1="62" x2="65" y2="62" stroke="#757575" stroke-width="2"/>
+    <line x1="35" y1="68" x2="55" y2="68" stroke="#757575" stroke-width="2"/>
+  </symbol>
+
+  <symbol id="badge-miss-answers" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#FFEBEE" stroke="#BDBDBD" stroke-width="3"/>
+    <path d="M35 35 L65 65 M65 35 L35 65" stroke="#C62828" stroke-width="8" stroke-linecap="round"/>
+  </symbol>
+  
+  <symbol id="badge-random-guess" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#F5F5F5" stroke="#BDBDBD" stroke-width="3"/>
+    <rect x="32" y="32" width="36" height="36" rx="6" fill="#757575"/>
+    <circle cx="42" cy="42" r="3" fill="white"/> <circle cx="58" cy="58" r="3" fill="white"/>
+  </symbol>
+  
+  <symbol id="badge-human-touch" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#E3F2FD" stroke="#BDBDBD" stroke-width="3"/>
+    <path d="M30 40 Q35 30 40 40 M60 40 Q65 30 70 40" stroke="#1565C0" stroke-width="3" fill="none"/>
+    <path d="M50 30 Q30 60 50 80 Q70 60 50 30" fill="#1565C0"/>
+  </symbol>
+  
+  <symbol id="badge-was-it-misunderstanding" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#FFF3E0" stroke="#BDBDBD" stroke-width="3"/>
+    <path d="M35 35 Q35 20 50 20 Q65 20 65 35 Q65 50 50 50 L50 65" stroke="#E65100" stroke-width="7" stroke-linecap="round" fill="none"/>
+    <circle cx="50" cy="78" r="5" fill="#E65100"/>
+  </symbol>
+  
+  <symbol id="badge-not-reading-news" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#ECEFF1" stroke="#BDBDBD" stroke-width="3"/>
+    <rect x="25" y="40" width="50" height="20" rx="2" fill="#546E7A"/>
+    <path d="M20 45 L10 50 L20 55" fill="none" stroke="#546E7A" stroke-width="3"/>
+  </symbol>
+
+  <symbol id="badge-sprout" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#F1F8E9" stroke="#BDBDBD" stroke-width="3"/>
+    <path d="M50 80 L50 50" stroke="#33691E" stroke-width="4" stroke-linecap="round"/>
+    <path d="M50 50 Q30 30 20 45 Q30 60 50 50 Z" fill="#7CB342" stroke="#33691E" stroke-width="1"/>
+    <path d="M50 50 Q70 30 80 45 Q70 60 50 50 Z" fill="#7CB342" stroke="#33691E" stroke-width="1"/>
+  </symbol>
+  
+  <symbol id="badge-reads-news" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#E0F7FA" stroke="#BDBDBD" stroke-width="3"/>
+    <rect x="30" y="30" width="40" height="40" fill="white" stroke="#00BCD4" stroke-width="2"/>
+    <line x1="35" y1="40" x2="65" y2="40" stroke="#00BCD4" stroke-width="2"/>
+    <line x1="35" y1="50" x2="55" y2="50" stroke="#00BCD4" stroke-width="2"/>
+  </symbol>
+  
+  <symbol id="badge-major" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#E8EAF6" stroke="#BDBDBD" stroke-width="3"/>
+    <path d="M25 45 L50 30 L75 45" fill="#3F51B5"/>
+    <rect x="20" y="30" width="60" height="50" rx="2" fill="none" stroke="#3F51B5" stroke-width="2"/>
+  </symbol>
+  
+  <symbol id="badge-walking-wiki" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#FBE9E7" stroke="#BDBDBD" stroke-width="3"/>
+    <rect x="48" y="45" width="4" height="12" fill="#FF5722"/>
+    <circle cx="50" cy="40" r="3" fill="#FF5722"/>
+    <path d="M35 35 Q50 20 65 35 M30 50 Q20 50 30 50 M70 50 Q80 50 70 50" stroke="#FF5722" stroke-width="2" fill="none" opacity="0.6"/>
+  </symbol>
+  
+  <symbol id="badge-issue-ai" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#212121" stroke="#00E676" stroke-width="3"/>
+    <circle cx="50" cy="50" r="15" fill="#00E676"/>
+    <path d="M20 50 H80 M50 20 V80" stroke="#00E676" stroke-width="2"/>
+    <circle cx="50" cy="50" r="8" fill="#1B5E20"/>
+  </symbol>
+
+  <symbol id="badge-journalist-intern" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="url(#grad-bronze)" stroke="#BDBDBD" stroke-width="3"/>
+    <path d="M40 70 L50 80 L60 70 L60 40 L40 40 Z" fill="#5D4037"/>
+    <path d="M50 40 L50 70" stroke="#8D6E63" stroke-width="1"/>
+  </symbol>
+  
+  <symbol id="badge-journalist-probation" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="url(#grad-silver)" stroke="#BDBDBD" stroke-width="3"/>
+    <rect x="42" y="30" width="16" height="40" rx="4" fill="#616161"/>
+    <circle cx="50" cy="35" r="2" fill="#F44336"/>
+  </symbol>
+  
+  <symbol id="badge-journalist-passion" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#FFCCBC" stroke="#BDBDBD" stroke-width="3"/>
+    <path d="M50 30 Q65 30 65 45 Q65 65 50 75 Q35 65 35 45 Q35 30 50 30" fill="#D32F2F"/>
+  </symbol>
+  
+  <symbol id="badge-journalist-scoop" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="url(#grad-silver)" stroke="#BDBDBD" stroke-width="3"/>
+    <polygon points="50,20 58,40 80,40 62,55 68,75 50,62 32,75 38,55 20,40 42,40" fill="#FFD600" stroke="#FBC02D"/>
+  </symbol>
+  
+  <symbol id="badge-journalist-breaking" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#FFF9C4" stroke="#BDBDBD" stroke-width="3"/>
+    <path d="M55 20 L30 50 L45 50 L40 80 L65 50 L50 50 Z" fill="#FFC107" stroke="#FF6F00" stroke-width="2" stroke-linejoin="round"/>
+  </symbol>
+  
+  <symbol id="badge-journalist-award" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="url(#grad-gold)" stroke="#BDBDBD" stroke-width="3"/>
+    <path d="M30 35 H70 L60 75 H40 Z" fill="#FBC02D"/>
+    <path d="M30 35 Q20 35 20 45 Q20 55 35 50" fill="none" stroke="#FBC02D" stroke-width="3"/>
+    <path d="M70 35 Q80 35 80 45 Q80 55 65 50" fill="none" stroke="#FBC02D" stroke-width="3"/>
+  </symbol>
+  
+  <symbol id="badge-editor-in-chief" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="45" fill="#311B92" stroke="#FFD700" stroke-width="3"/>
+    <path d="M30 60 L40 40 L50 60 L60 40 L70 60" stroke="#FFD700" stroke-width="3" fill="none" stroke-linejoin="round"/>
+    <circle cx="30" cy="60" r="3" fill="#FFD700"/> <circle cx="50" cy="35" r="4" fill="#FFD700"/> <circle cx="70" cy="60" r="3" fill="#FFD700"/>
+    <g opacity="0.6" stroke="#FFD700" stroke-width="2">
+      <path d="M50 20 L50 15 M50 85 L50 80 M20 50 L15 50 M85 50 L80 50"/>
+    </g>
+  </symbol>
+</svg>

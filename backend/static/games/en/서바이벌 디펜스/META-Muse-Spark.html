@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Survivor - Top-down Defense</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  * { font-family: 'Noto Sans KR', sans-serif; }
+  body { background: #050510; overscroll-behavior: none; }
+  canvas { image-rendering: pixelated; background: #0a0a1a; }
+  .glow { text-shadow: 0 0 10px currentColor; }
+</style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+<div id="gameContainer" class="relative">
+  <canvas id="game" width="1100" height="700" class="rounded-2xl shadow-[0_0_60px_rgba(124,58,237,0.3)] border border-violet-900/50"></canvas>
+  
+  <!-- UI -->
+  <div class="absolute top-3 left-3 right-3 flex justify-between pointer-events-none">
+    <div class="flex gap-3">
+      <div class="bg-black/70 backdrop-blur px-4 py-2 rounded-xl border border-violet-500/30">
+        <div class="text-xs text-violet-300" id="ui-hp-label"></div>
+        <div class="w-40 h-2 bg-gray-800 rounded-full mt-1 overflow-hidden">
+          <div id="hp-bar" class="h-full bg-gradient-to-r from-red-500 to-pink-500 transition-all" style="width:100%"></div>
+        </div>
+      </div>
+      <div class="bg-black/70 backdrop-blur px-4 py-2 rounded-xl border border-violet-500/30">
+        <div class="text-xs text-cyan-300" id="ui-level-label"></div>
+        <div class="text-white font-bold" id="level-text">Lv.1</div>
+      </div>
+    </div>
+    <div class="flex gap-3">
+      <div class="bg-black/70 backdrop-blur px-3 py-2 rounded-xl border border-violet-500/30 text-center">
+        <div class="text-xs text-amber-300" id="ui-wave-label"></div>
+        <div class="text-white font-bold" id="wave-text">1</div>
+      </div>
+      <div class="bg-black/70 backdrop-blur px-3 py-2 rounded-xl border border-violet-500/30 text-center">
+        <div class="text-xs text-emerald-300" id="ui-kills-label"></div>
+        <div class="text-white font-bold" id="kills-text">0</div>
+      </div>
+      <div class="bg-black/70 backdrop-blur px-3 py-2 rounded-xl border border-violet-500/30 text-center">
+        <div class="text-xs text-gray-400" id="ui-best-label"></div>
+        <div class="text-white font-bold" id="best-text">0</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="absolute bottom-3 left-3 right-3 pointer-events-none">
+    <div class="bg-black/70 backdrop-blur px-4 py-1.5 rounded-xl border border-violet-500/30">
+      <div class="flex justify-between text-xs mb-1">
+        <span class="text-violet-300" id="ui-xp-label"></span>
+        <span class="text-white" id="xp-text">0/5</span>
+      </div>
+      <div class="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+        <div id="xp-bar" class="h-full bg-gradient-to-r from-violet-500 to-cyan-400 transition-all" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Start Screen -->
+  <div id="startScreen" class="absolute inset-0 bg-[#050510]/95 backdrop-blur flex flex-col items-center justify-center rounded-2xl">
+    <h1 class="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-cyan-400 glow mb-4" id="title-text"></h1>
+    <p class="text-gray-300 mb-2" id="desc-text"></p>
+    <p class="text-gray-500 text-sm mb-8" id="controls-text"></p>
+    <button id="startBtn" class="px-10 py-4 bg-gradient-to-r from-violet-600 to-cyan-600 rounded-xl font-bold text-white text-xl hover:scale-105 transition shadow-[0_0_30px_rgba(124,58,237,0.5)]"></button>
+    <div class="mt-6 text-gray-500 text-sm"><span id="best-prefix"></span> <span id="best-start" class="text-violet-400 font-bold">0</span></div>
+  </div>
+
+  <!-- Level Up -->
+  <div id="levelUpScreen" class="absolute inset-0 bg-black/90 backdrop-blur-md hidden flex-col items-center justify-center rounded-2xl p-8">
+    <h2 class="text-4xl font-black text-amber-400 mb-2 glow" id="levelup-title"></h2>
+    <p class="text-gray-400 mb-8" id="levelup-desc"></p>
+    <div id="upgradeChoices" class="grid grid-cols-3 gap-4 max-w-4xl w-full"></div>
+  </div>
+
+  <!-- Game Over -->
+  <div id="gameOverScreen" class="absolute inset-0 bg-black/90 backdrop-blur-md hidden flex-col items-center justify-center rounded-2xl">
+    <h2 class="text-6xl font-black mb-4" id="gameover-title"></h2>
+    <div class="text-gray-300 space-y-2 text-center mb-8">
+      <p><span id="result-wave"></span>: <span id="final-wave" class="text-violet-400 font-bold">1</span></p>
+      <p><span id="result-kills"></span>: <span id="final-kills" class="text-emerald-400 font-bold">0</span></p>
+      <p><span id="result-time"></span>: <span id="final-time" class="text-cyan-400 font-bold">0s</span></p>
+    </div>
+    <button id="restartBtn" class="px-10 py-4 bg-gradient-to-r from-violet-600 to-pink-600 rounded-xl font-bold text-white text-xl hover:scale-105 transition"></button>
+  </div>
+</div>
+
+<script>
+// ==================== LANG DATA ====================
+const LANG_DATA = {
+  en: {
+    title: "NEON SURVIVOR",
+    desc: "Top-down Roguelike Survival",
+    controls: "Move: WASD/Arrows • Auto Attack",
+    start: "Start Game",
+    restart: "Retry",
+    best: "Best",
+    hp: "HP",
+    level: "Level",
+    wave: "Wave",
+    kills: "Kills",
+    bestUi: "BEST",
+    xp: "XP",
+    levelup: "LEVEL UP!",
+    choose: "Choose 1 of 3 upgrades",
+    victory: "VICTORY!",
+    defeat: "DEFEAT",
+    resultWave: "Wave Reached",
+    resultKills: "Total Kills",
+    resultTime: "Survival Time",
+    upg: {
+      atk: ["Damage Boost", "Attack Damage +30%"],
+      firerate: ["Fire Module", "Fire Rate +25%"],
+      multi: ["Multi-Shot", "Projectiles +2"],
+      speed: ["Booster", "Movement Speed +18%"],
+      maxhp: ["Life Core", "Max HP +25, Heal"],
+      lifesteal: ["Vampire Circuit", "15% Lifesteal"],
+      pierce: ["Pierce Laser", "Pierce +2"],
+      magnet: ["Magnetic Field", "Pickup Range x2, DEF +15%"]
+    }
+  }
+};
+const L = LANG_DATA.en;
+
+// UI Text Initialization
+document.getElementById('title-text').textContent = L.title;
+document.getElementById('desc-text').textContent = L.desc;
+document.getElementById('controls-text').textContent = L.controls;
+document.getElementById('startBtn').textContent = L.start;
+document.getElementById('restartBtn').textContent = L.restart;
+document.getElementById('best-prefix').textContent = L.best + ':';
+document.getElementById('ui-hp-label').textContent = L.hp;
+document.getElementById('ui-level-label').textContent = L.level;
+document.getElementById('ui-wave-label').textContent = L.wave;
+document.getElementById('ui-kills-label').textContent = L.kills;
+document.getElementById('ui-best-label').textContent = L.bestUi;
+document.getElementById('ui-xp-label').textContent = L.xp;
+document.getElementById('levelup-title').textContent = L.levelup;
+document.getElementById('levelup-desc').textContent = L.choose;
+document.getElementById('result-wave').textContent = L.resultWave;
+document.getElementById('result-kills').textContent = L.resultKills;
+document.getElementById('result-time').textContent = L.resultTime;
+
+// ==================== Game Core ====================
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+let keys = {}, mouse = {x:W/2, y:H/2};
+let gameState = 'start'; // start, playing, levelup, gameover
+let player, enemies, bullets, particles, xpGems, obstacles;
+let wave, kills, score, level, xp, nextXp, gameTime, spawnTimer;
+let best = parseInt(localStorage.getItem('neon_best')||'0');
+document.getElementById('best-text').textContent = best;
+document.getElementById('best-start').textContent = best;
+
+// Audio
+const AC = new (window.AudioContext||webkitAudioContext)();
+function beep(f,d=0.05,t='square',v=0.03){if(AC.state==='suspended')AC.resume();const o=AC.createOscillator(),g=AC.createGain();o.type=t;o.frequency.value=f;g.gain.value=v;o.connect(g);g.connect(AC.destination);o.start();g.gain.exponentialRampToValueAtTime(0.0001,AC.currentTime+d);o.stop(AC.currentTime+d);}
+
+// Upgrade Definitions
+const UPGRADES = [
+  {id:'atk', name:L.upg.atk[0], desc:L.upg.atk[1], apply:p=>p.dmg*=1.3},
+  {id:'firerate', name:L.upg.firerate[0], desc:L.upg.firerate[1], apply:p=>p.fireRate*=0.75},
+  {id:'multi', name:L.upg.multi[0], desc:L.upg.multi[1], apply:p=>p.proj+=2},
+  {id:'speed', name:L.upg.speed[0], desc:L.upg.speed[1], apply:p=>p.speed*=1.18},
+  {id:'maxhp', name:L.upg.maxhp[0], desc:L.upg.maxhp[1], apply:p=>{p.maxHp+=25;p.hp=Math.min(p.maxHp,p.hp+25);}},
+  {id:'lifesteal', name:L.upg.lifesteal[0], desc:L.upg.lifesteal[1], apply:p=>p.lifesteal+=0.15},
+  {id:'pierce', name:L.upg.pierce[0], desc:L.upg.pierce[1], apply:p=>p.pierce+=2},
+  {id:'magnet', name:L.upg.magnet[0], desc:L.upg.magnet[1], apply:p=>{p.magnet*=2;p.def+=0.15;}},
+];
+
+function initGame(){
+  player = {x:0,y:0,r:14,hp:100,maxHp:100,speed:2.8,dmg:10,fireRate:500,lastShot:0,proj:1,pierce:0,lifesteal:0,magnet:120,def:0};
+  enemies=[]; bullets=[]; particles=[]; xpGems=[]; obstacles=[];
+  wave=1; kills=0; score=0; level=1; xp=0; nextXp=5; gameTime=0; spawnTimer=0;
+  
+  // Create obstacles (20)
+  for(let i=0;i<20;i++){
+    const a=Math.random()*Math.PI*2, d=200+Math.random()*600;
+    obstacles.push({x:Math.cos(a)*d, y:Math.sin(a)*d, r:30+Math.random()*40});
+  }
+  updateUI();
+}
+
+function spawnEnemy(){
+  const cam = {x:player.x, y:player.y};
+  const angle = Math.random()*Math.PI*2;
+  const dist = Math.max(W,H)*0.7;
+  const x = cam.x + Math.cos(angle)*dist;
+  const y = cam.y + Math.sin(angle)*dist;
+  
+  // Enemy types per wave
+  let type = 0;
+  const r = Math.random();
+  if(wave >= 8 && r<0.15) type=4; // Shooter
+  else if(wave >= 5 && r<0.3) type=3; // Tank
+  else if(wave >= 3 && r<0.5) type=2; // Dasher
+  else if(r<0.7) type=1; // Chaser
+  // else Slime
+  
+  const types = [
+    {hp:8+wave*2, spd:0.7, r:18, col:'#4ade80', xp:1, dmg:8}, // Slime
+    {hp:12+wave*3, spd:1.1, r:15, col:'#f87171', xp:2, dmg:10}, // Chaser
+    {hp:10+wave*2, spd:1.8, r:13, col:'#fbbf24', xp:3, dmg:12, dash:true}, // Dasher
+    {hp:40+wave*8, spd:0.5, r:28, col:'#60a5fa', xp:6, dmg:18}, // Tank
+    {hp:18+wave*4, spd:0.9, r:16, col:'#c084fc', xp:4, dmg:8, shooter:true}, // Shooter
+  ];
+  const t = types[type];
+  enemies.push({...t, x,y, type, hp:t.hp, maxHp:t.hp, cd:0});
+}
+
+function update(dt){
+  if(gameState!=='playing') return;
+  gameTime+=dt;
+  spawnTimer+=dt;
+  
+  // Player movement
+  let dx=0, dy=0;
+  if(keys['w']||keys['ArrowUp']) dy-=1;
+  if(keys['s']||keys['ArrowDown']) dy+=1;
+  if(keys['a']||keys['ArrowLeft']) dx-=1;
+  if(keys['d']||keys['ArrowRight']) dx+=1;
+  const len=Math.hypot(dx,dy)||1;
+  player.x += dx/len * player.speed * (dt/16);
+  player.y += dy/len * player.speed * (dt/16);
+  
+  // Obstacle collision
+  obstacles.forEach(o=>{
+    const d=Math.hypot(player.x-o.x, player.y-o.y);
+    if(d < player.r+o.r){const a=Math.atan2(player.y-o.y,player.x-o.x);player.x=o.x+Math.cos(a)*(player.r+o.r);player.y=o.y+Math.sin(a)*(player.r+o.r);}
+  });
+  
+  // Spawn enemy
+  const spawnRate = Math.max(200, 800 - wave*30);
+  if(spawnTimer > spawnRate){spawnTimer=0; spawnEnemy(); if(Math.random()<0.3+wave*0.02) spawnEnemy();}
+  
+  // Wave progress
+  if(gameTime > wave*30000){wave++; beep(800,0.2,'sawtooth',0.05);}
+  
+  // Auto attack
+  if(performance.now() - player.lastShot > player.fireRate){
+    const target = enemies.reduce((c,e)=>{const d=Math.hypot(e.x-player.x,e.y-player.y); return !c||d<c.d?{e,d}:c},null);
+    if(target && target.d < 400){
+      player.lastShot = performance.now();
+      const baseAng = Math.atan2(target.e.y-player.y, target.e.x-player.x);
+      for(let i=0;i<player.proj;i++){
+        const spread = (i-(player.proj-1)/2)*0.15;
+        bullets.push({x:player.x,y:player.y, vx:Math.cos(baseAng+spread)*7, vy:Math.sin(baseAng+spread)*7, dmg:player.dmg, pierce:player.pierce, life:60});
+      }
+      beep(600+Math.random()*100,0.03,'square',0.02);
+    }
+  }
+  
+  // Bullet update
+  bullets = bullets.filter(b=>{
+    b.x+=b.vx*(dt/16); b.y+=b.vy*(dt/16); b.life--;
+    if(b.life<=0) return false;
+    // Enemy collision
+    for(let i=enemies.length-1;i>=0;i--){
+      const e=enemies[i];
+      if(Math.hypot(b.x-e.x,b.y-e.y) < e.r+5){
+        e.hp -= b.dmg;
+        particles.push({x:b.x,y:b.y,vx:(Math.random()-0.5)*2,vy:(Math.random()-0.5)*2,life:15,col:e.col});
+        if(player.lifesteal>0) player.hp = Math.min(player.maxHp, player.hp + b.dmg*player.lifesteal);
+        if(e.hp<=0){
+          kills++; score+=e.xp*10;
+          xpGems.push({x:e.x,y:e.y,v: e.xp, life:600});
+          enemies.splice(i,1);
+          beep(300,0.05,'triangle',0.03);
+          for(let p=0;p<8;p++) particles.push({x:e.x,y:e.y,vx:(Math.random()-0.5)*3,vy:(Math.random()-0.5)*3,life:20,col:e.col});
+        }
+        b.pierce--; 
+        if(b.pierce<0) return false;
+      }
+    }
+    return true;
+  });
+  
+  // Enemy update
+  enemies.forEach(e=>{
+    const ang = Math.atan2(player.y-e.y, player.x-e.x);
+    let spd = e.spd * (dt/16);
+    if(e.dash && Math.hypot(player.x-e.x,player.y-e.y) < 200) spd*=2.5;
+    e.x += Math.cos(ang)*spd; e.y += Math.sin(ang)*spd;
+    
+    // Shooter Attack
+    if(e.shooter){ e.cd-=dt; if(e.cd<=0 && Math.hypot(player.x-e.x,player.y-e.y)<300){ e.cd=2000; bullets.push({x:e.x,y:e.y,vx:Math.cos(ang)*4,vy:Math.sin(ang)*4,dmg:e.dmg,enemy:true,life:90}); } }
+    
+    // Player collision
+    if(Math.hypot(player.x-e.x,player.y-e.y) < player.r+e.r-2){
+      const dmg = e.dmg * (1-player.def);
+      player.hp -= dmg*dt/500;
+      player.x += Math.cos(ang+Math.PI)*1.5;
+      player.y += Math.sin(ang+Math.PI)*1.5;
+      if(player.hp<=0){ gameOver(false); }
+    }
+    
+    // Separate enemies
+    enemies.forEach(o=>{if(o!==e){const d=Math.hypot(e.x-o.x,e.y-o.y);if(d<e.r+o.r&&d>0){const a=Math.atan2(e.y-o.y,e.x-o.x);e.x+=Math.cos(a)*0.5;e.y+=Math.sin(a)*0.5;}}});
+  });
+  
+  // XP gems
+  xpGems = xpGems.filter(g=>{
+    g.life--;
+    const d=Math.hypot(player.x-g.x,player.y-g.y);
+    if(d<player.magnet){const a=Math.atan2(player.y-g.y,player.x-g.x);g.x+=Math.cos(a)*5;g.y+=Math.sin(a)*5;}
+    if(d<20){xp+=g.v; beep(1000,0.02,'sine',0.02); if(xp>=nextXp) levelUp(); updateUI(); return false;}
+    return g.life>0;
+  });
+  
+  // Particles
+  particles = particles.filter(p=>{p.x+=p.vx; p.y+=p.vy; p.life--; p.vx*=0.95; p.vy*=0.95; return p.life>0;});
+  
+  // Win condition (20 waves or 10 minutes)
+  if(wave>20 || gameTime>600000) gameOver(true);
+  
+  updateUI();
+}
+
+function render(){
+  ctx.save();
+  ctx.clearRect(0,0,W,H);
+  ctx.translate(W/2 - player.x, H/2 - player.y);
+  
+  // Background grid
+  ctx.strokeStyle='rgba(124,58,237,0.07)'; ctx.lineWidth=1;
+  const gs=80, sx=Math.floor((player.x-W/2)/gs)*gs, sy=Math.floor((player.y-H/2)/gs)*gs;
+  for(let x=sx;x<sx+W+gs*2;x+=gs){ctx.beginPath();ctx.moveTo(x,sy);ctx.lineTo(x,sy+H+gs*2);ctx.stroke();}
+  for(let y=sy;y<sy+H+gs*2;y+=gs){ctx.beginPath();ctx.moveTo(sx,y);ctx.lineTo(sx+W+gs*2,y);ctx.stroke();}
+  
+  // Obstacles
+  obstacles.forEach(o=>{ctx.fillStyle='#1e1b4b'; ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,Math.PI*2);ctx.fill(); ctx.strokeStyle='#312e81';ctx.lineWidth=3;ctx.stroke();});
+  
+  // XP
+  xpGems.forEach(g=>{ctx.fillStyle='#fde047';ctx.shadowColor='#fde047';ctx.shadowBlur=15;ctx.beginPath();ctx.arc(g.x,g.y,6,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;});
+  
+  // Bullets
+  bullets.forEach(b=>{ctx.fillStyle=b.enemy?'#f87171':'#22d3ee';ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=10;ctx.beginPath();ctx.arc(b.x,b.y,4,0,Math.PI*2);ctx.fill();});
+  ctx.shadowBlur=0;
+  
+  // Enemies
+  enemies.forEach(e=>{
+    ctx.fillStyle=e.col; ctx.globalAlpha=0.3; ctx.beginPath();ctx.arc(e.x,e.y,e.r+8,0,Math.PI*2);ctx.fill(); ctx.globalAlpha=1;
+    ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000'; ctx.beginPath();ctx.arc(e.x-4,e.y-3,3,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(e.x+4,e.y-3,3,0,Math.PI*2);ctx.fill();
+    // Health bar
+    if(e.hp<e.maxHp){ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(e.x-e.r,e.y-e.r-8,e.r*2,4);ctx.fillStyle='#ef4444';ctx.fillRect(e.x-e.r,e.y-e.r-8,e.r*2*(e.hp/e.maxHp),4);}
+  });
+  
+  // Player
+  ctx.fillStyle='#a78bfa'; ctx.shadowColor='#a78bfa'; ctx.shadowBlur=20; ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill(); ctx.shadowBlur=0;
+  ctx.fillStyle='#fff'; ctx.beginPath();ctx.arc(player.x,player.y,player.r*0.5,0,Math.PI*2);ctx.fill();
+  
+  // Particles
+  particles.forEach(p=>{ctx.globalAlpha=p.life/20; ctx.fillStyle=p.col; ctx.beginPath();ctx.arc(p.x,p.y,3,0,Math.PI*2);ctx.fill();});
+  ctx.globalAlpha=1;
+  
+  ctx.restore();
+}
+
+function updateUI(){
+  document.getElementById('hp-bar').style.width = (player.hp/player.maxHp*100)+'%';
+  document.getElementById('level-text').textContent = `Lv.${level}`;
+  document.getElementById('wave-text').textContent = wave;
+  document.getElementById('kills-text').textContent = kills;
+  document.getElementById('xp-text').textContent = `${xp}/${nextXp}`;
+  document.getElementById('xp-bar').style.width = (xp/nextXp*100)+'%';
+}
+
+function levelUp(){
+  level++; xp-=nextXp; nextXp = Math.floor(nextXp*1.4);
+  gameState='levelup';
+  beep(1200,0.15,'sawtooth',0.05);
+  
+  const choices = [...UPGRADES].sort(()=>0.5-Math.random()).slice(0,3);
+  const container = document.getElementById('upgradeChoices');
+  container.innerHTML='';
+  choices.forEach(up=>{
+    const div=document.createElement('div');
+    div.className='bg-violet-950/70 border border-violet-500/50 rounded-2xl p-6 cursor-pointer hover:scale-105 hover:bg-violet-900/70 transition backdrop-blur';
+    div.innerHTML=`<h3 class="text-xl font-bold text-violet-300 mb-2">${up.name}</h3><p class="text-gray-300">${up.desc}</p>`;
+    div.onclick=()=>{up.apply(player); document.getElementById('levelUpScreen').classList.add('hidden'); gameState='playing'; beep(900,0.1,'triangle',0.04);};
+    container.appendChild(div);
+  });
+  document.getElementById('levelUpScreen').classList.remove('hidden');
+  document.getElementById('levelUpScreen').classList.add('flex');
+}
+
+function gameOver(victory){
+  gameState='gameover';
+  const title = document.getElementById('gameover-title');
+  title.textContent = victory? L.victory : L.defeat;
+  title.className = `text-6xl font-black mb-4 ${victory?'text-emerald-400':'text-red-500'} glow`;
+  document.getElementById('final-wave').textContent = wave;
+  document.getElementById('final-kills').textContent = kills;
+  document.getElementById('final-time').textContent = Math.floor(gameTime/1000)+'s';
+  document.getElementById('gameOverScreen').classList.remove('hidden');
+  document.getElementById('gameOverScreen').classList.add('flex');
+  
+  score = kills*10 + wave*100 + Math.floor(gameTime/1000);
+  if(score>best){best=score; localStorage.setItem('neon_best',best); document.getElementById('best-text').textContent=best;}
+  beep(victory?1500:200,0.5,victory?'sine':'sawtooth',0.05);
+}
+
+// Game loop
+let last=0;
+function loop(t){const dt=Math.min(33,t-last);last=t; update(dt); render(); requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+
+// Input
+window.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
+window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+
+// Buttons
+document.getElementById('startBtn').onclick=()=>{document.getElementById('startScreen').classList.add('hidden'); initGame(); gameState='playing'; if(AC.state==='suspended')AC.resume(); beep(500,0.1);};
+document.getElementById('restartBtn').onclick=()=>{document.getElementById('gameOverScreen').classList.add('hidden'); document.getElementById('gameOverScreen').classList.remove('flex'); initGame(); gameState='playing';};
+
+initGame();
+</script>
+</body>
+</html>

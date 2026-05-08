@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dungeon Shooter 3D</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+body { 
+  background: #111; 
+  color: #fff; 
+  font-family: 'Courier New', monospace; 
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+#gameContainer { 
+  position: relative; 
+  width: 800px; 
+  height: 600px; 
+  box-shadow: 0 0 20px rgba(0,255,0,0.3);
+}
+canvas { 
+  display: block; 
+  background: #000;
+  cursor: none;
+}
+#ui {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 20px;
+}
+#hud {
+  display: flex;
+  justify-content: space-between;
+  font-size: 18px;
+  font-weight: bold;
+  text-shadow: 2px 2px 0 #000;
+}
+#weaponInfo {
+  position: absolute;
+  bottom: 80px;
+  right: 20px;
+  text-align: right;
+}
+#centerMsg {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-size: 24px;
+  background: rgba(0,0,0,0.8);
+  padding: 30px;
+  border: 2px solid #0f0;
+  pointer-events: auto;
+  cursor: default;
+}
+button {
+  background: #0f0;
+  color: #000;
+  border: none;
+  padding: 15px 30px;
+  font-size: 20px;
+  font-family: inherit;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 15px;
+  pointer-events: auto;
+}
+button:hover { background: #0c0; }
+.hidden { display: none !important; }
+.health-bar {
+  width: 200px;
+  height: 20px;
+  background: #300;
+  border: 2px solid #fff;
+  position: relative;
+}
+.health-fill {
+  height: 100%;
+  background: #f00;
+  transition: width 0.2s;
+}
+#damageOverlay {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: radial-gradient(transparent 30%, rgba(255,0,0,0.5));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <div id="damageOverlay"></div>
+  
+  <div id="ui">
+    <div id="hud" class="hidden">
+      <div>
+        <div id="hpText">HP: 100</div>
+        <div class="health-bar"><div id="hpBar" class="health-fill" style="width:100%"></div></div>
+      </div>
+      <div style="text-align:center">
+        <div id="waveText">Wave: 1</div>
+        <div id="scoreText">Score: 0</div>
+        <div id="highScoreText">Best: 0</div>
+      </div>
+      <div id="weaponInfo">
+        <div id="ammoText">Ammo: ∞</div>
+        <div id="weaponName">Pistol</div>
+      </div>
+    </div>
+    
+    <div id="centerMsg">
+      <h1 id="mainTitle">Dungeon Shooter 3D</h1>
+      <p id="subTitle">WASD: Move | Mouse: View | Click: Attack</p>
+      <button id="startBtn">Start Game</button>
+    </div>
+    
+    <div id="gameOverScreen" class="hidden" style="position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); display:flex; flex-direction:column; justify-content:center; align-items:center; pointer-events:auto">
+      <h1 id="goTitle">Game Over</h1>
+      <p id="finalScore" style="font-size:20px; margin:20px;">Score: 0</p>
+      <button id="restartBtn">Restart</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* LANG_DATA - 모든 문자열 집중 관리 */
+const LANG_DATA = {
+  title: "Dungeon Shooter 3D",
+  subtitle: "WASD: Move | Mouse: View | Click: Attack",
+  start: "Start Game",
+  gameOver: "Game Over",
+  restart: "Restart",
+  hp: "Health",
+  wave: "Wave",
+  score: "Score",
+  highScore: "Best",
+  ammo: "Ammo",
+  pistol: "Pistol",
+  shotgun: "Shotgun",
+  infinite: "∞",
+  waveComplete: "Wave Cleared!",
+  getReady: "Get Ready..."
+};
+
+/* 게임 상수 */
+const CANVAS_WIDTH = 800;
+const CANVAS_HEIGHT = 600;
+const FOV = Math.PI / 3;
+const MOVE_SPEED = 0.04;
+const ROT_SPEED = 0.002;
+const MAX_ENEMIES = 20;
+
+/* 전역 변수 */
+let canvas, ctx;
+let gameRunning = false;
+let pointerLocked = false;
+let audioCtx;
+
+/* 게임 상태 */
+let gameState = {
+  player: null,
+  enemies: [],
+  bullets: [],
+  particles: [],
+  items: [],
+  map: [],
+  score: 0,
+  wave: 1,
+  highScore: 0,
+  keys: {},
+  mouseX: 0,
+  lastTime: 0
+};
+
+/* 유틸리티 */
+function dist(x1, y1, x2, y2) { return Math.sqrt((x2-x1)**2 + (y2-y1)**2); }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+/* 사운드 생성 (Web Audio API) */
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playSound(type) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  
+  const now = audioCtx.currentTime;
+  if (type === 'shoot') {
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+    osc.start(now);
+    osc.stop(now + 0.1);
+  } else if (type === 'hit') {
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(200, now);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+    osc.start(now);
+    osc.stop(now + 0.1);
+  } else if (type === 'enemyHit') {
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(150, now);
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+    osc.start(now);
+    osc.stop(now + 0.2);
+  } else if (type === 'pickup') {
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.setValueAtTime(800, now + 0.1);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.linearRampToValueAtTime(0, now + 0.2);
+    osc.start(now);
+    osc.stop(now + 0.2);
+  }
+}
+
+/* 맵 생성 (프로시저럴) */
+function generateMap() {
+  const size = 16;
+  const map = [];
+  for (let y = 0; y < size; y++) {
+    map[y] = [];
+    for (let x = 0; x < size; x++) {
+      if (x === 0 || x === size-1 || y === 0 || y === size-1) map[y][x] = 1;
+      else if (Math.random() < 0.2 && !(x === 1 && y === 1)) map[y][x] = 1;
+      else map[y][x] = 0;
+    }
+  }
+  // 플레이어 Start 위치 확보
+  map[1][1] = 0;
+  map[1][2] = 0;
+  map[2][1] = 0;
+  return map;
+}
+
+/* 클래스 정의 */
+class Player {
+  constructor() {
+    this.x = 1.5;
+    this.y = 1.5;
+    this.angle = 0;
+    this.hp = 100;
+    this.maxHp = 100;
+    this.weapon = 'pistol';
+    this.ammo = 10;
+    this.shootCooldown = 0;
+  }
+  
+  update(dt) {
+    // Move
+    let moveX = 0, moveY = 0;
+    if (gameState.keys['w']) { moveX += Math.cos(this.angle) * MOVE_SPEED; moveY += Math.sin(this.angle) * MOVE_SPEED; }
+    if (gameState.keys['s']) { moveX -= Math.cos(this.angle) * MOVE_SPEED; moveY -= Math.sin(this.angle) * MOVE_SPEED; }
+    if (gameState.keys['a']) { moveX += Math.cos(this.angle - Math.PI/2) * MOVE_SPEED; moveY += Math.sin(this.angle - Math.PI/2) * MOVE_SPEED; }
+    if (gameState.keys['d']) { moveX += Math.cos(this.angle + Math.PI/2) * MOVE_SPEED; moveY += Math.sin(this.angle + Math.PI/2) * MOVE_SPEED; }
+    
+    // 충돌 검사
+    if (gameState.map[Math.floor(this.y)][Math.floor(this.x + moveX * 5)] === 0) this.x += moveX;
+    if (gameState.map[Math.floor(this.y + moveY * 5)][Math.floor(this.x)] === 0) this.y += moveY;
+    
+    // 회전 (Pointer Lock)
+    if (pointerLocked) {
+      this.angle += gameState.mouseX * ROT_SPEED;
+      gameState.mouseX = 0;
+    }
+    
+    if (this.shootCooldown > 0) this.shootCooldown -= dt;
+  }
+  
+  shoot() {
+    if (this.shootCooldown > 0) return;
+    if (this.weapon === 'shotgun' && this.ammo <= 0) return;
+    
+    playSound('shoot');
+    this.shootCooldown = this.weapon === 'pistol' ? 0.3 : 0.6;
+    
+    if (this.weapon === 'pistol') {
+      gameState.bullets.push(new Bullet(this.x, this.y, this.angle, 1.5, 20));
+    } else if (this.weapon === 'shotgun') {
+      this.ammo--;
+      for (let i = -2; i <= 2; i++) {
+        gameState.bullets.push(new Bullet(this.x, this.y, this.angle + i * 0.1, 1.2, 15));
+      }
+    }
+    updateHUD();
+  }
+  
+  takeDamage(dmg) {
+    this.hp -= dmg;
+    document.getElementById('damageOverlay').style.opacity = 0.8;
+    setTimeout(() => document.getElementById('damageOverlay').style.opacity = 0, 200);
+    if (this.hp <= 0) endGame();
+    updateHUD();
+  }
+}
+
+class Bullet {
+  constructor(x, y, angle, speed, damage) {
+    this.x = x;
+    this.y = y;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+    this.damage = damage;
+    this.life = 3;
+  }
+  
+  update(dt) {
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.life -= dt;
+    
+    // 벽 충돌
+    if (gameState.map[Math.floor(this.y)][Math.floor(this.x)] > 0) return false;
+    
+    // 적 충돌
+    for (let e of gameState.enemies) {
+      if (dist(this.x, this.y, e.x, e.y) < e.radius) {
+        e.takeDamage(this.damage);
+        createParticles(this.x, this.y, '#f00', 3);
+        return false;
+      }
+    }
+    return this.life > 0;
+  }
+}
+
+class Enemy {
+  constructor(type, x, y) {
+    this.type = type; // 0: 일반, 1: 빠름, 2: 탱커
+    this.x = x;
+    this.y = y;
+    this.radius = 0.3;
+    this.angle = 0;
+    
+    if (type === 0) { // 일반
+      this.hp = 30; this.speed = 1.0; this.damage = 10; this.color = '#f00'; this.score = 100;
+    } else if (type === 1) { // 빠름
+      this.hp = 20; this.speed = 2.0; this.damage = 5; this.color = '#ff0'; this.score = 150;
+    } else { // 탱커
+      this.hp = 80; this.speed = 0.6; this.damage = 20; this.color = '#f0f'; this.score = 300;
+    }
+  }
+  
+  update(dt) {
+    const p = gameState.player;
+    const d = dist(this.x, this.y, p.x, p.y);
+    
+    if (d < 10) { // 추적 거리
+      const angle = Math.atan2(p.y - this.y, p.x - this.x);
+      const moveX = Math.cos(angle) * this.speed * dt;
+      const moveY = Math.sin(angle) * this.speed * dt;
+      
+      // 벽 충돌 및 다른 적과 분리
+      let nx = this.x + moveX;
+      let ny = this.y + moveY;
+      
+      if (gameState.map[Math.floor(ny)][Math.floor(nx)] === 0) {
+        // 다른 적과 겹침 방지
+        let overlap = false;
+        for (let other of gameState.enemies) {
+          if (other !== this && dist(nx, ny, other.x, other.y) < 0.6) {
+            overlap = true;
+            break;
+          }
+        }
+        if (!overlap) { this.x = nx; this.y = ny; }
+      }
+      
+      this.angle = angle;
+      
+      // 공격
+      if (d < 0.8 && Math.random() < 0.05) {
+        p.takeDamage(this.damage * dt * 2);
+      }
+    }
+  }
+  
+  takeDamage(dmg) {
+    this.hp -= dmg;
+    playSound('enemyHit');
+    if (this.hp <= 0) {
+      gameState.score += this.score;
+      createParticles(this.x, this.y, this.color, 8);
+      // 아이템 드롭
+      if (Math.random() < 0.1) spawnItem(this.x, this.y);
+      return false; // 제거
+    }
+    return true;
+  }
+}
+
+class Item {
+  constructor(x, y, type) {
+    this.x = x;
+    this.y = y;
+    this.type = type; // 'health', 'ammo', 'weapon'
+    this.life = 10;
+  }
+  
+  update(dt) {
+    this.life -= dt;
+    const d = dist(this.x, this.y, gameState.player.x, gameState.player.y);
+    if (d < 0.5) {
+      playSound('pickup');
+      if (this.type === 'health') {
+        gameState.player.hp = Math.min(gameState.player.maxHp, gameState.player.hp + 30);
+      } else if (this.type === 'ammo') {
+        gameState.player.ammo += 5;
+      } else if (this.type === 'weapon') {
+        gameState.player.weapon = 'shotgun';
+        gameState.player.ammo += 10;
+      }
+      updateHUD();
+      return false;
+    }
+    return this.life > 0;
+  }
+}
+
+class Particle {
+  constructor(x, y, color) {
+    this.x = x;
+    this.y = y;
+    this.vx = (Math.random() - 0.5) * 2;
+    this.vy = (Math.random() - 0.5) * 2;
+    this.life = 0.5;
+    this.color = color;
+  }
+  update(dt) {
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.life -= dt;
+    return this.life > 0;
+  }
+}
+
+function createParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    gameState.particles.push(new Particle(x, y, color));
+  }
+}
+
+function spawnItem(x, y) {
+  const r = Math.random();
+  let type = 'health';
+  if (r > 0.6) type = 'ammo';
+  if (r > 0.9) type = 'weapon';
+  gameState.items.push(new Item(x, y, type));
+}
+
+/* 렌더링 */
+function render() {
+  ctx.fillStyle = '#222';
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT/2);
+  ctx.fillStyle = '#444';
+  ctx.fillRect(0, CANVAS_HEIGHT/2, CANVAS_WIDTH, CANVAS_HEIGHT/2);
+  
+  const p = gameState.player;
+  
+  // Raycasting (간소화된 버전)
+  const numRays = CANVAS_WIDTH / 2;
+  const deltaAngle = FOV / numRays;
+  const distToProj = (CANVAS_WIDTH / 2) / Math.tan(FOV / 2);
+  
+  // Z-buffer
+  const zBuffer = new Array(CANVAS_WIDTH).fill(Infinity);
+  
+  // 벽 렌더링
+  for (let i = 0; i < numRays; i++) {
+    const rayAngle = p.angle - FOV/2 + i * deltaAngle;
+    const sin = Math.sin(rayAngle);
+    const cos = Math.cos(rayAngle);
+    
+    let dist = 0;
+    let hit = 0;
+    while (!hit && dist < 20) {
+      dist += 0.05;
+      const mx = Math.floor(p.x + cos * dist);
+      const my = Math.floor(p.y + sin * dist);
+      if (gameState.map[my][mx] > 0) hit = 1;
+    }
+    
+    // fisheye 보정
+    const correctedDist = dist * Math.cos(rayAngle - p.angle);
+    zBuffer[Math.floor(i * 2)] = correctedDist;
+    
+    const wallHeight = (1 / correctedDist) * distToProj;
+    const brightness = Math.max(0.2, 1 - dist/15);
+    const gray = Math.floor(brightness * 255);
+    
+    const x = i * 2;
+    const y = (CANVAS_HEIGHT - wallHeight) / 2;
+    
+    ctx.fillStyle = `rgb(${gray}, ${gray * 0.8}, ${gray * 0.6})`;
+    ctx.fillRect(x, y, 2, wallHeight);
+  }
+  
+  // 스프라이트(적, 아이템) 정렬 및 렌더링
+  const sprites = [
+    ...gameState.enemies.map(e => ({...e, type: 'enemy'})),
+    ...gameState.items.map(e => ({...e, type: 'item'}))
+  ];
+  
+  sprites.sort((a, b) => {
+    const da = dist(p.x, p.y, a.x, a.y);
+    const db = dist(p.x, p.y, b.x, b.y);
+    return db - da;
+  });
+  
+  sprites.forEach(s => {
+    const dx = s.x - p.x;
+    const dy = s.y - p.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    
+    if (dist > 0.5) {
+      const spriteAngle = Math.atan2(dy, dx) - p.angle;
+      const screenX = Math.tan(spriteAngle) * distToProj + CANVAS_WIDTH/2;
+      const size = (1/dist) * distToProj;
+      
+      // z-buffer 체크 (간략화)
+      const bufferX = Math.floor(screenX);
+      if (bufferX >= 0 && bufferX < CANVAS_WIDTH && dist < zBuffer[bufferX] * 1.2) {
+        if (s.type === 'enemy') {
+          ctx.fillStyle = s.color;
+          ctx.fillRect(screenX - size/2, CANVAS_HEIGHT/2 - size/2, size, size);
+          // Health바
+          ctx.fillStyle = '#000';
+          ctx.fillRect(screenX - size/2, CANVAS_HEIGHT/2 - size/2 - 10, size, 4);
+          ctx.fillStyle = '#0f0';
+          ctx.fillRect(screenX - size/2, CANVAS_HEIGHT/2 - size/2 - 10, size * (s.hp / (s.type === 0 ? 30 : s.type === 1 ? 20 : 80)), 4);
+        } else {
+          ctx.fillStyle = s.type === 'health' ? '#0f0' : s.type === 'ammo' ? '#ff0' : '#0ff';
+          ctx.beginPath();
+          ctx.arc(screenX, CANVAS_HEIGHT/2, size/3, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+    }
+  });
+  
+  // 파티클
+  gameState.particles.forEach(pt => {
+    const dx = pt.x - p.x;
+    const dy = pt.y - p.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < 0.1) return;
+    const angle = Math.atan2(dy, dx) - p.angle;
+    const screenX = Math.tan(angle) * distToProj + CANVAS_WIDTH/2;
+    const size = (0.1/dist) * distToProj;
+    ctx.fillStyle = pt.color;
+    ctx.fillRect(screenX, CANVAS_HEIGHT/2, size, size);
+  });
+  
+  // Weapon 그리기
+  ctx.fillStyle = '#888';
+  const recoil = Math.max(0, gameState.player.shootCooldown * 10);
+  if (gameState.player.weapon === 'pistol') {
+    ctx.fillRect(CANVAS_WIDTH/2 - 20 + recoil, CANVAS_HEIGHT - 100, 40, 60);
+  } else {
+    ctx.fillRect(CANVAS_WIDTH/2 - 30 + recoil, CANVAS_HEIGHT - 120, 60, 80);
+  }
+}
+
+/* 게임 로직 */
+function spawnWave() {
+  const count = 3 + gameState.wave * 2;
+  const types = [0, 0, 1];
+  if (gameState.wave > 2) types.push(2);
+  
+  for (let i = 0; i < count; i++) {
+    let x, y;
+    do {
+      x = Math.floor(Math.random() * 14) + 1;
+      y = Math.floor(Math.random() * 14) + 1;
+    } while (gameState.map[y][x] > 0 || dist(x, y, gameState.player.x, gameState.player.y) < 5);
+    
+    const type = types[Math.floor(Math.random() * types.length)];
+    gameState.enemies.push(new Enemy(type, x + 0.5, y + 0.5));
+  }
+  
+  // 메시지
+  const msg = document.getElementById('centerMsg');
+  msg.innerHTML = `<h1>${LANG_DATA.wave} ${gameState.wave}</h1>`;
+  msg.classList.remove('hidden');
+  setTimeout(() => msg.classList.add('hidden'), 2000);
+}
+
+function update(dt) {
+  if (!gameRunning) return;
+  
+  gameState.player.update(dt);
+  
+  gameState.bullets = gameState.bullets.filter(b => b.update(dt));
+  gameState.enemies = gameState.enemies.filter(e => {
+    const alive = e.update(dt);
+    if (!alive) {
+      // 죽음 처리
+    }
+    return alive;
+  });
+  gameState.items = gameState.items.filter(i => i.update(dt));
+  gameState.particles = gameState.particles.filter(p => p.update(dt));
+  
+  // Wave 체크
+  if (gameState.enemies.length === 0) {
+    gameState.wave++;
+    spawnWave();
+    updateHUD();
+  }
+}
+
+function updateHUD() {
+  const p = gameState.player;
+  document.getElementById('hpText').textContent = `${LANG_DATA.hp}: ${Math.floor(p.hp)}`;
+  document.getElementById('hpBar').style.width = `${(p.hp/p.maxHp)*100}%`;
+  document.getElementById('scoreText').textContent = `${LANG_DATA.score}: ${gameState.score}`;
+  document.getElementById('waveText').textContent = `${LANG_DATA.wave}: ${gameState.wave}`;
+  document.getElementById('highScoreText').textContent = `${LANG_DATA.highScore}: ${gameState.highScore}`;
+  document.getElementById('ammoText').textContent = `${LANG_DATA.ammo}: ${p.weapon === 'pistol' ? LANG_DATA.infinite : p.ammo}`;
+  document.getElementById('weaponName').textContent = p.weapon === 'pistol' ? LANG_DATA.pistol : LANG_DATA.shotgun;
+}
+
+function gameLoop(timestamp) {
+  const dt = Math.min((timestamp - gameState.lastTime) / 1000, 0.1);
+  gameState.lastTime = timestamp;
+  
+  update(dt);
+  render();
+  
+  if (gameRunning) requestAnimationFrame(gameLoop);
+}
+
+function startGame() {
+  // 상태 초기화
+  gameState.map = generateMap();
+  gameState.player = new Player();
+  gameState.enemies = [];
+  gameState.bullets = [];
+  gameState.particles = [];
+  gameState.items = [];
+  gameState.score = 0;
+  gameState.wave = 1;
+  gameState.keys = {};
+  gameState.lastTime = performance.now();
+  
+  // LocalStorage에서 BestScore 로드
+  const saved = localStorage.getItem('dungeonShooterHighScore');
+  if (saved) gameState.highScore = parseInt(saved);
+  
+  gameRunning = true;
+  document.getElementById('centerMsg').classList.add('hidden');
+  document.getElementById('gameOverScreen').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('ui').style.pointerEvents = 'none';
+  
+  // Pointer Lock 요청
+  canvas.requestPointerLock();
+  
+  initAudio();
+  spawnWave();
+  updateHUD();
+  requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+  gameRunning = false;
+  if (gameState.score > gameState.highScore) {
+    gameState.highScore = gameState.score;
+    localStorage.setItem('dungeonShooterHighScore', gameState.highScore);
+  }
+  
+  document.getElementById('goTitle').textContent = LANG_DATA.gameOver;
+  document.getElementById('finalScore').textContent = `${LANG_DATA.score}: ${gameState.score}`;
+  document.getElementById('restartBtn').textContent = LANG_DATA.restart;
+  document.getElementById('gameOverScreen').classList.remove('hidden');
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('ui').style.pointerEvents = 'auto';
+  
+  document.exitPointerLock();
+}
+
+/* 이벤트 핸들러 */
+window.onload = () => {
+  canvas = document.getElementById('gameCanvas');
+  ctx = canvas.getContext('2d');
+  
+  // UI 텍스트 설정
+  document.getElementById('mainTitle').textContent = LANG_DATA.title;
+  document.getElementById('subTitle').textContent = LANG_DATA.subtitle;
+  document.getElementById('startBtn').textContent = LANG_DATA.start;
+  
+  // 버튼 이벤트
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('restartBtn').addEventListener('click', () => {
+    document.getElementById('gameOverScreen').classList.add('hidden');
+    startGame();
+  });
+  
+  // 키보드
+  window.addEventListener('keydown', e => {
+    gameState.keys[e.key.toLowerCase()] = true;
+    if (e.key === '1') gameState.player.weapon = 'pistol';
+    if (e.key === '2' && gameState.player.ammo > 0) gameState.player.weapon = 'shotgun';
+  });
+  window.addEventListener('keyup', e => gameState.keys[e.key.toLowerCase()] = false);
+  
+  // Mouse
+  canvas.addEventListener('mousedown', () => {
+    if (gameRunning && pointerLocked) gameState.player.shoot();
+  });
+  
+  document.addEventListener('pointerlockchange', () => {
+    pointerLocked = document.pointerLockElement === canvas;
+  });
+  
+  document.addEventListener('mousemove', e => {
+    if (pointerLocked) gameState.mouseX = e.movementX;
+  });
+  
+  // Restart 키
+  window.addEventListener('keydown', e => {
+    if (e.key === 'r' && !gameRunning) startGame();
+  });
+};
+</script>
+</body>
+</html>

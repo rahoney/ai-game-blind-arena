@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💖 Cute Card Battle 💖</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&amp;display=swap');
+        
+        :root {
+            --pink: #ff9ece;
+            --blue: #9ee0ff;
+            --green: #9effc4;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Comic Neue', cursive;
+            background: linear-gradient(135deg, #fff0f5 0%, #e0f8ff 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 30% 20%, #ff9ece22 0%, transparent 50%),
+                        radial-gradient(circle at 70% 80%, #9ee0ff22 0%, transparent 50%);
+            pointer-events: none;
+            animation: sparkle 8s infinite;
+        }
+        
+        @keyframes sparkle {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        
+        #game-container {
+            width: 920px;
+            max-width: 95vw;
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgb(255 156 206 / 0.3),
+                        0 0 0 12px #fff0f5;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        header {
+            background: linear-gradient(to right, #ff9ece, #9ee0ff);
+            color: white;
+            padding: 18px 30px;
+            text-align: center;
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            box-shadow: 0 4px 15px rgba(255, 156, 206, 0.3);
+        }
+        
+        .battle-area {
+            padding: 20px 30px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .enemy-panel {
+            background: #fff9f0;
+            border-radius: 24px;
+            padding: 18px;
+            box-shadow: 0 10px 20px -5px #ffccaa;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .enemy-emoji {
+            font-size: 4.5rem;
+            filter: drop-shadow(0 10px 10px #ff9e9e);
+            animation: float 3s infinite ease-in-out;
+        }
+        
+        .enemy-info {
+            flex: 1;
+        }
+        
+        .enemy-name {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #f66;
+            margin-bottom: 6px;
+        }
+        
+        .hp-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .hp-bar {
+            flex: 1;
+            height: 24px;
+            background: #ffe0e0;
+            border-radius: 9999px;
+            overflow: hidden;
+            border: 3px solid #fff;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .hp-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6666, #ffaa66);
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .hp-text {
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: #f66;
+            min-width: 70px;
+            text-align: right;
+        }
+        
+        .status-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 30px;
+            margin: 10px 0;
+        }
+        
+        .player-status {
+            background: #f0f8ff;
+            border-radius: 9999px;
+            padding: 12px 28px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            box-shadow: 0 8px 16px -6px #9ee0ff;
+        }
+        
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+        
+        .energy-dots {
+            display: flex;
+            gap: 6px;
+        }
+        
+        .energy-dot {
+            width: 28px;
+            height: 28px;
+            background: #ffe66d;
+            border-radius: 50%;
+            box-shadow: 0 4px 8px #ffcc33;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            transition: all 0.2s;
+        }
+        
+        .energy-dot.empty {
+            background: #eee;
+            box-shadow: none;
+            opacity: 0.4;
+        }
+        
+        .block-badge {
+            background: #9ee0ff;
+            color: #0066aa;
+            padding: 4px 18px;
+            border-radius: 9999px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 4px 10px #88ccff;
+        }
+        
+        .hand-area {
+            padding: 10px 30px 30px;
+            background: #fff0f5;
+            border-top: 6px solid #ff9ece;
+        }
+        
+        .hand {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .card {
+            width: 118px;
+            height: 168px;
+            background: white;
+            border-radius: 18px;
+            box-shadow: 8px 12px 20px -6px rgba(0, 0, 0, 0.2),
+                        0 0 0 6px #fff;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            border: 5px solid;
+            user-select: none;
+        }
+        
+        .card:hover {
+            transform: translateY(-18px) scale(1.08);
+            box-shadow: 12px 25px 30px -8px rgba(255, 156, 206, 0.4);
+        }
+        
+        .card.attack { border-color: #ff8888; }
+        .card.defend { border-color: #88aaff; }
+        .card.heal { border-color: #88ffaa; }
+        
+        .card-cost {
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            width: 38px;
+            height: 38px;
+            background: #fff;
+            border-radius: 50%;
+            border: 4px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            box-shadow: 4px 4px 10px rgba(0,0,0,0.2);
+        }
+        
+        .card-emoji {
+            font-size: 3.2rem;
+            margin-top: 8px;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
+        }
+        
+        .card-name {
+            font-size: 1.15rem;
+            font-weight: 700;
+            text-align: center;
+            line-height: 1.1;
+            color: #333;
+        }
+        
+        .card-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #333;
+        }
+        
+        .card.playing {
+            animation: cardPlayAnim 420ms cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+        }
+        
+        @keyframes cardPlayAnim {
+            0% { transform: scale(1) rotate(0deg); }
+            40% { transform: scale(1.15) rotate(8deg); }
+            100% { transform: translateY(-220px) rotate(25deg) scale(0.6); opacity: 0; }
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+        }
+        
+        button {
+            font-family: 'Comic Neue', cursive;
+            font-size: 1.4rem;
+            font-weight: 700;
+            padding: 14px 42px;
+            border-radius: 9999px;
+            border: none;
+            cursor: pointer;
+            box-shadow: 6px 10px 15px -4px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+        }
+        
+        #end-turn-btn {
+            background: linear-gradient(#ff9ece, #ff6ba8);
+            color: white;
+        }
+        
+        #end-turn-btn:hover {
+            transform: scale(1.08);
+            box-shadow: 8px 14px 20px -4px #ff9ece;
+        }
+        
+        #end-turn-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 240, 245, 0.95);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            z-index: 100;
+            border-radius: 32px;
+        }
+        
+        .overlay.show {
+            display: flex;
+        }
+        
+        .result-emoji {
+            font-size: 7rem;
+            animation: winPop 0.6s ease;
+        }
+        
+        .log {
+            max-height: 80px;
+            overflow-y: auto;
+            font-size: 1.05rem;
+            padding: 0 30px;
+            color: #555;
+            line-height: 1.4;
+        }
+        
+        .log p {
+            margin-bottom: 4px;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+        
+        @keyframes winPop {
+            0% { transform: scale(0.2); }
+            70% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+        
+        .shake {
+            animation: enemyShake 0.5s linear;
+        }
+        
+        @keyframes enemyShake {
+            0% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-6px); }
+            80% { transform: translateX(6px); }
+            100% { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- 헤더 -->
+        <header>
+            💖 Cute Card Battle 💖
+            <span style="font-size:1.6rem;">🐱 vs 👾</span>
+        </header>
+        
+        <div class="battle-area">
+            
+            <!-- 적 패널 -->
+            <div class="enemy-panel">
+                <div class="enemy-emoji" id="enemy-emoji">👾</div>
+                <div class="enemy-info">
+                    <div class="enemy-name">Little Slime 👾</div>
+                    <div class="hp-container">
+                        <div class="hp-bar">
+                            <div class="hp-fill" id="enemy-hp-fill" style="width:100%"></div>
+                        </div>
+                        <div class="hp-text" id="enemy-hp-text">40 / 40</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 로그 -->
+            <div class="log" id="log"></div>
+            
+            <!-- 플레이어 상태 -->
+            <div class="status-area">
+                <div class="player-status">
+                    <!-- 에너지 -->
+                    <div class="stat">
+                        ⚡ <span id="energy-label">Energy</span>
+                        <div class="energy-dots" id="energy-dots"></div>
+                    </div>
+                    
+                    <!-- 방어 -->
+                    <div class="stat block-badge" id="block-container">
+                        🛡️ <span id="block-value">0</span>
+                    </div>
+                    
+                    <!-- 플레이어 체력 -->
+                    <div class="stat" style="color:#ff6699;">
+                        ❤️ <span id="player-hp-text">40 / 40</span>
+                    </div>
+                </div>
+                
+                <!-- 플레이어 이모지 -->
+                <div style="font-size:3.2rem; filter:drop-shadow(0 8px 12px #ff9ece);">🦸‍♀️</div>
+            </div>
+        </div>
+        
+        <!-- 손패 -->
+        <div class="hand-area">
+            <div class="hand" id="hand"></div>
+            
+            <!-- 컨트롤 -->
+            <div class="controls">
+                <button id="end-turn-btn">✨ End Turn ✨</button>
+                <button onclick="restartGame()" style="background:#ddd;color:#666;">🔄 Restart</button>
+            </div>
+        </div>
+        
+        <!-- 게임 오버 오버레이 -->
+        <div class="overlay" id="overlay">
+            <div id="result-emoji" class="result-emoji"></div>
+            <h1 id="result-title" style="font-size:3rem; color:#ff6699;"></h1>
+            <p id="result-subtitle" style="font-size:1.4rem; margin-bottom:20px; color:#666;"></p>
+            <button onclick="restartGame()" style="background:#9ee0ff;color:#0066aa;padding:18px 60px;font-size:1.6rem;">
+                Play Again 💪
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 게임 데이터 ====================
+        const CARD_POOL = [
+            { name: "Slash", cost: 1, type: "attack", value: 6, emoji: "⚔️" },
+            { name: "Smash", cost: 2, type: "attack", value: 10, emoji: "👊" },
+            { name: "Flare", cost: 3, type: "attack", value: 14, emoji: "🔥" },
+            { name: "Shield", cost: 1, type: "defend", value: 7, emoji: "🛡️" },
+            { name: "Barrier", cost: 2, type: "defend", value: 12, emoji: "🛡️" },
+            { name: "Heal", cost: 2, type: "heal", value: 8, emoji: "💖" },
+            { name: "Recover", cost: 1, type: "heal", value: 5, emoji: "💖" },
+            { name: "Blast", cost: 3, type: "attack", value: 18, emoji: "💥" }
+        ]
+        
+        // ==================== 게임 상태 ====================
+        let playerHP = 40
+        let playerMaxHP = 40
+        let enemyHP = 40
+        let enemyMaxHP = 40
+        let energy = 3
+        let maxEnergy = 3
+        let block = 0
+        let hand = []
+        let isPlayerTurn = true
+        let gameOver = false
+        
+        // DOM 요소
+        let handEl, enemyHpFill, enemyHpText, playerHpText, energyDots, blockContainer, blockValue, logEl, endBtn, overlay, resultEmoji, resultTitle, resultSubtitle, enemyEmoji
+        
+        // ==================== 핵심 로직 ====================
+        function getRandomCard() {
+            // 무작위 카드 복제 (중복 허용)
+            const card = CARD_POOL[Math.floor(Math.random() * CARD_POOL.length)]
+            return { ...card }
+        }
+        
+        function drawHand() {
+            // 매 턴 시작 시 3장 드로우
+            hand = []
+            for (let i = 0; i < 3; i++) {
+                hand.push(getRandomCard())
+            }
+        }
+        
+        function renderHand() {
+            handEl.innerHTML = ''
+            
+            hand.forEach((card, index) => {
+                const cardDiv = document.createElement('div')
+                cardDiv.className = `card ${card.type}`
+                cardDiv.innerHTML = `
+                    <div class="card-cost">${card.cost}</div>
+                    <div class="card-emoji">${card.emoji}</div>
+                    <div class="card-name">${card.name}</div>
+                    <div class="card-value">
+                        ${card.type === 'attack' ? '🔥' + card.value : 
+                          card.type === 'defend' ? '🛡️' + card.value : 
+                          '💖' + card.value}
+                    </div>
+                `
+                
+                // 클릭 이벤트 (에너지 충분 + 플레이어 턴일 때만)
+                if (isPlayerTurn && !gameOver && energy >= card.cost) {
+                    cardDiv.style.opacity = '1'
+                    cardDiv.onclick = () => playCard(index, cardDiv)
+                } else {
+                    cardDiv.style.opacity = '0.45'
+                    cardDiv.style.cursor = 'not-allowed'
+                }
+                
+                handEl.appendChild(cardDiv)
+            })
+            
+            // 손패가 비었으면 빈 슬롯 표시
+            if (hand.length === 0) {
+                const empty = document.createElement('div')
+                empty.style = 'width:118px;height:168px;border:4px dashed #ccc;border-radius:18px;display:flex;align-items:center;justify-content:center;color:#aaa;font-size:1.1rem'
+                empty.textContent = 'Hand Empty ✨'
+                handEl.appendChild(empty)
+            }
+        }
+        
+        function playCard(index, cardElement) {
+            if (!isPlayerTurn || gameOver || energy < hand[index].cost) return
+            
+            // 카드 사용 애니메이션
+            cardElement.classList.add('playing')
+            
+            setTimeout(() => {
+                const card = hand[index]
+                
+                // 에너지 차감
+                energy -= card.cost
+                
+                // 카드 효과 적용
+                if (card.type === 'attack') {
+                    enemyHP = Math.max(0, enemyHP - card.value)
+                    addLog(`💥 ${card.name} deals ${card.value} damage!`, '#ff6666')
+                } 
+                else if (card.type === 'defend') {
+                    block += card.value
+                    addLog(`🛡️ ${card.name} grants +${card.value} block`, '#88aaff')
+                } 
+                else if (card.type === 'heal') {
+                    const healAmount = Math.min(card.value, playerMaxHP - playerHP)
+                    playerHP += healAmount
+                    addLog(`💖 ${card.name} restores +${healAmount} HP`, '#88ffaa')
+                }
+                
+                // 손패에서 제거
+                hand.splice(index, 1)
+                
+                // UI 실시간 업데이트
+                updateUI()
+                renderHand()
+                checkGameOver()
+            }, 420)
+        }
+        
+        function startPlayerTurn() {
+            // 핵심: 매 턴 시작 시 에너지 3 + 방어 초기화 + 카드 3장
+            energy = maxEnergy
+            block = 0
+            isPlayerTurn = true
+            drawHand()
+            renderHand()
+            updateUI()
+            addLog('✨ Your turn!', '#9ee0ff')
+        }
+        
+        function endTurn() {
+            if (!isPlayerTurn || gameOver) return
+            
+            isPlayerTurn = false
+            endBtn.disabled = true
+            
+            addLog('🌀 Turn ended... Slime attacks!', '#f66')
+            
+            // 적 턴 (약간의 딜레이로 긴장감)
+            setTimeout(() => {
+                // 적 공격 (7~11 랜덤)
+                const enemyDamage = 7 + Math.floor(Math.random() * 5)
+                const actualDamage = Math.max(0, enemyDamage - block)
+                
+                playerHP = Math.max(0, playerHP - actualDamage)
+                
+                // 적 공격 애니메이션
+                enemyEmoji.classList.add('shake')
+                setTimeout(() => enemyEmoji.classList.remove('shake'), 600)
+                
+                if (block > 0) {
+                    addLog(`👾 Slime attacks for ${enemyDamage}! 🛡️ ${block} blocked → ${actualDamage} damage`, '#f66')
+                } else {
+                    addLog(`👾 Slime deals ${enemyDamage} damage!`, '#f66')
+                }
+                
+                updateUI()
+                
+                // 게임 오버 체크 후 다음 턴
+                if (playerHP <= 0) {
+                    checkGameOver()
+                } else {
+                    // 다음 플레이어 턴 시작 (방어는 여기서 이미 초기화됨)
+                    startPlayerTurn()
+                    endBtn.disabled = false
+                }
+            }, 850)
+        }
+        
+        function updateUI() {
+            // 체력 바
+            const enemyPercent = (enemyHP / enemyMaxHP) * 100
+            enemyHpFill.style.width = `${enemyPercent}%`
+            enemyHpText.textContent = `${enemyHP} / ${enemyMaxHP}`
+            
+            const playerPercent = Math.max(0, (playerHP / playerMaxHP) * 100)
+            playerHpText.textContent = `${playerHP} / ${playerMaxHP}`
+            
+            // 에너지
+            energyDots.innerHTML = ''
+            for (let i = 0; i < maxEnergy; i++) {
+                const dot = document.createElement('div')
+                dot.className = `energy-dot ${i < energy ? '' : 'empty'}`
+                dot.textContent = '⚡'
+                energyDots.appendChild(dot)
+            }
+            
+            // 방어
+            blockContainer.style.display = block > 0 ? 'flex' : 'none'
+            blockValue.textContent = block
+        }
+        
+        function addLog(message, color = '#555') {
+            const p = document.createElement('p')
+            p.style.color = color
+            p.innerHTML = message
+            logEl.appendChild(p)
+            
+            // 최대 4줄 유지
+            if (logEl.children.length > 4) {
+                logEl.removeChild(logEl.children[0])
+            }
+            logEl.scrollTop = logEl.scrollHeight
+        }
+        
+        function checkGameOver() {
+            if (gameOver) return
+            
+            if (enemyHP <= 0) {
+                gameOver = true
+                isPlayerTurn = false
+                showOverlay(true)   // 승리
+            } 
+            else if (playerHP <= 0) {
+                gameOver = true
+                isPlayerTurn = false
+                showOverlay(false)  // 패배
+            }
+        }
+        
+        function showOverlay(isWin) {
+            overlay.classList.add('show')
+            if (isWin) {
+                resultEmoji.textContent = '🎉'
+                resultTitle.textContent = 'Victory! 💖'
+                resultTitle.style.color = '#9ee0ff'
+                resultSubtitle.textContent = 'You defeated the slime!'
+            } else {
+                resultEmoji.textContent = '💔'
+                resultTitle.textContent = 'Defeat...'
+                resultTitle.style.color = '#ff8888'
+                resultSubtitle.textContent = 'The slime got you...'
+            }
+        }
+        
+        function initGame() {
+            // 완전 초기화
+            playerHP = 40
+            enemyHP = 40
+            energy = 3
+            block = 0
+            hand = []
+            isPlayerTurn = true
+            gameOver = false
+            
+            logEl.innerHTML = ''
+            addLog('🎮 Game Start!', '#9ee0ff')
+            
+            overlay.classList.remove('show')
+            endBtn.disabled = false
+            
+            // 첫 턴 시작
+            startPlayerTurn()
+        }
+        
+        function restartGame() {
+            initGame()
+        }
+        
+        // ==================== 초기화 ====================
+        window.onload = function () {
+            handEl = document.getElementById('hand')
+            enemyHpFill = document.getElementById('enemy-hp-fill')
+            enemyHpText = document.getElementById('enemy-hp-text')
+            playerHpText = document.getElementById('player-hp-text')
+            energyDots = document.getElementById('energy-dots')
+            blockContainer = document.getElementById('block-container')
+            blockValue = document.getElementById('block-value')
+            logEl = document.getElementById('log')
+            endBtn = document.getElementById('end-turn-btn')
+            overlay = document.getElementById('overlay')
+            resultEmoji = document.getElementById('result-emoji')
+            resultTitle = document.getElementById('result-title')
+            resultSubtitle = document.getElementById('result-subtitle')
+            enemyEmoji = document.getElementById('enemy-emoji')
+            
+            // 턴 종료 버튼
+            endBtn.addEventListener('click', endTurn)
+            
+            // 게임 시작
+            initGame()
+            
+            console.log('%c💖 Cute card battle ready to play!', 'color:#ff9ece;font-family:Comic Neue;font-size:16px')
+        }
+    </script>
+</body>
+</html>

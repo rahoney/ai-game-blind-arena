@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Survivor: Last Stand</title>
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --ui-bg: rgba(22, 33, 62, 0.9);
+            --accent: #0f3460;
+            --highlight: #e94560;
+            --text-main: #ffffff;
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            overflow: hidden;
+            font-family: var(--font-family);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        canvas {
+            display: block;
+            background: radial-gradient(circle at center, #232342 0%, #16213e 100%);
+        }
+
+        /* UI Layer */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .hud-element {
+            position: absolute;
+            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #stats-top-left { top: 20px; left: 20px; flex-direction: column; gap: 5px; }
+        #wave-top-right { top: 20px; right: 20px; text-align: right; flex-direction: row;}
+        #xp-bar-container { 
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
+            width: 60%; height: 10px; background: #333; border-radius: 5px; overflow: hidden; 
+            border: 1px solid #555;
+        }
+        #xp-fill { height: 100%; background: #4caf50; width: 0%; transition: width 0.2s; }
+        
+        /* Screens (Start, Pause, Over, Upgrade) */
+        .screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+            z-index: 100;
+            transition: opacity 0.3s;
+        }
+
+        .hidden { opacity: 0; pointer-events: none !important; display: none !important; }
+
+        h1 { font-size: 3rem; color: var(--highlight); margin-bottom: 0.5rem; text-shadow: 0 0 10px var(--highlight); text-transform: uppercase; letter-spacing: 2px; text-align: center;}
+        h2 { font-size: 2rem; margin-bottom: 20px; color: #fff; }
+        p { font-size: 1.2rem; color: #ccc; margin-bottom: 30px; text-align: center; max-width: 600px; line-height: 1.5; }
+
+        button {
+            background: var(--highlight);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.2s;
+            box-shadow: 0 0 15px rgba(233, 69, 96, 0.4);
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(233, 69, 96, 0.6); }
+        button:active { transform: scale(0.95); }
+
+        /* Upgrade Modal Specifics */
+        #upgrade-grid {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .upgrade-card {
+            background: linear-gradient(145deg, #2a2a40, #1a1a2e);
+            border: 2px solid #444;
+            border-radius: 10px;
+            padding: 20px;
+            width: 160px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .upgrade-card:hover { transform: translateY(-5px); border-color: var(--highlight); box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .upgrade-title { font-size: 1.1rem; color: var(--highlight); margin-bottom: 10px; font-weight: bold; }
+        .upgrade-desc { font-size: 0.9rem; color: #aaa; }
+
+        /* Key hint */
+        .key-hint { color: #ffd700; font-family: monospace; background: #333; padding: 2px 6px; border-radius: 4px; }
+
+        /* Score popup animation */
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-50px); }
+        }
+        .floater {
+            position: absolute;
+            font-weight: bold;
+            color: #fff;
+            pointer-events: none;
+            animation: floatUp 0.8s ease-out forwards;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui-layer">
+        <div id="stats-top-left" class="hud-element hidden">
+            <span id="health-display">HP: 100%</span>
+            <span id="score-display">Score: 0</span>
+            <span id="highscore-display" style="font-size: 0.8em; color: #ffd700;">High: 0</span>
+        </div>
+        
+        <div id="wave-top-right" class="hud-element hidden">
+            <span>WAVE <b id="wave-num">1</b></span>
+            <span style="margin-left: 15px;">LVL <b id="level-num">1</b></span>
+        </div>
+
+        <div id="xp-bar-container" class="hidden">
+            <div id="xp-fill"></div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="screen">
+        <h1>NEON SURVIVOR</h1>
+        <p>{{T_START_DESC}}</p>
+        <button onclick="GameManager.init()">{{T_START_BTN}}</button>
+        <p style="font-size: 0.9rem; margin-top: 20px;">{{T_CONTROLS}}</p>
+    </div>
+
+    <!-- Game Over / Win Screen -->
+    <div id="end-screen" class="screen hidden">
+        <h1 id="end-title">{{T_GAME_OVER}}</h1>
+        <p id="end-message">Score: 0</p>
+        <button onclick="GameManager.restart()">{{T_RETRY_BTN}}</button>
+    </div>
+
+    <!-- Upgrade Screen -->
+    <div id="upgrade-screen" class="screen hidden">
+        <h2>{{T_LEVEL_UP}}</h2>
+        <div id="upgrade-grid"></div>
+    </div>
+</div>
+
+<script>
+/**
+ * GAME CONFIGURATION & CONSTANTS
+ */
+const CONF = {
+    PLAYER_SPEED: 4,
+    PLAYER_RADIUS: 15,
+    FRICTION: 0.85, // Momentum feel
+    COLORS: {
+        PLAYER: '#4facfe',
+        ENEMY_BASIC: '#ff6b6b',
+        ENEMY_FAST: '#1dd1a1',
+        ENEMY_TANK: '#5f27cd',
+        BULLET: '#ffd43b',
+        XP: '#00d2d3',
+        TEXT_DAMAGE: '#ffffff'
+    },
+    SCREEN_SHAKE_INTENSITY: 5
+};
+
+/**
+ * LOCALIZATION DATA
+ */
+const LANG_DATA = {
+    ko: {
+        START_DESC: "수백의 적을 무찌르고 생존하세요.<br>레벨업 시 강력한 능력을 선택하여 생존 시간을 늘리세요.",
+        START_BTN: "게임 시작",
+        CONTROLS: "이동: WASD 또는 방향키 | 공격은 자동<br>목표: 가능한 한 오래 살아남기",
+        GAME_OVER: "패배했습니다",
+        VICTORY: "승리!", // Not really applicable in infinite mode but good placeholder
+        RETRY_BTN: "다시 도전",
+        LEVEL_UP: "LEVEL UP!",
+        STATS_SCORE: "점수:",
+        STATS_HIGHSCORE: "최고 점수:",
+        UPG_DMG_TITLE: "공격력 상승",
+        UPG_DMG_DESC: "적에게 입히는 피해량 증가",
+        UPG_SPD_TITLE: "공격 속도",
+        UPG_SPD_DESC: "사격 간격 단축",
+        UPG_HP_TITLE: "체력 보충",
+        UPG_HP_DESC: "최대 체력 회복 및 증가",
+        UPG_MOV_TITLE: "기동성 강화",
+        UPG_MOV_DESC: "이동 속도 증가",
+        UPG_MULTI_TITLE: "분사 사격",
+        UPG_MULTI_DESC: "발사될 총알 개수 증가",
+        UPG_PENETRATE: "관통 능력",
+        UPG_PENETRATE_DESC: "총알이 적이 관통할 확률 증가"
+    },
+    en: {
+        START_DESC: "Survive against hundreds of enemies.<br>Pick powerful abilities upon leveling up.",
+        START_BTN: "Start Game",
+        CONTROLS: "Move: WASD / Arrows | Auto Attack<br>Goal: Survive as long as possible",
+        GAME_OVER: "GAME OVER",
+        VICTORY: "VICTORY!",
+        RETRY_BTN: "Retry",
+        LEVEL_UP: "LEVEL UP!",
+        STATS_SCORE: "Score:",
+        STATS_HIGHSCORE: "High Score:",
+        UPG_DMG_TITLE: "Increased Damage",
+        UPG_DMG_DESC: "+25% Damage dealt",
+        UPG_SPD_TITLE: "Fire Rate Up",
+        UPG_SPD_DESC: "-20% Cooldown between shots",
+        UPG_HP_TITLE: "Heal & Max HP",
+        UPG_HP_DESC: "Restore 50% HP + 20 Max HP",
+        UPG_MOV_TITLE: "Dash Boots",
+        UPG_MOV_DESC: "+20% Movement Speed",
+        UPG_MULTI_TITLE: "Multi-Shot",
+        UPG_MULTI_DESC: "+1 Projectile per shot",
+        UPG_PENETRATE: "Heavy Shells",
+        UPG_PENETRATE_DESC: "+1 Piercing chance per bullet"
+    }
+};
+
+// Helper to get string
+const T = (key) => LANG_DATA['ko'][key]; 
+// Note: Currently hardlocked to Korean as per request emphasis, but easily switchable by changing 'ko' to 'en'.
+
+/**
+ * AUDIO SYSTEM (Web Audio API)
+ */
+class SoundSystem {
+    constructor() {
+        this.ctx = null;
+        this.enabled = false;
+    }
+
+    init() {
+        if (!this.ctx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+            this.enabled = true;
+        } else if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    }
+
+    playTone(freq, type, duration, vol = 0.1) {
+        if (!this.enabled || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+    }
+
+    shoot() { this.playTone(400, 'triangle', 0.1, 0.05); }
+    hit() { this.playTone(100, 'square', 0.1, 0.05); }
+    levelUp() { 
+        if(!this.enabled) return;
+        [300, 400, 500, 600].forEach((f, i) => setTimeout(() => this.playTone(f, 'sine', 0.3, 0.1), i*100));
+    }
+    die() { 
+        if(!this.enabled) return;
+        this.playTone(150, 'sawtooth', 0.8, 0.2);
+    }
+}
+
+const sfx = new SoundSystem();
+
+/**
+ * INPUT HANDLER
+ */
+class InputHandler {
+    constructor() {
+        this.keys = {};
+        this.mouse = { x: 0, y: 0 };
+        
+        window.addEventListener('keydown', e => this.keys[e.code] = true);
+        window.addEventListener('keyup', e => this.keys[e.code] = false);
+        
+        // Mouse tracking for aiming or subtle movement influence? 
+        // Request asks for WASD movement, auto attack usually aims at nearest.
+        window.addEventListener('mousemove', e => {
+            this.mouse.x = e.clientX;
+            this.mouse.y = e.clientY;
+        });
+    }
+    
+    isDown(code) { return this.keys[code]; }
+}
+
+/**
+ * ENTITIES
+ */
+
+class Vector2 {
+    constructor(x, y) { this.x = x; this.y = y; }
+    add(v) { this.x += v.x; this.y += v.y; }
+    sub(v) { this.x -= v.x; this.y -= v.y; }
+    mult(s) { this.x *= s; this.y *= s; }
+    mag() { return Math.sqrt(this.x*this.x + this.y*this.y); }
+    normalize() {
+        let m = this.mag();
+        if(m !== 0) this.mult(1/m);
+    }
+    static dist(v1, v2) { return Math.sqrt(Math.pow(v2.x-v1.x, 2) + Math.pow(v2.y-v1.y, 2)); }
+}
+
+class Entity {
+    constructor(x, y, radius, color) {
+        this.pos = new Vector2(x, y);
+        this.vel = new Vector2(0, 0);
+        this.radius = radius;
+        this.color = color;
+        this.markedForDeletion = false;
+    }
+    update(dt) {}
+    draw(ctx) {}
+}
+
+class Player extends Entity {
+    constructor(x, y) {
+        super(x, y, CONF.PLAYER_RADIUS, CONF.COLORS.PLAYER);
+        this.maxHp = 100;
+        this.hp = 100;
+        this.speed = CONF.PLAYER_SPEED;
+        this.damage = 10;
+        this.fireRate = 600; // ms
+        this.lastShotTime = 0;
+        this.projectileCount = 1;
+        this.pierce = 0;
+        
+        // Stats for Roguelike
+        this.level = 1;
+        this.xp = 0;
+        this.nextLevelXp = 100;
+    }
+
+    update(dt, input, width, height) {
+        let dir = new Vector2(0, 0);
+        if (input.isDown('KeyW') || input.isDown('ArrowUp')) dir.y -= 1;
+        if (input.isDown('KeyS') || input.isDown('ArrowDown')) dir.y += 1;
+        if (input.isDown('KeyA') || input.isDown('ArrowLeft')) dir.x -= 1;
+        if (input.isDown('KeyD') || input.isDown('ArrowRight')) dir.x += 1;
+
+        if (dir.mag() > 0) {
+            dir.normalize();
+            dir.mult(this.speed);
+            this.pos.add(dir);
+        }
+
+        // Friction simulation
+        this.pos.x = Math.max(this.radius, Math.min(width - this.radius, this.pos.x));
+        this.pos.y = Math.max(this.radius, Math.min(height - this.radius, this.pos.y));
+
+        // Shooting
+        if (Date.now() - this.lastShotTime > this.fireRate) {
+            this.shoot(input);
+            this.lastShotTime = Date.now();
+        }
+    }
+
+    shoot(input) {
+        // Find nearest enemy to aim at, otherwise keep last target direction?
+        // For simplicity, we assume auto-fire finds the closest valid target.
+        // If no enemies, shoot based on WASD or default Up.
+        
+        let targetPos = new Vector2(this.pos.x, this.pos.y - 50); // Default
+        
+        // In a full implementation, we'd find closest enemy here.
+        // Let's rely on finding nearest neighbor in GameManager for better logic flow,
+        // But here is a local implementation:
+        const target = GameManager.findNearestEnemy(this.pos);
+        if (target) {
+             targetPos = target.pos;
+        } else {
+             // If WASD pressed, shoot in that dir, else default Up
+             if(input.isDown('KeyS')) targetPos.y = this.pos.y + 50;
+             if(input.isDown('KeyA')) targetPos.x = this.pos.x - 50;
+             if(input.isDown('KeyD')) targetPos.x = this.pos.x + 50;
+        }
+
+        let angle = Math.atan2(targetPos.y - this.pos.y, targetPos.x - this.pos.x);
+
+        for(let i=0; i<this.projectileCount; i++) {
+            // Spread logic could go here
+            let spreadAngle = angle + (Math.random() - 0.5) * 0.2 * i;
+            let v = new Vector2(Math.cos(spreadAngle), Math.sin(spreadAngle));
+            v.mult(10); // Projectile speed
+            let proj = new Projectile(this.pos.x, this.pos.y, v, this.damage, this.pierce);
+            GameManager.addProjectile(proj);
+        }
+        sfx.shoot();
+    }
+
+    takeDamage(amount) {
+        this.hp -= amount;
+        GameManager.triggerShake(3);
+        GameManager.showFloatText(`-${amount}`, this.pos.x, this.pos.y, "#ff0000");
+        if (this.hp <= 0) {
+            this.hp = 0;
+            GameManager.gameOver();
+        }
+    }
+    
+    gainXp(amount) {
+        this.xp += amount;
+        if (this.xp >= this.nextLevelXp) {
+            this.xp -= this.nextLevelXp;
+            this.level++;
+            this.nextLevelXp = Math.floor(this.nextLevelXp * 1.2);
+            GameManager.showUpgradeScreen(this);
+        }
+        UIManager.updateXP(this);
+    }
+    
+    heal(amount) {
+        this.hp = Math.min(this.maxHp, this.hp + amount);
+        GameManager.showFloatText(`+${amount}HP`, this.pos.x, this.pos.y - 20, "#00ff00");
+    }
+}
+
+class Projectile extends Entity {
+    constructor(x, y, vel, damage, pierce) {
+        super(x, y, 4, CONF.COLORS.BULLET);
+        this.vel = vel;
+        this.damage = damage;
+        this.pierce = pierce; // How many enemies it can hit before dying
+    }
+    
+    update(dt) {
+        this.pos.add(this.vel);
+        // Out of bounds check
+        if (this.pos.x < 0 || this.pos.x > GameManager.width || 
+            this.pos.y < 0 || this.pos.y > GameManager.height) {
+            this.markedForDeletion = true;
+        }
+    }
+    
+    draw(ctx) {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.pos.x, this.pos.y, this.radius, 0, Math.PI*2);
+        ctx.fill();
+    }
+}
+
+class Enemy extends Entity {
+    constructor(type, x, y) {
+        super(x, y, 12, CONF.COLORS.ENEMY_BASIC);
+        this.type = type; // 'basic', 'fast', 'tank'
+        this.hp = 20;
+        this.scoreVal = 10;
+        this.xpVal = 10;
+        
+        // Config based on type and wave difficulty would be set here dynamically
+        this.setupStats(GameManager.wave);
+    }
+
+    setupStats(waveMultiplier) {
+        const diff = 1 + (waveMultiplier * 0.1); // Gets harder every wave
+
+        if (this.type === 'basic') {
+            this.color = CONF.COLORS.ENEMY_BASIC;
+            this.radius = 12;
+            this.hp = 20 * diff;
+            this.speed = 2;
+        } else if (this.type === 'fast') {
+            this.color = CONF.COLORS.ENEMY_FAST;
+            this.radius = 8;
+            this.hp = 10 * diff;
+            this.speed = 3.5;
+            this.xpVal = 15;
+        } else if (this.type === 'tank') {
+            this.color = CONF.COLORS.ENEMY_TANK;
+            this.radius = 20;
+            this.hp = 100 * diff;
+            this.speed = 1;
+            this.xpVal = 50;
+        }
+    }
+
+    update(dt, player) {
+        // Move towards player
+        let dir = new Vector2(player.pos.x - this.pos.x, player.pos.y - this.pos.y);
+        dir.normalize();
+        dir.mult(this.speed);
+        
+        // Simple collision avoidance (Boids Separation lite)
+        // Only checks against other enemies to avoid clumping too much
+        // Performance optimization: Only check close neighbors in real engine, here checking all for simplicity or sampling
+        
+        this.pos.add(dir);
+
+        // Collision with player
+        if (Vector2.dist(this.pos, player.pos) < this.radius + player.radius) {
+            player.takeDamage(10); // Contact damage
+            this.markedForDeletion = true;
+            sfx.hit();
+        }
+    }
+    
+    takeDamage(amount) {
+        this.hp -= amount;
+        if (this.hp <= 0) {
+            this.markedForDeletion = true;
+            GameManager.onEnemyKill(this);
+            
+            // Visual Effect
+            for(let i=0; i<5; i++) {
+                let p = {
+                    x: this.pos.x, y: this.pos.y,
+                    vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5,
+                    life: 1.0, color: this.color
+                };
+                GameManager.particles.push(p);
+            }
+        }
+    }
+}
+
+/**
+ * MAIN GAME MANAGER
+ */
+const GameManager = {
+    canvas: document.getElementById('gameCanvas'),
+    ctx: document.getElementById('gameCanvas').getContext('2d'),
+    width: window.innerWidth,
+    height: window.innerHeight,
+    
+    state: 'START', // START, PLAYING, PAUSED, END
+    input: new InputHandler(),
+    
+    player: null,
+    enemies: [],
+    projectiles: [],
+    particles: [], // Visual only
+    
+    wave: 1,
+    waveTimer: 0,
+    enemiesToSpawn: 10,
+    spawnTimer: 0,
+    score: 0,
+    highscore: localStorage.getItem('ns_highscore') || 0,
+    
+    shake: 0,
+
+    resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.width = this.canvas.width;
+        this.height = this.canvas.height;
+    },
+
+    init() {
+        sfx.init();
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        
+        UIManager.hideAll();
+        document.getElementById('start-screen').classList.remove('hidden');
+        document.getElementById('highscore-display').innerText = `${T('STATS_HIGHSCORE')} ${this.highscore}`;
+    },
+
+    start() {
+        // Full Reset
+        this.player = new Player(this.width/2, this.height/2);
+        this.enemies = [];
+        this.projectiles = [];
+        this.particles = [];
+        this.score = 0;
+        this.wave = 1;
+        this.waveTimer = 0;
+        this.enemiesToSpawn = 10;
+        this.spawnTimer = 0;
+        this.state = 'PLAYING';
+
+        UIManager.updateStats(this.player);
+        UIManager.showHUD();
+        
+        // Start Loop
+        requestAnimationFrame(() => this.loop());
+    },
+    
+    restart() {
+        this.start();
+        UIManager.hideAll();
+    },
+
+    gameOver() {
+        this.state = 'END';
+        if (this.score > this.highscore) {
+            this.highscore = this.score;
+            localStorage.setItem('ns_highscore', this.highscore);
+        }
+        document.getElementById('highscore-display').innerText = `${T('STATS_HIGHSCORE')} ${this.highscore}`;
+        
+        sfx.die();
+        UIManager.hideHUD();
+        document.getElementById('end-screen').classList.remove('hidden');
+        document.getElementById('end-message').innerHTML = `<b>${T('STATS_SCORE')}</b> ${this.score}<br><span style="color:#ffd700">${T('STATS_HIGHSCORE')}</span> ${this.highscore}`;
+    },
+
+    triggerShake(amount) {
+        this.shake = amount;
+    },
+
+    showFloatText(text, x, y, color="#fff") {
+        const el = document.createElement('div');
+        el.className = 'floater';
+        el.innerText = text;
+        el.style.left = x + 'px';
+        el.style.top = y + 'px';
+        el.style.color = color;
+        document.getElementById('ui-layer').appendChild(el);
+        setTimeout(() => el.remove(), 800);
+    },
+
+    // LOGIC LOOP
+    update(dt) {
+        if (this.state !== 'PLAYING') return;
+
+        // Wave Logic
+        this.waveTimer += dt;
+        if (this.enemiesToSpawn > 0 && this.waveTimer > 1) { // Spawn 1 enemy roughly every frame initially? No, controlled rate.
+            this.spawnTimer += dt;
+            if (this.spawnTimer > 0.5) { // Spawn every 0.5s
+                this.spawnEnemy();
+                this.spawnTimer = 0;
+                this.waveTimer = 0;
+            }
+        } else if (this.enemies.length === 0) {
+            // Wave Cleared
+            this.wave++;
+            this.enemiesToSpawn = 10 + Math.floor(this.wave * 2.5);
+            this.showFloatText("WAVE " + this.wave + " CLEARED", this.width/2 - 50, this.height/2, "#fff");
+            UIManager.updateWave(this.wave);
+        }
+
+        // Player
+        this.player.update(dt, this.input, this.width, this.height);
+
+        // Enemies
+        this.enemies.forEach(e => e.update(dt, this.player));
+        this.enemies = this.enemies.filter(e => !e.markedForDeletion);
+
+        // Projectiles
+        this.projectiles.forEach(p => p.update(dt));
+        this.projectiles = this.projectiles.filter(p => !p.markedForDeletion);
+
+        // Collisions: Projectile vs Enemy
+        this.projectiles.forEach(p => {
+            if (p.markedForDeletion) return;
+            for (let e of this.enemies) {
+                if (Vector2.dist(p.pos, e.pos) < p.radius + e.radius) {
+                    e.takeDamage(p.damage);
+                    p.pierce--;
+                    if (p.pierce < 0) {
+                        p.markedForDeletion = true;
+                    }
+                    break; // One hit per projectile per frame per enemy prevents crazy dmg stacking
+                }
+            }
+        });
+
+        // Particles visual update
+        this.particles.forEach(p => {
+            p.x += p.vx; p.y += p.vy; p.life -= 0.05;
+        });
+        this.particles = this.particles.filter(p => p.life > 0);
+    },
+
+    spawnEnemy() {
+        // Spawn at edge of screen
+        let ex, ey;
+        if (Math.random() < 0.5) {
+            ex = Math.random() < 0.5 ? -30 : this.width + 30;
+            ey = Math.random() * this.height;
+        } else {
+            ex = Math.random() * this.width;
+            ey = Math.random() < 0.5 ? -30 : this.height + 30;
+        }
+
+        let rand = Math.random();
+        let type = 'basic';
+        if (rand > 0.7) type = 'fast';
+        if (rand > 0.9) type = 'tank';
+
+        this.enemies.push(new Enemy(type, ex, ey));
+        this.enemiesToSpawn--;
+    },
+
+    findNearestEnemy(pos) {
+        let nearest = null;
+        let minDist = Infinity;
+        for (let e of this.enemies) {
+            let d = Vector2.dist(pos, e.pos);
+            if (d < minDist) {
+                minDist = d;
+                nearest = e;
+            }
+        }
+        return nearest;
+    },
+
+    addProjectile(p) {
+        this.projectiles.push(p);
+    },
+
+    onEnemyKill(enemy) {
+        this.score += enemy.scoreVal;
+        this.player.gainXp(enemy.xpVal);
+        UIManager.updateScore(this.score);
+        sfx.hit();
+    },
+
+    showUpgradeScreen(player) {
+        this.state = 'PAUSED';
+        sfx.levelUp();
+        const grid = document.getElementById('upgrade-grid');
+        grid.innerHTML = '';
+        document.getElementById('upgrade-screen').classList.remove('hidden');
+
+        const upgrades = [
+            { id: 'DMG', title: T('UPG_DMG_TITLE'), desc: T('UPG_DMG_DESC'), apply: (p) => p.damage *= 1.25 },
+            { id: 'SPD', title: T('UPG_SPD_TITLE'), desc: T('UPG_SPD_DESC'), apply: (p) => p.fireRate *= 0.8 },
+            { id: 'HP', title: T('UPG_HP_TITLE'), desc: T('UPG_HP_DESC'), apply: (p) => { p.maxHp += 20; p.heal(p.maxHp * 0.5); } },
+            { id: 'MOV', title: T('UPG_MOV_TITLE'), desc: T('UPG_MOV_DESC'), apply: (p) => p.speed *= 1.2 },
+            { id: 'MULTI', title: T('UPG_MULTI_TITLE'), desc: T('UPG_MULTI_DESC'), apply: (p) => p.projectileCount++ },
+            { id: 'PIERCE', title: T('UPG_PENETRATE'), desc: T('UPG_PENETRATE_DESC'), apply: (p) => p.pierce++ }
+        ];
+
+        // Pick 3 random
+        const options = [];
+        while(options.length < 3) {
+            let r = upgrades[Math.floor(Math.random() * upgrades.length)];
+            if(!options.includes(r)) options.push(r);
+        }
+
+        options.forEach(opt => {
+            const card = document.createElement('div');
+            card.className = 'upgrade-card';
+            card.innerHTML = `<div class="upgrade-title">${opt.title}</div><div class="upgrade-desc">${opt.desc}</div>`;
+            card.onclick = () => {
+                opt.apply(player);
+                document.getElementById('upgrade-screen').classList.add('hidden');
+                this.state = 'PLAYING';
+                UIManager.updateStats(player);
+            };
+            grid.appendChild(card);
+        });
+    },
+
+    // RENDER LOOP
+    draw() {
+        // Clear
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        this.ctx.clearRect(0, 0, this.width, this.height);
+
+        // Screen Shake
+        if (this.shake > 0) {
+            let dx = (Math.random() - 0.5) * this.shake;
+            let dy = (Math.random() - 0.5) * this.shake;
+            this.ctx.translate(dx, dy);
+            this.shake *= 0.9;
+            if(this.shake < 0.5) this.shake = 0;
+        }
+
+        // Draw Entities
+        if (this.player) this.drawCircle(this.ctx, this.player.pos.x, this.player.pos.y, this.player.radius, this.player.color);
+        
+        this.enemies.forEach(e => {
+            this.drawCircle(this.ctx, e.pos.x, e.pos.y, e.radius, e.color);
+            // Health bar above enemy? Maybe just visual color change
+        });
+        
+        this.projectiles.forEach(p => p.draw(this.ctx));
+
+        // Particles
+        this.particles.forEach(p => {
+            this.ctx.globalAlpha = p.life;
+            this.ctx.fillStyle = p.color;
+            this.ctx.fillRect(p.x, p.y, 4, 4);
+            this.ctx.globalAlpha = 1.0;
+        });
+    },
+
+    drawCircle(ctx, x, y, r, c) {
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        // Glow effect
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = c;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    },
+
+    loop(timestamp) {
+        if (this.state === 'PLAYING') {
+            const dt = 0.016; // Approx 60fps
+            this.update(dt);
+            this.draw();
+        } else if (this.state === 'PAUSED') {
+             // Keep drawing background/player so it doesn't disappear
+             if(this.player) this.draw(); 
+        }
+
+        if (this.state !== 'END') {
+            requestAnimationFrame((t) => this.loop(t));
+        }
+    }
+};
+
+/**
+ * UI MANAGER
+ */
+const UIManager = {
+    els: {
+        hp: document.getElementById('health-display'),
+        score: document.getElementById('score-display'),
+        wave: document.getElementById('wave-num'),
+        lvl: document.getElementById('level-num'),
+        xpFill: document.getElementById('xp-fill')
+    },
+
+    hideAll() {
+        document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+        document.querySelectorAll('.hud-element').forEach(h => h.classList.add('hidden'));
+        document.getElementById('xp-bar-container').classList.add('hidden');
+    },
+
+    showHUD() {
+        document.getElementById('stats-top-left').classList.remove('hidden');
+        document.getElementById('wave-top-right').classList.remove('hidden');
+        document.getElementById('xp-bar-container').classList.remove('hidden');
+    },
+
+    hideHUD() {
+        this.hideAll();
+    },
+
+    updateStats(p) {
+        this.els.hp.innerText = `HP: ${Math.ceil(p.hp)} / ${p.maxHp}`;
+        this.els.lvl.innerText = p.level;
+    },
+    
+    updateScore(s) {
+        this.els.score.innerText = `${T('STATS_SCORE')} ${s}`;
+    },
+
+    updateWave(w) {
+        this.els.wave.innerText = w;
+    },
+
+    updateXP(p) {
+        let pct = (p.xp / p.nextLevelXp) * 100;
+        this.els.xpFill.style.width = `${pct}%`;
+    }
+};
+
+// Initialize
+window.onload = () => GameManager.init();
+
+</script>
+</body>
+</html>

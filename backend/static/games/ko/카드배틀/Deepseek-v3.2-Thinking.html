@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카드 배틀: 큐피트 vs 몬스터</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial Rounded MT Bold', 'Arial', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #ffcfe5 0%, #b5deff 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .game-container {
+            max-width: 1000px;
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 24px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            border: 8px solid #ffb3d9;
+            position: relative;
+        }
+        
+        .game-header {
+            background: linear-gradient(to right, #ff7eb3, #ff65a3);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 4px solid #ff4d94;
+        }
+        
+        .game-header h1 {
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+            letter-spacing: 1px;
+        }
+        
+        .game-header .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        .battle-area {
+            display: flex;
+            justify-content: space-between;
+            padding: 30px;
+            gap: 30px;
+        }
+        
+        .character {
+            flex: 1;
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            text-align: center;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+            border: 5px solid;
+            transition: all 0.3s ease;
+        }
+        
+        .player-area {
+            border-color: #36c5ff;
+        }
+        
+        .monster-area {
+            border-color: #ff7a45;
+        }
+        
+        .character h2 {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .character-icon {
+            font-size: 2rem;
+        }
+        
+        .hp-bar-container {
+            background-color: #f0f0f0;
+            height: 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 15px 0;
+            position: relative;
+        }
+        
+        .hp-bar {
+            height: 100%;
+            border-radius: 15px;
+            transition: width 0.5s ease;
+        }
+        
+        .player-hp {
+            background: linear-gradient(to right, #4cd964, #36c5ff);
+        }
+        
+        .monster-hp {
+            background: linear-gradient(to right, #ff9500, #ff3b30);
+        }
+        
+        .hp-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .stat {
+            background: #f8f8f8;
+            padding: 10px 15px;
+            border-radius: 12px;
+            min-width: 100px;
+        }
+        
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        
+        .energy-value {
+            color: #ffd700;
+        }
+        
+        .defense-value {
+            color: #5ac8fa;
+        }
+        
+        .game-controls {
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            background-color: #f9f9f9;
+            border-top: 3px dashed #ddd;
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn-turn {
+            background: linear-gradient(to right, #ff6b9d, #ff416c);
+            color: white;
+        }
+        
+        .btn-restart {
+            background: linear-gradient(to right, #36c5ff, #00a8ff);
+            color: white;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+        
+        .card-area {
+            padding: 25px;
+            background-color: #f0f9ff;
+            border-top: 3px dashed #b5deff;
+        }
+        
+        .card-area h3 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .cards-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            min-height: 220px;
+        }
+        
+        .card {
+            width: 160px;
+            height: 200px;
+            background: white;
+            border-radius: 16px;
+            padding: 20px 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            border: 4px solid transparent;
+        }
+        
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .card.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .card.selected {
+            border-color: #ff6b9d;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 107, 157, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 107, 157, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 107, 157, 0); }
+        }
+        
+        .card-cost {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ffd700;
+            color: #333;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+        
+        .card-icon {
+            font-size: 3rem;
+            margin: 15px 0;
+        }
+        
+        .card-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .card-desc {
+            font-size: 0.9rem;
+            text-align: center;
+            color: #666;
+        }
+        
+        .attack-card {
+            border-color: #ff7a45;
+            background: linear-gradient(to bottom, #fff5f0, white);
+        }
+        
+        .defense-card {
+            border-color: #5ac8fa;
+            background: linear-gradient(to bottom, #f0f9ff, white);
+        }
+        
+        .heal-card {
+            border-color: #4cd964;
+            background: linear-gradient(to bottom, #f0fff4, white);
+        }
+        
+        .message-log {
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            margin: 0 25px 25px;
+            border-radius: 12px;
+            height: 120px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+        
+        .message {
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .player-message {
+            color: #36c5ff;
+        }
+        
+        .monster-message {
+            color: #ff7a45;
+        }
+        
+        .system-message {
+            color: #ffd700;
+            font-weight: bold;
+        }
+        
+        .turn-indicator {
+            text-align: center;
+            padding: 15px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            background: linear-gradient(to right, transparent, rgba(255, 107, 157, 0.2), transparent);
+            margin: 0 25px;
+            border-radius: 12px;
+            animation: fadeInOut 2s infinite;
+        }
+        
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+        
+        @media (max-width: 900px) {
+            .battle-area {
+                flex-direction: column;
+            }
+            
+            .cards-container {
+                gap: 10px;
+            }
+            
+            .card {
+                width: 140px;
+                height: 180px;
+            }
+        }
+        
+        @media (max-width: 600px) {
+            .game-header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .character {
+                padding: 15px;
+            }
+            
+            .card {
+                width: 120px;
+                height: 160px;
+                padding: 15px 10px;
+            }
+            
+            .card-icon {
+                font-size: 2.2rem;
+            }
+            
+            .card-name {
+                font-size: 1rem;
+            }
+            
+            .card-desc {
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <h1>💖 카드 배틀: 큐피트 vs 몬스터 💖</h1>
+            <div class="subtitle">카드를 사용하여 몬스터를 물리치세요!</div>
+        </div>
+        
+        <div class="turn-indicator" id="turnIndicator">플레이어 턴</div>
+        
+        <div class="battle-area">
+            <div class="character player-area">
+                <h2><span class="character-icon">😊</span> 플레이어</h2>
+                <div class="hp-bar-container">
+                    <div class="hp-bar player-hp" id="playerHpBar" style="width: 100%"></div>
+                    <div class="hp-text" id="playerHpText">HP: 50/50</div>
+                </div>
+                <div class="stats">
+                    <div class="stat">
+                        <div>에너지</div>
+                        <div class="stat-value energy-value" id="playerEnergy">3</div>
+                    </div>
+                    <div class="stat">
+                        <div>방어도</div>
+                        <div class="stat-value defense-value" id="playerDefense">0</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="character monster-area">
+                <h2><span class="character-icon">👾</span> 몬스터</h2>
+                <div class="hp-bar-container">
+                    <div class="hp-bar monster-hp" id="monsterHpBar" style="width: 100%"></div>
+                    <div class="hp-text" id="monsterHpText">HP: 60/60</div>
+                </div>
+                <div class="stats">
+                    <div class="stat">
+                        <div>공격력</div>
+                        <div class="stat-value">5-10</div>
+                    </div>
+                    <div class="stat">
+                        <div>방어도</div>
+                        <div class="stat-value defense-value" id="monsterDefense">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="message-log" id="messageLog">
+            <div class="message system-message">게임 시작! 몬스터와의 전투가 시작되었습니다.</div>
+            <div class="message system-message">플레이어 턴입니다. 카드를 사용해 공격하세요!</div>
+        </div>
+        
+        <div class="card-area">
+            <h3><span>🃏</span> 내 카드</h3>
+            <div class="cards-container" id="cardsContainer">
+                <!-- 카드들이 여기에 동적으로 추가됩니다 -->
+            </div>
+        </div>
+        
+        <div class="game-controls">
+            <button class="btn btn-turn" id="endTurnBtn">
+                <span>⏭️</span> 턴 종료
+            </button>
+            <button class="btn btn-restart" id="restartBtn">
+                <span>🔄</span> 게임 재시작
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 게임 상태 객체
+        const gameState = {
+            player: {
+                hp: 50,
+                maxHp: 50,
+                energy: 3,
+                defense: 0,
+                deck: [],
+                hand: []
+            },
+            monster: {
+                hp: 60,
+                maxHp: 60,
+                defense: 0,
+                name: "몬스터"
+            },
+            turn: 'player', // 'player' 또는 'monster'
+            gameOver: false,
+            turnCount: 1
+        };
+
+        // 카드 타입 정의
+        const cardTypes = [
+            { 
+                id: 1, 
+                name: "하트 화살", 
+                type: "attack", 
+                cost: 2, 
+                value: 8, 
+                icon: "💘", 
+                colorClass: "attack-card",
+                description: "몬스터에게 8 데미지를 줍니다." 
+            },
+            { 
+                id: 2, 
+                name: "약한 화살", 
+                type: "attack", 
+                cost: 1, 
+                value: 4, 
+                icon: "🏹", 
+                colorClass: "attack-card",
+                description: "몬스터에게 4 데미지를 줍니다." 
+            },
+            { 
+                id: 3, 
+                name: "큐피트 방패", 
+                type: "defense", 
+                cost: 1, 
+                value: 7, 
+                icon: "🛡️", 
+                colorClass: "defense-card",
+                description: "7 방어도를 얻습니다." 
+            },
+            { 
+                id: 4, 
+                name: "작은 방패", 
+                type: "defense", 
+                cost: 1, 
+                value: 4, 
+                icon: "🔰", 
+                colorClass: "defense-card",
+                description: "4 방어도를 얻습니다." 
+            },
+            { 
+                id: 5, 
+                name: "하트 치유", 
+                type: "heal", 
+                cost: 2, 
+                value: 10, 
+                icon: "💖", 
+                colorClass: "heal-card",
+                description: "10 HP를 회복합니다." 
+            },
+            { 
+                id: 6, 
+                name: "작은 치유", 
+                type: "heal", 
+                cost: 1, 
+                value: 6, 
+                icon: "💕", 
+                colorClass: "heal-card",
+                description: "6 HP를 회복합니다." 
+            },
+            { 
+                id: 7, 
+                name: "강력한 화살", 
+                type: "attack", 
+                cost: 3, 
+                value: 12, 
+                icon: "🔥", 
+                colorClass: "attack-card",
+                description: "몬스터에게 12 데미지를 줍니다." 
+            },
+            { 
+                id: 8, 
+                name: "큰 방패", 
+                type: "defense", 
+                cost: 2, 
+                value: 10, 
+                icon: "🛡️", 
+                colorClass: "defense-card",
+                description: "10 방어도를 얻습니다." 
+            }
+        ];
+
+        // DOM 요소 참조
+        const playerHpBar = document.getElementById('playerHpBar');
+        const playerHpText = document.getElementById('playerHpText');
+        const playerEnergy = document.getElementById('playerEnergy');
+        const playerDefense = document.getElementById('playerDefense');
+        const monsterHpBar = document.getElementById('monsterHpBar');
+        const monsterHpText = document.getElementById('monsterHpText');
+        const monsterDefense = document.getElementById('monsterDefense');
+        const cardsContainer = document.getElementById('cardsContainer');
+        const endTurnBtn = document.getElementById('endTurnBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        const messageLog = document.getElementById('messageLog');
+        const turnIndicator = document.getElementById('turnIndicator');
+
+        // 게임 초기화
+        function initGame() {
+            // 게임 상태 초기화
+            gameState.player = {
+                hp: 50,
+                maxHp: 50,
+                energy: 3,
+                defense: 0,
+                deck: [...cardTypes], // 모든 카드 타입을 덱에 추가
+                hand: []
+            };
+            
+            gameState.monster = {
+                hp: 60,
+                maxHp: 60,
+                defense: 0,
+                name: "몬스터"
+            };
+            
+            gameState.turn = 'player';
+            gameState.gameOver = false;
+            gameState.turnCount = 1;
+            
+            // 플레이어 덱 셔플
+            shuffleDeck(gameState.player.deck);
+            
+            // 초기 카드 드로우
+            drawCards(3);
+            
+            // UI 업데이트
+            updateUI();
+            
+            // 메시지 로그 초기화
+            clearMessageLog();
+            addMessage("게임 시작! 몬스터와의 전투가 시작되었습니다.", "system");
+            addMessage("플레이어 턴입니다. 카드를 사용해 공격하세요!", "system");
+            
+            // 턴 인디케이터 업데이트
+            updateTurnIndicator();
+        }
+
+        // 덱 셔플 함수
+        function shuffleDeck(deck) {
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+        }
+
+        // 카드 드로우 함수
+        function drawCards(count) {
+            for (let i = 0; i < count; i++) {
+                if (gameState.player.deck.length === 0) {
+                    // 덱이 비어있으면 새로 채움
+                    gameState.player.deck = [...cardTypes];
+                    shuffleDeck(gameState.player.deck);
+                    addMessage("덱을 새로 채웠습니다!", "system");
+                }
+                
+                if (gameState.player.hand.length < 7) { // 최대 7장까지 보유
+                    const card = gameState.player.deck.pop();
+                    gameState.player.hand.push({...card});
+                } else {
+                    addMessage("손패가 가득 찼습니다!", "system");
+                    break;
+                }
+            }
+        }
+
+        // 카드 사용 함수
+        function useCard(cardIndex) {
+            if (gameState.turn !== 'player' || gameState.gameOver) return;
+            
+            const card = gameState.player.hand[cardIndex];
+            
+            // 에너지 확인
+            if (gameState.player.energy < card.cost) {
+                addMessage(`에너지가 부족합니다! (필요: ${card.cost}, 현재: ${gameState.player.energy})`, "system");
+                return;
+            }
+            
+            // 에너지 소비
+            gameState.player.energy -= card.cost;
+            
+            // 카드 효과 적용
+            let message = "";
+            switch(card.type) {
+                case 'attack':
+                    let damage = card.value;
+                    
+                    // 몬스터 방어도 계산
+                    if (gameState.monster.defense > 0) {
+                        const defenseReduction = Math.min(damage, gameState.monster.defense);
+                        damage -= defenseReduction;
+                        gameState.monster.defense -= defenseReduction;
+                        message = `몬스터가 ${defenseReduction} 방어도로 데미지를 감소시켰습니다. `;
+                    }
+                    
+                    // 몬스터 HP 감소
+                    gameState.monster.hp -= damage;
+                    message += `플레이어가 ${card.name}으로 몬스터에게 ${damage} 데미지를 주었습니다!`;
+                    break;
+                    
+                case 'defense':
+                    gameState.player.defense += card.value;
+                    message = `플레이어가 ${card.name}으로 ${card.value} 방어도를 얻었습니다!`;
+                    break;
+                    
+                case 'heal':
+                    const healAmount = Math.min(card.value, gameState.player.maxHp - gameState.player.hp);
+                    gameState.player.hp += healAmount;
+                    message = `플레이어가 ${card.name}으로 ${healAmount} HP를 회복했습니다!`;
+                    break;
+            }
+            
+            // 카드 사용 메시지
+            addMessage(message, "player");
+            
+            // 카드 손패에서 제거
+            gameState.player.hand.splice(cardIndex, 1);
+            
+            // 애니메이션 효과
+            animateCardUse(card);
+            
+            // 게임 오버 체크
+            checkGameOver();
+            
+            // UI 업데이트
+            updateUI();
+        }
+
+        // 몬스터 턴 실행
+        function executeMonsterTurn() {
+            addMessage("몬스터의 턴입니다!", "system");
+            
+            // 몬스터 행동 결정 (간단한 AI)
+            let action;
+            const actions = ['attack', 'defense'];
+            const weights = [70, 30]; // 70% 공격, 30% 방어
+            
+            const random = Math.random() * 100;
+            let cumulativeWeight = 0;
+            
+            for (let i = 0; i < actions.length; i++) {
+                cumulativeWeight += weights[i];
+                if (random <= cumulativeWeight) {
+                    action = actions[i];
+                    break;
+                }
+            }
+            
+            // 몬스터 행동 실행
+            switch(action) {
+                case 'attack':
+                    let damage = Math.floor(Math.random() * 6) + 5; // 5-10 데미지
+                    
+                    // 플레이어 방어도 계산
+                    if (gameState.player.defense > 0) {
+                        const defenseReduction = Math.min(damage, gameState.player.defense);
+                        damage -= defenseReduction;
+                        gameState.player.defense -= defenseReduction;
+                        addMessage(`플레이어가 ${defenseReduction} 방어도로 데미지를 감소시켰습니다.`, "system");
+                    }
+                    
+                    // 플레이어 HP 감소
+                    gameState.player.hp -= damage;
+                    addMessage(`몬스터가 플레이어에게 ${damage} 데미지를 주었습니다!`, "monster");
+                    break;
+                    
+                case 'defense':
+                    const defenseGain = Math.floor(Math.random() * 4) + 3; // 3-6 방어도
+                    gameState.monster.defense += defenseGain;
+                    addMessage(`몬스터가 ${defenseGain} 방어도를 얻었습니다!`, "monster");
+                    break;
+            }
+            
+            // 게임 오버 체크
+            checkGameOver();
+            
+            // 다음 턴 준비
+            setTimeout(() => {
+                if (!gameState.gameOver) {
+                    startPlayerTurn();
+                }
+            }, 1500);
+        }
+
+        // 플레이어 턴 시작
+        function startPlayerTurn() {
+            gameState.turn = 'player';
+            gameState.turnCount++;
+            
+            // 턴 시작 시 방어도 초기화
+            gameState.player.defense = 0;
+            
+            // 에너지 회복 (3 에너지)
+            gameState.player.energy = 3;
+            
+            // 카드 드로우 (3장)
+            drawCards(3);
+            
+            // UI 업데이트
+            updateUI();
+            updateTurnIndicator();
+            
+            addMessage(`${gameState.turnCount}번째 플레이어 턴 시작!`, "system");
+            addMessage("에너지를 3 얻고 카드를 3장 드로우했습니다.", "system");
+        }
+
+        // 턴 종료 함수
+        function endTurn() {
+            if (gameState.turn !== 'player' || gameState.gameOver) return;
+            
+            gameState.turn = 'monster';
+            updateTurnIndicator();
+            
+            addMessage("턴을 종료합니다. 몬스터의 행동이 시작됩니다...", "system");
+            
+            // 몬스터 턴 실행 (약간의 딜레이 후)
+            setTimeout(() => {
+                executeMonsterTurn();
+            }, 1000);
+        }
+
+        // 게임 오버 체크
+        function checkGameOver() {
+            if (gameState.player.hp <= 0) {
+                gameState.player.hp = 0;
+                gameState.gameOver = true;
+                addMessage("플레이어가 쓰러졌습니다... 게임 오버!", "system");
+                endTurnBtn.disabled = true;
+            } else if (gameState.monster.hp <= 0) {
+                gameState.monster.hp = 0;
+                gameState.gameOver = true;
+                addMessage("몬스터를 물리쳤습니다! 승리!", "system");
+                endTurnBtn.disabled = true;
+            }
+            
+            updateUI();
+        }
+
+        // UI 업데이트 함수
+        function updateUI() {
+            // 플레이어 상태 업데이트
+            const playerHpPercent = (gameState.player.hp / gameState.player.maxHp) * 100;
+            playerHpBar.style.width = `${playerHpPercent}%`;
+            playerHpText.textContent = `HP: ${gameState.player.hp}/${gameState.player.maxHp}`;
+            playerEnergy.textContent = gameState.player.energy;
+            playerDefense.textContent = gameState.player.defense;
+            
+            // 몬스터 상태 업데이트
+            const monsterHpPercent = (gameState.monster.hp / gameState.monster.maxHp) * 100;
+            monsterHpBar.style.width = `${monsterHpPercent}%`;
+            monsterHpText.textContent = `HP: ${gameState.monster.hp}/${gameState.monster.maxHp}`;
+            monsterDefense.textContent = gameState.monster.defense;
+            
+            // 카드 UI 업데이트
+            updateCardsUI();
+            
+            // 턴 종료 버튼 상태 업데이트
+            endTurnBtn.disabled = gameState.turn !== 'player' || gameState.gameOver;
+        }
+
+        // 카드 UI 업데이트
+        function updateCardsUI() {
+            cardsContainer.innerHTML = '';
+            
+            gameState.player.hand.forEach((card, index) => {
+                const cardElement = document.createElement('div');
+                cardElement.className = `card ${card.colorClass}`;
+                
+                // 에너지가 부족하면 비활성화
+                if (gameState.player.energy < card.cost || gameState.turn !== 'player') {
+                    cardElement.classList.add('disabled');
+                }
+                
+                cardElement.innerHTML = `
+                    <div class="card-cost">${card.cost}</div>
+                    <div class="card-icon">${card.icon}</div>
+                    <div class="card-name">${card.name}</div>
+                    <div class="card-desc">${card.description}</div>
+                `;
+                
+                // 카드 클릭 이벤트
+                if (gameState.player.energy >= card.cost && gameState.turn === 'player' && !gameState.gameOver) {
+                    cardElement.addEventListener('click', () => {
+                        useCard(index);
+                    });
+                }
+                
+                cardsContainer.appendChild(cardElement);
+            });
+        }
+
+        // 메시지 추가 함수
+        function addMessage(text, type) {
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${type}-message`;
+            messageElement.textContent = `[${getCurrentTime()}] ${text}`;
+            messageLog.appendChild(messageElement);
+            
+            // 스크롤을 가장 아래로
+            messageLog.scrollTop = messageLog.scrollHeight;
+        }
+
+        // 메시지 로그 초기화
+        function clearMessageLog() {
+            messageLog.innerHTML = '';
+        }
+
+        // 현재 시간 포맷팅
+        function getCurrentTime() {
+            const now = new Date();
+            return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+        }
+
+        // 턴 인디케이터 업데이트
+        function updateTurnIndicator() {
+            if (gameState.turn === 'player') {
+                turnIndicator.textContent = `플레이어 턴 (${gameState.turnCount}턴)`;
+                turnIndicator.style.background = 'linear-gradient(to right, transparent, rgba(54, 197, 255, 0.2), transparent)';
+            } else {
+                turnIndicator.textContent = '몬스터 턴';
+                turnIndicator.style.background = 'linear-gradient(to right, transparent, rgba(255, 122, 69, 0.2), transparent)';
+            }
+        }
+
+        // 카드 사용 애니메이션
+        function animateCardUse(card) {
+            // 간단한 애니메이션 효과를 위해 카드 영역에 임시 요소 추가
+            const animationArea = document.querySelector('.card-area');
+            const animElement = document.createElement('div');
+            animElement.className = 'card ' + card.colorClass;
+            animElement.style.position = 'absolute';
+            animElement.style.zIndex = '1000';
+            animElement.style.transform = 'scale(1.2)';
+            animElement.style.opacity = '0.9';
+            animElement.innerHTML = `
+                <div class="card-cost">${card.cost}</div>
+                <div class="card-icon">${card.icon}</div>
+                <div class="card-name">${card.name}</div>
+            `;
+            
+            // 초기 위치 설정
+            const rect = animationArea.getBoundingClientRect();
+            animElement.style.left = `${rect.width / 2 - 80}px`;
+            animElement.style.top = `${rect.height / 2 - 100}px`;
+            
+            animationArea.appendChild(animElement);
+            
+            // 애니메이션 실행
+            setTimeout(() => {
+                animElement.style.transition = 'all 0.5s ease';
+                animElement.style.transform = 'scale(0.5) translateY(-100px)';
+                animElement.style.opacity = '0';
+                
+                setTimeout(() => {
+                    animationArea.removeChild(animElement);
+                }, 500);
+            }, 10);
+        }
+
+        // 이벤트 리스너 등록
+        endTurnBtn.addEventListener('click', endTurn);
+        restartBtn.addEventListener('click', initGame);
+
+        // 게임 시작
+        initGame();
+    </script>
+</body>
+</html>

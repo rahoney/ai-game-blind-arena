@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>8x8 2D Roguelike (한 파일)</title>
+<style>
+  :root{
+    --bg:#0b0f14;
+    --panel:#0f1720;
+    --accent:#ffd166;
+    --muted:#94a3b8;
+    --tile-size:56px;
+  }
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#071021 0%, #0b1220 100%);font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; color:#e6eef8;}
+  .wrap{
+    min-height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    box-sizing:border-box;
+  }
+  .game-box{
+    width:calc(var(--tile-size) * 8 + 260px);
+    background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius:12px;
+    padding:18px;
+    box-shadow:0 10px 30px rgba(2,6,23,0.7);
+    display:flex;
+    gap:16px;
+    align-items:flex-start;
+  }
+  /* Grid */
+  .grid{
+    width:calc(var(--tile-size) * 8);
+    height:calc(var(--tile-size) * 8);
+    display:grid;
+    grid-template-columns:repeat(8,1fr);
+    grid-template-rows:repeat(8,1fr);
+    gap:2px;
+    background:#07101a;
+    padding:6px;
+    border-radius:8px;
+  }
+  .cell{
+    width:var(--tile-size);
+    height:var(--tile-size);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:22px;
+    line-height:1;
+    border-radius:6px;
+    user-select:none;
+    background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+    color:#e6eef8;
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,0.25);
+    font-weight:700;
+  }
+  .fog{background:#02060a;color:#02060a;}
+  .wall{background:linear-gradient(180deg,#3b3b3b,#2a2a2a); color:#f8f8f8;}
+  .floor{background:linear-gradient(180deg,#08121a,#061018); color:#bfe3ff;}
+  .player{background:linear-gradient(180deg,#1b3b2f,#0f2a1f); color:#bfffe0;}
+  .enemy{background:linear-gradient(180deg,#3b1b1b,#2a0f0f); color:#ffd6d6;}
+  .item{background:linear-gradient(180deg,#1b2b3b,#0f1a2a); color:#fff2b8;}
+  .exit{background:linear-gradient(180deg,#2b2b5b,#15153a); color:#dfe0ff;}
+  /* Side panel */
+  .panel{
+    width:220px;
+    padding:12px;
+    background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius:8px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .title{font-size:18px;color:var(--accent);font-weight:800;text-align:center;}
+  .stat{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:6px;background:rgba(255,255,255,0.01);font-size:14px;}
+  .controls{font-size:13px;color:var(--muted);line-height:1.4;}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;font-size:13px;}
+  .legend .item{padding:6px 8px;border-radius:6px;font-weight:700;font-size:13px;}
+  .btn{display:inline-block;padding:8px 10px;border-radius:8px;background:var(--accent);color:#07202a;font-weight:800;text-align:center;cursor:pointer;border:none;}
+  .small{font-size:12px;color:var(--muted);}
+  .overlay{
+    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.6));z-index:40;
+  }
+  .card{background:var(--panel);padding:22px;border-radius:12px;min-width:320px;text-align:center;box-shadow:0 10px 30px rgba(2,6,23,0.6);}
+  .card h1{margin:0 0 8px 0;font-size:22px;color:var(--accent);}
+  .card p{margin:0 0 16px 0;color:var(--muted);}
+  .center{display:flex;gap:8px;justify-content:center;}
+  footer{font-size:12px;color:var(--muted);text-align:center;margin-top:8px;}
+  @media(max-width:820px){
+    .game-box{flex-direction:column; width:auto;}
+    .panel{width:100%;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="game-box" role="application" aria-label="8x8 Roguelike Game">
+    <div id="grid" class="grid" tabindex="0"></div>
+    <div class="panel">
+      <div class="title">8×8 Roguelike</div>
+      <div class="stat"><div>HP</div><div id="hp">--</div></div>
+      <div class="stat"><div>Enemies</div><div id="enemies">--</div></div>
+      <div class="stat"><div>Kills</div><div id="kills">0</div></div>
+      <div class="stat"><div>Turn</div><div id="turn">0</div></div>
+      <div class="controls">
+        <div class="small">이동: <strong>WASD</strong> 또는 <strong>화살표</strong></div>
+        <div class="small">아이템: 닿으면 회복</div>
+        <div class="small">적과 접촉하면 전투 발생</div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:space-between;">
+        <button id="restartBtn" class="btn">재시작</button>
+        <button id="helpBtn" class="btn" style="background:#7dd3fc;color:#022">도움</button>
+      </div>
+      <div style="margin-top:8px;">
+        <div class="legend">
+          <div class="item player">🧑‍🚀 P</div>
+          <div class="item enemy">👾 E</div>
+          <div class="item item">💊 I</div>
+          <div class="item exit">🚪 O</div>
+          <div class="item wall">🧱</div>
+        </div>
+      </div>
+      <footer>제작: 한 파일 HTML/CSS/JS · Fog of War 포함</footer>
+    </div>
+  </div>
+</div>
+
+<!-- Start / End overlays -->
+<div id="startOverlay" class="overlay">
+  <div class="card">
+    <h1>던전 탈출</h1>
+    <p>8×8 던전에서 탈출구(🚪)를 찾아라. 적(👾)과 닿으면 전투가 발생한다. 주변만 보이는 Fog of War 적용.</p>
+    <div class="center">
+      <button id="startBtn" class="btn">게임 시작</button>
+    </div>
+  </div>
+</div>
+
+<div id="messageOverlay" class="overlay" style="display:none;">
+  <div class="card" id="messageCard">
+    <h1 id="messageTitle">승리!</h1>
+    <p id="messageText">설명</p>
+    <div class="center">
+      <button id="msgRestart" class="btn">다시하기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ====== 게임 설정 ====== */
+const SIZE = 8;
+const FOG_RADIUS = 2;
+const ENEMY_COUNT = 3;
+const ITEM_COUNT = 2;
+
+/* ====== 게임 상태 ====== */
+let grid = []; // 'wall'|'floor'
+let player = {x:0,y:0,hp:10};
+let exitPos = {x:0,y:0};
+let enemies = []; // {x,y,hp,alive}
+let items = []; // {x,y}
+let turn = 0;
+let kills = 0;
+let gameOver = false;
+
+/* ====== DOM 참조 ====== */
+const gridEl = document.getElementById('grid');
+const hpEl = document.getElementById('hp');
+const enemiesEl = document.getElementById('enemies');
+const killsEl = document.getElementById('kills');
+const turnEl = document.getElementById('turn');
+const startOverlay = document.getElementById('startOverlay');
+const startBtn = document.getElementById('startBtn');
+const restartBtn = document.getElementById('restartBtn');
+const helpBtn = document.getElementById('helpBtn');
+const messageOverlay = document.getElementById('messageOverlay');
+const messageTitle = document.getElementById('messageTitle');
+const messageText = document.getElementById('messageText');
+const msgRestart = document.getElementById('msgRestart');
+
+/* ====== 유틸 ====== */
+function inBounds(x,y){ return x>=0 && y>=0 && x<SIZE && y<SIZE; }
+function idx(x,y){ return y*SIZE + x; }
+function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+
+/* ====== 맵 생성: 시작->탈출 경로 보장 ====== */
+function generateMap(){
+  // 초기화: 모두 floor
+  grid = Array(SIZE).fill(0).map(()=>Array(SIZE).fill('floor'));
+  // 랜덤 시작/탈출 (충분히 떨어지게)
+  player.x = Math.floor(Math.random()*SIZE);
+  player.y = Math.floor(Math.random()*SIZE);
+  do{
+    exitPos.x = Math.floor(Math.random()*SIZE);
+    exitPos.y = Math.floor(Math.random()*SIZE);
+  } while(Math.abs(player.x-exitPos.x)+Math.abs(player.y-exitPos.y) < 6);
+
+  // carve a guaranteed path using simple randomized walk from start to exit
+  let path = [{x:player.x,y:player.y}];
+  let cx = player.x, cy = player.y;
+  while(cx !== exitPos.x || cy !== exitPos.y){
+    if(Math.random() < 0.5){
+      if(cx < exitPos.x) cx++;
+      else if(cx > exitPos.x) cx--;
+      else if(cy < exitPos.y) cy++;
+      else if(cy > exitPos.y) cy--;
+    } else {
+      if(cy < exitPos.y) cy++;
+      else if(cy > exitPos.y) cy--;
+      else if(cx < exitPos.x) cx++;
+      else if(cx > exitPos.x) cx--;
+    }
+    path.push({x:cx,y:cy});
+  }
+  // mark path as floor (already floor) but keep list
+  const pathSet = new Set(path.map(p=>`${p.x},${p.y}`));
+
+  // place random walls but never on path, start, exit
+  for(let y=0;y<SIZE;y++){
+    for(let x=0;x<SIZE;x++){
+      if(pathSet.has(`${x},${y}`)) continue;
+      if(Math.random() < 0.22) grid[y][x] = 'wall';
+    }
+  }
+
+  // ensure connectivity: run BFS from player to exit ignoring enemies/items
+  function reachable(){
+    const q = [{x:player.x,y:player.y}];
+    const seen = Array(SIZE).fill(0).map(()=>Array(SIZE).fill(false));
+    seen[player.y][player.x]=true;
+    while(q.length){
+      const p = q.shift();
+      if(p.x===exitPos.x && p.y===exitPos.y) return true;
+      for(const d of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const nx=p.x+d[0], ny=p.y+d[1];
+        if(inBounds(nx,ny) && !seen[ny][nx] && grid[ny][nx] !== 'wall'){
+          seen[ny][nx]=true; q.push({x:nx,y:ny});
+        }
+      }
+    }
+    return false;
+  }
+
+  // If not reachable, carve path along stored path
+  if(!reachable()){
+    for(const p of path) grid[p.y][p.x] = 'floor';
+  }
+
+  // place enemies and items on random floor tiles (not start/exit)
+  enemies = [];
+  items = [];
+  const floorTiles = [];
+  for(let y=0;y<SIZE;y++) for(let x=0;x<SIZE;x++){
+    if(grid[y][x] === 'floor' && !(x===player.x && y===player.y) && !(x===exitPos.x && y===exitPos.y)){
+      floorTiles.push({x,y});
+    }
+  }
+  shuffle(floorTiles);
+  for(let i=0;i<ENEMY_COUNT && i<floorTiles.length;i++){
+    const t = floorTiles.pop();
+    enemies.push({x:t.x,y:t.y,hp:6,alive:true});
+  }
+  for(let i=0;i<ITEM_COUNT && floorTiles.length;i++){
+    const t = floorTiles.pop();
+    items.push({x:t.x,y:t.y});
+  }
+}
+
+/* ====== 렌더링 ====== */
+function render(){
+  gridEl.innerHTML = '';
+  // Fog of War: only reveal tiles within FOG_RADIUS (Manhattan)
+  for(let y=0;y<SIZE;y++){
+    for(let x=0;x<SIZE;x++){
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      const dist = Math.abs(player.x-x)+Math.abs(player.y-y);
+      const visible = dist <= FOG_RADIUS;
+      if(!visible){
+        cell.classList.add('fog');
+        cell.textContent = '⬛';
+      } else {
+        // determine content priority: player > enemy > item > exit > wall > floor
+        let content = '';
+        let cls = '';
+        if(player.x===x && player.y===y){
+          cls='player'; content='🧑‍🚀';
+        } else {
+          const enemy = enemies.find(e=>e.alive && e.x===x && e.y===y);
+          if(enemy){ cls='enemy'; content='👾'; }
+          else if(items.find(it=>it.x===x && it.y===y)){ cls='item'; content='💊'; }
+          else if(exitPos.x===x && exitPos.y===y){ cls='exit'; content='🚪'; }
+          else if(grid[y][x] === 'wall'){ cls='wall'; content='🧱'; }
+          else { cls='floor'; content='·'; }
+        }
+        cell.classList.add(cls);
+        cell.textContent = content;
+      }
+      gridEl.appendChild(cell);
+    }
+  }
+  // update HUD
+  hpEl.textContent = `${player.hp}`;
+  enemiesEl.textContent = `${enemies.filter(e=>e.alive).length}`;
+  killsEl.textContent = `${kills}`;
+  turnEl.textContent = `${turn}`;
+}
+
+/* ====== 전투 처리 ====== */
+function engageCombat(e){
+  // both lose HP
+  const playerDamage = 2;
+  const enemyDamage = 3;
+  player.hp -= playerDamage;
+  e.hp -= enemyDamage;
+  // short message in overlay (optional)
+  if(e.hp <= 0){
+    e.alive = false;
+    kills++;
+  }
+  if(player.hp <= 0){
+    player.hp = 0;
+    endGame(false, '당신은 패배했습니다...');
+  }
+}
+
+/* ====== 적 행동: 단순 추적 ====== */
+function enemyTurn(){
+  for(const e of enemies){
+    if(!e.alive) continue;
+    // if adjacent to player, attack
+    const dx = player.x - e.x, dy = player.y - e.y;
+    if(Math.abs(dx)+Math.abs(dy) === 1){
+      engageCombat(e);
+      if(gameOver) return;
+      continue;
+    }
+    // simple pathfinding: try to move closer (prefer axis with larger diff)
+    const moves = [];
+    if(Math.abs(dx) >= Math.abs(dy)){
+      if(dx>0) moves.push([1,0]); else if(dx<0) moves.push([-1,0]);
+      if(dy>0) moves.push([0,1]); else if(dy<0) moves.push([0,-1]);
+    } else {
+      if(dy>0) moves.push([0,1]); else if(dy<0) moves.push([0,-1]);
+      if(dx>0) moves.push([1,0]); else if(dx<0) moves.push([-1,0]);
+    }
+    // add random fallback moves
+    moves.push([1,0],[-1,0],[0,1],[0,-1]);
+    let moved=false;
+    for(const m of moves){
+      const nx = e.x + m[0], ny = e.y + m[1];
+      if(!inBounds(nx,ny)) continue;
+      if(grid[ny][nx] === 'wall') continue;
+      // cannot move into other enemy
+      if(enemies.some(o=>o!==e && o.alive && o.x===nx && o.y===ny)) continue;
+      // cannot move into exit or item (can, but prefer not to block exit)
+      // if moving into player, attack
+      if(player.x===nx && player.y===ny){
+        engageCombat(e);
+        moved=true;
+        break;
+      }
+      // move
+      e.x = nx; e.y = ny; moved=true; break;
+    }
+    if(gameOver) return;
+  }
+}
+
+/* ====== 플레이어 이동 처리 ====== */
+function tryMove(dx,dy){
+  if(gameOver) return;
+  const nx = player.x + dx, ny = player.y + dy;
+  if(!inBounds(nx,ny)) return;
+  if(grid[ny][nx] === 'wall') return;
+  // check enemy at target
+  const enemy = enemies.find(e=>e.alive && e.x===nx && e.y===ny);
+  if(enemy){
+    // move into enemy triggers combat (both take damage)
+    engageCombat(enemy);
+    if(gameOver) { render(); return; }
+    // if enemy died, player moves into tile
+    if(!enemy.alive){
+      player.x = nx; player.y = ny;
+    }
+  } else {
+    // move
+    player.x = nx; player.y = ny;
+    // check item
+    const itIdx = items.findIndex(it=>it.x===nx && it.y===ny);
+    if(itIdx >= 0){
+      player.hp += 4; // heal
+      items.splice(itIdx,1);
+    }
+    // check exit
+    if(exitPos.x===nx && exitPos.y===ny){
+      endGame(true, '탈출에 성공했습니다!');
+      render();
+      return;
+    }
+  }
+  turn++;
+  // enemies act after player
+  enemyTurn();
+  // after enemy turn, check if player stepped onto exit (enemy might have moved off)
+  if(exitPos.x===player.x && exitPos.y===player.y && !gameOver){
+    endGame(true, '탈출에 성공했습니다!');
+  }
+  render();
+}
+
+/* ====== 게임 종료 ====== */
+function endGame(win, text){
+  gameOver = true;
+  messageTitle.textContent = win ? '승리!' : '패배';
+  messageText.textContent = text + ` 점수: ${kills} 킬, 턴: ${turn}`;
+  messageOverlay.style.display = 'flex';
+}
+
+/* ====== 초기화 및 시작 ====== */
+function startGame(){
+  // reset state
+  player.hp = 10;
+  turn = 0;
+  kills = 0;
+  gameOver = false;
+  generateMap();
+  render();
+  startOverlay.style.display = 'none';
+  messageOverlay.style.display = 'none';
+  // focus grid for keyboard
+  gridEl.focus();
+}
+
+/* ====== 완전 재시작 (모든 상태 초기화) ====== */
+function restartGame(){
+  // hide overlays and regenerate everything
+  startOverlay.style.display = 'none';
+  messageOverlay.style.display = 'none';
+  startGame();
+}
+
+/* ====== 키 입력 바인딩 ====== */
+window.addEventListener('keydown', (e)=>{
+  if(startOverlay.style.display !== 'none') return;
+  const key = e.key;
+  let moved=false;
+  if(key === 'ArrowUp' || key === 'w' || key === 'W') { tryMove(0,-1); moved=true; }
+  else if(key === 'ArrowDown' || key === 's' || key === 'S') { tryMove(0,1); moved=true; }
+  else if(key === 'ArrowLeft' || key === 'a' || key === 'A') { tryMove(-1,0); moved=true; }
+  else if(key === 'ArrowRight' || key === 'd' || key === 'D') { tryMove(1,0); moved=true; }
+  if(moved) e.preventDefault();
+});
+
+/* ====== 버튼 바인딩 ====== */
+startBtn.addEventListener('click', ()=> startGame());
+restartBtn.addEventListener('click', ()=> restartGame());
+msgRestart.addEventListener('click', ()=> restartGame());
+helpBtn.addEventListener('click', ()=>{
+  alert('이동: WASD 또는 화살표\n적과 접촉하면 전투 발생(서로 체력 감소)\n아이템(💊)은 닿으면 +4 회복\n탈출구(🚪)에 도달하면 승리\n재시작 버튼으로 완전 초기화');
+});
+
+/* ====== 초기 렌더 (시작 전 빈 그리드) ====== */
+(function initRender(){
+  // create empty cells so layout is stable before start
+  for(let i=0;i<SIZE*SIZE;i++){
+    const c = document.createElement('div');
+    c.className='cell fog';
+    c.textContent='⬛';
+    gridEl.appendChild(c);
+  }
+})();
+</script>
+</body>
+</html>

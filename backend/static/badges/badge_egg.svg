@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" fill="none" viewBox="0 0 200 200">
+  <defs>
+    <radialGradient id="eggShell" cx="0" cy="0" r="1" gradientTransform="translate(82 64) rotate(63.025) scale(112.694 90.6122)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fffefc"/>
+      <stop offset="0.62" stop-color="#f5f6fa"/>
+      <stop offset="1" stop-color="#dde4ef"/>
+    </radialGradient>
+    <linearGradient id="eggShadow" x1="100" x2="100" y1="36" y2="170" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#cbd5e1"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="100" cy="175" rx="44" ry="10" fill="#0f172a" fill-opacity=".12"/>
+  <path d="M100 26c29.95 0 53 38.6 53 84.72 0 36.2-20.34 63.28-53 63.28s-53-27.08-53-63.28C47 64.6 70.05 26 100 26Z" fill="url(#eggShell)"/>
+  <path d="M100 26c29.95 0 53 38.6 53 84.72 0 36.2-20.34 63.28-53 63.28s-53-27.08-53-63.28C47 64.6 70.05 26 100 26Z" stroke="#b8c4d4" stroke-width="4"/>
+  <path d="M127 49c10.43 13.34 17 35.27 17 58.72 0 17.59-3.7 31.6-10.74 42.48" stroke="url(#eggShadow)" stroke-linecap="round" stroke-width="8"/>
+  <path d="M103 101.5 116 96l13 7 10-6" stroke="#94a3b8" stroke-linecap="round" stroke-linejoin="round" stroke-width="4.5"/>
+  <path d="m117 95 2-8m13 15 7 6m-21 2 4 9" stroke="#c7ced9" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  <path d="M73 58c7-8.5 17.24-13.03 30-13.03" stroke="#fff" stroke-linecap="round" stroke-width="6"/>
+</svg>

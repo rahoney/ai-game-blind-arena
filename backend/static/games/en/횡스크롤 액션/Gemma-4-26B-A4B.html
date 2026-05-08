@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate 2D Platformer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            border: 4px solid #333;
+        }
+        canvas {
+            display: block;
+            background: linear-gradient(to bottom, #1e3c72, #2a5298);
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        .overlay {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.7);
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+        }
+        .hidden { display: none !important; }
+        h1 { font-size: 48px; margin-bottom: 20px; color: #00d2ff; }
+        button {
+            padding: 15px 40px;
+            font-size: 24px;
+            cursor: pointer;
+            background: #00d2ff;
+            border: none;
+            border-radius: 5px;
+            color: #1a1a1a;
+            font-weight: bold;
+            transition: transform 0.2s, background 0.2s;
+        }
+        button:hover { transform: scale(1.1); background: #fff; }
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 20px;
+            pointer-events: none;
+            text-shadow: 2px 2px 2px black;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div id="hud">
+        <div id="hud-left"></div>
+        <div id="hud-right"></div>
+    </div>
+    <div id="ui-layer">
+        <!-- Start Screen -->
+        <div id="screen-start" class="overlay">
+            <h1 id="txt-title">PLATFORMER ADVENTURE</h1>
+            <button id="btn-start"></button>
+        </div>
+        <!-- Game Over Screen -->
+        <div id="screen-gameover" class="overlay hidden">
+            <h1 id="txt-gameover">GAME OVER</h1>
+            <p id="txt-final-score"></p>
+            <button id="btn-restart-fail"></button>
+        </div>
+        <!-- Clear Screen -->
+        <div id="screen-clear" class="overlay hidden">
+            <h1 id="txt-clear">STAGE CLEAR!</h1>
+            <p id="txt-clear-score"></p>
+            <button id="btn-restart-success"></button>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * LANG_DATA: 모든 문자열 중앙 관리
+ */
+const LANG_DATA = {
+    TITLE: "NEON RUNNER",
+    START_BTN: "Start Game",
+    GAME_OVER: "Game Over",
+    CLEAR: "Stage Cleared!",
+    RESTART_BTN: "Try Again",
+    FINAL_SCORE: "Final Score: ",
+    CLEAR_SCORE: "Score Earned: ",
+    HIGH_SCORE: "Best Score: ",
+    HUD_HP: "HP: ",
+    HUD_SCORE: "Score: ",
+    HUD_LEVEL: "Stage: "
+};
+
+/**
+ * 게임 설정 및 상수
+ */
+const CONFIG = {
+    WIDTH: 800,
+    HEIGHT: 500,
+    GRAVITY: 0.6,
+    FRICTION: 0.85,
+    ACCEL: 1.2,
+    MAX_SPEED: 6,
+    JUMP_FORCE: -14,
+    COYOTE_TIME: 10, // 프레임 단위
+    JUMP_BUFFER: 10,
+    PLAYER_SIZE: 30,
+    ENEMY_SIZE: 30,
+    COIN_SIZE: 15
+};
+
+/**
+ * 사운드 엔진 (Web Audio API)
+ */
+class SoundEngine {
+    constructor() {
+        this.ctx = null;
+    }
+    init() {
+        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    play(type) {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        const now = this.ctx.currentTime;
+
+        switch(type) {
+            case 'jump':
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(400, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(); osc.stop(now + 0.1);
+                break;
+            case 'coin':
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(); osc.stop(now + 0.1);
+                break;
+            case 'hit':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, now);
+                osc.frequency.linearRampToValueAtTime(20, now + 0.2);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                osc.start(); osc.stop(now + 0.2);
+                break;
+            case 'clear':
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.3);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start(); osc.stop(now + 0.5);
+                break;
+        }
+    }
+}
+
+const sounds = new SoundEngine();
+
+/**
+ * 게임 엔진 클래스
+ */
+class Game {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.canvas.width = CONFIG.WIDTH;
+        this.canvas.height = CONFIG.HEIGHT;
+
+        this.state = 'MENU'; // MENU, PLAYING, GAMEOVER, CLEAR
+        this.score = 0;
+        this.highScore = localStorage.getItem('highScore') || 0;
+        
+        this.keys = {};
+        this.setupEventListeners();
+        this.initUI();
+        
+        this.particles = [];
+        this.camera = { x: 0, y: 0, lerp: 0.1 };
+        
+        this.loop();
+    }
+
+    initUI() {
+        document.getElementById('txt-title').innerText = LANG_DATA.TITLE;
+        document.getElementById('btn-start').innerText = LANG_DATA.START_BTN;
+        document.getElementById('txt-gameover').innerText = LANG_DATA.GAME_OVER;
+        document.getElementById('btn-restart-fail').innerText = LANG_DATA.RESTART_BTN;
+        document.getElementById('txt-clear').innerText = LANG_DATA.CLEAR;
+        document.getElementById('btn-restart-success').innerText = LANG_DATA.RESTART_BTN;
+        
+        document.getElementById('btn-start').onclick = () => this.startGame();
+        document.getElementById('btn-restart-fail').onclick = () => this.startGame();
+        document.getElementById('btn-restart-success').onclick = () => this.startGame();
+    }
+
+    setupEventListeners() {
+        window.addEventListener('keydown', e => this.keys[e.code] = true);
+        window.addEventListener('keyup', e => this.keys[e.code] = false);
+    }
+
+    startGame() {
+        sounds.init();
+        this.score = 0;
+        this.state = 'PLAYING';
+        this.particles = [];
+        this.camera.x = 0;
+        this.setupLevel();
+        
+        // UI Hide
+        document.getElementById('screen-start').classList.add('hidden');
+        document.getElementById('screen-gameover').classList.add('hidden');
+        document.getElementById('screen-clear').classList.add('hidden');
+    }
+
+    setupLevel() {
+        // Stage design: [x, y, w, h, type] 
+        // type: 0=platform, 1=enemy_patrol, 2=enemy_flyer, 3=coin, 4=goal
+        this.platforms = [
+            {x: 0, y: 450, w: 1000, h: 50},
+            {x: 1150, y: 400, w: 300, h: 100},
+            {x: 1550, y: 300, w: 300, h: 30},
+            {x: 1950, y: 450, w: 800, h: 50},
+            {x: 2100, y: 300, w: 200, h: 20},
+            {x: 2400, y: 200, w: 200, h: 20},
+            {x: 2700, y: 350, w: 600, h: 150},
+            {x: 3400, y: 450, w: 1000, h: 50},
+            {x: 3600, y: 300, w: 100, h: 20},
+            {x: 3800, y: 200, w: 100, h: 20},
+            {x: 4100, y: 350, w: 200, h: 20},
+            {x: 4400, y: 450, w: 1000, h: 50}
+        ];
+
+        this.enemies = [
+            {x: 500, y: 420, w: 30, h: 30, type: 'patrol', range: 200, startX: 500, speed: 2},
+            {x: 1600, y: 270, w: 30, h: 30, type: 'patrol', range: 150, startX: 1600, speed: 3},
+            {x: 2800, y: 320, w: 30, h: 30, type: 'flyer', range: 100, startY: 320, speed: 2, angle: 0},
+            {x: 3500, y: 420, w: 30, h: 30, type: 'patrol', range: 300, startX: 3500, speed: 4},
+            {x: 4600, y: 420, w: 30, h: 30, type: 'flyer', range: 200, startY: 350, speed: 3, angle: 0}
+        ];
+
+        this.coins = [
+            {x: 1200, y: 350, collected: false},
+            {x: 1600, y: 250, collected: false},
+            {x: 2150, y: 250, collected: false},
+            {x: 2450, y: 150, collected: false},
+            {x: 3100, y: 400, collected: false},
+            {x: 3650, y: 150, collected: false},
+            {x: 3850, y: 150, collected: false},
+            {x: 4500, y: 400, collected: false},
+            {x: 4700, y: 400, collected: false}
+        ];
+
+        this.goal = {x: 5200, y: 350, w: 50, h: 100};
+
+        this.player = {
+            x: 100, y: 400, w: 30, h: 30,
+            vx: 0, vy: 0,
+            hp: 3,
+            grounded: false,
+            coyoteCounter: 0,
+            jumpBufferCounter: 0,
+            color: '#00d2ff'
+        };
+    }
+
+    update() {
+        if (this.state !== 'PLAYING') return;
+
+        const p = this.player;
+
+        // 1. Input & Movement
+        if (this.keys['ArrowLeft'] || this.keys['KeyA']) p.vx -= CONFIG.ACCEL;
+        if (this.keys['ArrowRight'] || this.keys['KeyD']) p.vx += CONFIG.ACCEL;
+        
+        // Jump Logic with Buffer & Coyote
+        if (this.keys['Space'] || this.keys['ArrowUp'] || this.keys['KeyW']) {
+            p.jumpBufferCounter = CONFIG.JUMP_BUFFER;
+        }
+
+        p.vx *= CONFIG.FRICTION;
+        p.vy += CONFIG.GRAVITY;
+
+        // Apply velocities
+        p.x += p.vx;
+        this.handleCollision(p, 'x');
+        p.y += p.vy;
+        this.handleCollision(p, 'y');
+
+        // Limit speed
+        if (Math.abs(p.vx) > CONFIG.MAX_SPEED) p.vx = Math.sign(p.vx) * CONFIG.MAX_SPEED;
+
+        // 2. Grounded / Coyote Time Logic
+        if (p.grounded) {
+            p.coyoteCounter = CONFIG.COYOTE_TIME;
+        } else {
+            p.coyoteCounter--;
+        }
+
+        if (p.jumpBufferCounter > 0) {
+            if (p.coyoteCounter > 0) {
+                p.vy = CONFIG.JUMP_FORCE;
+                p.grounded = false;
+                p.coyoteCounter = 0;
+                sounds.play('jump');
+                this.createParticles(p.x + p.w/2, p.y + p.h, '#fff', 10);
+            }
+            p.jumpBufferCounter--;
+        }
+
+        // 3. Enemy Update
+        this.enemies.forEach(e => {
+            if (e.type === 'patrol') {
+                e.x += e.speed;
+                if (Math.abs(e.x - e.startX) > e.range) e.speed *= -1;
+            } else if (e.type === 'flyer') {
+                e.angle += 0.05;
+                e.x = e.startX || e.x; 
+                e.y = e.startY + Math.sin(e.angle) * e.range;
+            }
+
+            // Collision Player-Enemy
+            if (this.rectIntersect(p, e)) {
+                p.hp--;
+                sounds.play('hit');
+                this.createParticles(p.x + p.w/2, p.y + p.h/2, '#ff0000', 15);
+                // Knockback
+                p.vx = (p.x < e.x) ? -10 : 10;
+                p.vy = -5;
+                if (p.hp <= 0) this.gameOver();
+            }
+        });
+
+        // 4. Coin Collection
+        this.coins.forEach(c => {
+            if (!c.collected && this.rectIntersect(p, {x: c.x-7, y: c.y-7, w: 14, h: 14})) {
+                c.collected = true;
+                this.score += 100;
+                sounds.play('coin');
+                this.createParticles(c.x, c.y, '#ffd700', 8);
+            }
+        });
+
+        // 5. Goal Check
+        if (this.rectIntersect(p, this.goal)) {
+            this.clear();
+        }
+
+        // 6. Fall Death
+        if (p.y > CONFIG.HEIGHT + 200) {
+            this.gameOver();
+        }
+
+        // 7. Camera Lerp
+        const targetCamX = p.x - CONFIG.WIDTH / 2;
+        this.camera.x += (targetCamX - this.camera.x) * this.camera.lerp;
+        this.camera.x = Math.max(0, this.camera.x);
+
+        // 8. Particles
+        this.particles.forEach((part, i) => {
+            part.x += part.vx;
+            part.y += part.vy;
+            part.life--;
+            if (part.life <= 0) this.particles.splice(i, 1);
+        });
+
+        this.updateHUD();
+    }
+
+    handleCollision(p, axis) {
+        p.grounded = false;
+        this.platforms.forEach(plat => {
+            if (this.rectIntersect(p, plat)) {
+                if (axis === 'x') {
+                    if (p.vx > 0) p.x = plat.x - p.w;
+                    else if (p.vx < 0) p.x = plat.x + plat.w;
+                    p.vx = 0;
+                } else {
+                    if (p.vy > 0) {
+                        p.y = plat.y - p.h;
+                        p.grounded = true;
+                        p.vy = 0;
+                    } else if (p.vy < 0) {
+                        p.y = plat.y + plat.h;
+                        p.vy = 0;
+                    }
+                }
+            }
+        });
+    }
+
+    rectIntersect(r1, r2) {
+        return r1.x < r2.x + (r2.w || 0) &&
+               r1.x + (r1.w || 0) > r2.x &&
+               r1.y < r2.y + (r2.h || 0) &&
+               r1.y + (r1.h || 0) > r2.y;
+    }
+
+    createParticles(x, y, color, count) {
+        for (let i = 0; i < count; i++) {
+            this.particles.push({
+                x, y, 
+                vx: (Math.random() - 0.5) * 10,
+                vy: (Math.random() - 0.5) * 10,
+                life: 20 + Math.random() * 20,
+                color
+            });
+        }
+    }
+
+    updateHUD() {
+        const left = document.getElementById('hud-left');
+        const right = document.getElementById('hud-right');
+        left.innerHTML = `${LANG_DATA.HUD_HP} ${this.player.hp} | ${LANG_DATA.HUD_SCORE} ${this.score}`;
+        right.innerHTML = `${LANG_DATA.HUD_LEVEL} 1`;
+    }
+
+    gameOver() {
+        this.state = 'GAMEOVER';
+        if (this.score > this.highScore) {
+            this.highScore = this.score;
+            localStorage.setItem('highScore', this.highScore);
+        }
+        document.getElementById('txt-final-score').innerText = `${LANG_DATA.FINAL_SCORE} ${this.score} (${LANG_DATA.HIGH_SCORE} ${this.highScore})`;
+        document.getElementById('screen-gameover').classList.remove('hidden');
+    }
+
+    clear() {
+        this.state = 'CLEAR';
+        sounds.play('clear');
+        document.getElementById('txt-clear-score').innerText = `${LANG_DATA.CLEAR_SCORE} ${this.score}`;
+        document.getElementById('screen-clear').classList.remove('hidden');
+    }
+
+    draw() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        this.ctx.save();
+        this.ctx.translate(-this.camera.x, 0);
+
+        // Draw Platforms
+        this.ctx.fillStyle = '#444';
+        this.platforms.forEach(plat => {
+            this.ctx.fillRect(plat.x, plat.y, plat.w, plat.h);
+            this.ctx.strokeStyle = '#666';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(plat.x, plat.y, plat.w, plat.h);
+        });
+
+        // Draw Goal
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.fillRect(this.goal.x, this.goal.y, this.goal.w, this.goal.h);
+        this.ctx.fillStyle = '#fff';
+        this.ctx.fillRect(this.goal.x, this.goal.y, 10, 30); // flag pole
+
+        // Draw Coins
+        this.ctx.fillStyle = '#ffd700';
+        this.coins.forEach(c => {
+            if (!c.collected) {
+                this.ctx.beginPath();
+                this.ctx.arc(c.x, c.y, CONFIG.COIN_SIZE/2, 0, Math.PI*2);
+                this.ctx.fill();
+            }
+        });
+
+        // Draw Enemies
+        this.enemies.forEach(e => {
+            this.ctx.fillStyle = e.type === 'patrol' ? '#ff4444' : '#ff00ff';
+            this.ctx.fillRect(e.x, e.y, e.w, e.h);
+            // Eyes
+            this.ctx.fillStyle = 'white';
+            this.ctx.fillRect(e.x + 5, e.y + 5, 5, 5);
+            this.ctx.fillRect(e.x + e.w - 10, e.y + 5, 5, 5);
+        });
+
+        // Draw Player
+        this.ctx.fillStyle = this.player.color;
+        this.ctx.fillRect(this.player.x, this.player.y, this.player.w, this.player.h);
+        this.ctx.fillStyle = 'white'; // Eyes
+        this.ctx.fillRect(this.player.x + 5, this.player.y + 5, 6, 6);
+        this.ctx.fillRect(this.player.x + 19, this.player.y + 5, 6, 6);
+
+        // Draw Particles
+        this.particles.forEach(p => {
+            this.ctx.globalAlpha = p.life / 40;
+            this.ctx.fillStyle = p.color;
+            this.ctx.fillRect(p.x, p.y, 4, 4);
+        });
+        this.ctx.globalAlpha = 1.0;
+
+        this.ctx.restore();
+    }
+
+    loop() {
+        this.update();
+        this.draw();
+        requestAnimationFrame(() => this.loop());
+    }
+}
+
+// Initialize Game
+window.onload = () => {
+    new Game();
+};
+</script>
+
+</body>
+</html>

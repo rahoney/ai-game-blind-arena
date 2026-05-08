@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slime Card Battle</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #game-container {
+            width: 90%;
+            max-width: 800px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 24px;
+            padding: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            position: relative;
+        }
+
+        /* 전투 영역 */
+        .battle-arena {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 40px 20px;
+            margin-bottom: 20px;
+            background: linear-gradient(to bottom, #f0f4ff, #e6eeff);
+            border-radius: 16px;
+            position: relative;
+            min-height: 250px;
+        }
+
+        .character {
+            text-align: center;
+            transition: transform 0.3s;
+            position: relative;
+        }
+
+        .character.shake {
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        .avatar {
+            font-size: 80px;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+        }
+
+        .hp-bar-container {
+            width: 120px;
+            height: 20px;
+            background: #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 8px auto;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .hp-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #ee5a5a);
+            transition: width 0.3s ease;
+            border-radius: 8px;
+        }
+
+        .hp-text {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            margin-top: 4px;
+        }
+
+        .block-badge {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #4dabf7;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .block-badge.show {
+            opacity: 1;
+        }
+
+        .character-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 8px;
+        }
+
+        /* 전투 로그 */
+        .battle-log {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .damage-text {
+            font-size: 32px;
+            font-weight: bold;
+            color: #ff6b6b;
+            text-shadow: 2px 2px 0 #fff;
+            animation: floatUp 1s ease-out forwards;
+            position: absolute;
+            white-space: nowrap;
+        }
+
+        .heal-text {
+            color: #51cf66;
+        }
+
+        .block-text {
+            color: #4dabf7;
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-50px) scale(1.2); }
+        }
+
+        /* 플레이어 상태창 */
+        .player-status {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 12px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .energy-icon { color: #ffd43b; }
+        .hp-icon { color: #ff6b6b; }
+        .block-icon { color: #4dabf7; }
+
+        /* 카드 영역 */
+        .hand-area {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            min-height: 160px;
+            margin-bottom: 20px;
+            perspective: 1000px;
+        }
+
+        .card {
+            width: 100px;
+            height: 140px;
+            background: white;
+            border-radius: 12px;
+            border: 3px solid #dee2e6;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            user-select: none;
+        }
+
+        .card:hover:not(.disabled) {
+            transform: translateY(-10px) rotateX(5deg);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.2);
+            border-color: #74c0fc;
+        }
+
+        .card.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(100%);
+        }
+
+        .card.used {
+            animation: cardUsed 0.5s forwards;
+        }
+
+        @keyframes cardUsed {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(0) translateY(-100px); opacity: 0; }
+        }
+
+        .card-cost {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: #ffd43b;
+            color: #333;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .card-icon {
+            font-size: 40px;
+            margin-bottom: 8px;
+        }
+
+        .card-name {
+            font-size: 12px;
+            font-weight: bold;
+            color: #495057;
+            text-align: center;
+            padding: 0 5px;
+        }
+
+        .card-desc {
+            font-size: 10px;
+            color: #868e96;
+            text-align: center;
+            margin-top: 4px;
+        }
+
+        /* 버튼 */
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        button {
+            padding: 12px 32px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .end-turn-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .end-turn-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        }
+
+        .end-turn-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .restart-btn {
+            background: #51cf66;
+            color: white;
+            display: none;
+        }
+
+        .restart-btn:hover {
+            background: #40c057;
+            transform: translateY(-2px);
+        }
+
+        /* 게임 오버 오버레이 */
+        .game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 24px;
+            z-index: 100;
+        }
+
+        .game-over.show {
+            display: flex;
+        }
+
+        .game-over-text {
+            font-size: 48px;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 20px;
+            text-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        }
+
+        .victory { color: #51cf66; }
+        .defeat { color: #ff6b6b; }
+
+        /* 턴 표시기 */
+        .turn-indicator {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,255,255,0.9);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            color: #495057;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .turn-indicator.enemy-turn {
+            background: #ff6b6b;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- 턴 표시 -->
+        <div class="turn-indicator" id="turn-indicator">🎮 Player Turn</div>
+
+        <!-- 전투 영역 -->
+        <div class="battle-arena">
+            <!-- 적 -->
+            <div class="character" id="enemy">
+                <div class="block-badge" id="enemy-block">0</div>
+                <div class="character-name">👾 Slime King</div>
+                <div class="avatar">👾</div>
+                <div class="hp-bar-container">
+                    <div class="hp-bar" id="enemy-hp-bar" style="width: 100%"></div>
+                </div>
+                <div class="hp-text"><span id="enemy-hp">50</span> / 50</div>
+            </div>
+
+            <!-- 전투 로그 표시 영역 -->
+            <div class="battle-log" id="battle-log"></div>
+
+            <!-- 플레이어 -->
+            <div class="character" id="player">
+                <div class="block-badge" id="player-block">0</div>
+                <div class="character-name">⚔️ Hero</div>
+                <div class="avatar">🦸</div>
+                <div class="hp-bar-container">
+                    <div class="hp-bar" id="player-hp-bar" style="width: 100%"></div>
+                </div>
+                <div class="hp-text"><span id="player-hp">30</span> / 30</div>
+            </div>
+        </div>
+
+        <!-- 플레이어 상태 -->
+        <div class="player-status">
+            <div class="status-item">
+                <span class="hp-icon">❤️</span>
+                <span id="status-hp">30/30</span>
+            </div>
+            <div class="status-item">
+                <span class="energy-icon">⚡</span>
+                <span id="status-energy">3/3</span>
+            </div>
+            <div class="status-item">
+                <span class="block-icon">🛡️</span>
+                <span id="status-block">0</span>
+            </div>
+        </div>
+
+        <!-- 카드 패 -->
+        <div class="hand-area" id="hand-area">
+            <!-- 카드들이 여기에 동적으로 생성됨 -->
+        </div>
+
+        <!-- 컨트롤 버튼 -->
+        <div class="controls">
+            <button class="end-turn-btn" id="end-turn-btn" onclick="endTurn()">End Turn</button>
+            <button class="restart-btn" id="restart-btn" onclick="initGame()">Restart</button>
+        </div>
+
+        <!-- 게임 오버 화면 -->
+        <div class="game-over" id="game-over">
+            <div class="game-over-text" id="game-over-text"></div>
+            <button class="restart-btn" onclick="initGame()" style="display: block; font-size: 20px; padding: 15px 40px;">Try Again</button>
+        </div>
+    </div>
+
+    <script>
+        // 게임 상태 관리
+        let gameState = {
+            player: { hp: 30, maxHp: 30, block: 0, energy: 3 },
+            enemy: { hp: 50, maxHp: 50, block: 0 },
+            turn: 1,
+            isPlayerTurn: true,
+            hand: [],
+            deck: []
+        };
+
+        // 카드 데이터베이스
+        const cardDatabase = [
+            { id: 'attack', name: 'Attack', cost: 1, icon: '⚔️', desc: '6 damage', type: 'attack', value: 6, color: '#ff6b6b' },
+            { id: 'heavy', name: 'Heavy Blow', cost: 2, icon: '🔨', desc: '14 damage', type: 'attack', value: 14, color: '#e03131' },
+            { id: 'defend', name: 'Defend', cost: 1, icon: '🛡️', desc: '8 block', type: 'block', value: 8, color: '#4dabf7' },
+            { id: 'heal', name: 'Heal', cost: 1, icon: '💚', desc: 'Restore 5 HP', type: 'heal', value: 5, color: '#51cf66' },
+            { id: 'double', name: 'Double Slash', cost: 1, icon: '⚔️⚔️', desc: '3x2 damage', type: 'attack', value: 3, hits: 2, color: '#ff8787' }
+        ];
+
+        // 게임 초기화
+        function initGame() {
+            gameState = {
+                player: { hp: 30, maxHp: 30, block: 0, energy: 3 },
+                enemy: { hp: 50, maxHp: 50, block: 0 },
+                turn: 1,
+                isPlayerTurn: true,
+                hand: [],
+                deck: []
+            };
+
+            document.getElementById('game-over').classList.remove('show');
+            document.getElementById('end-turn-btn').disabled = false;
+            document.getElementById('end-turn-btn').style.display = 'block';
+            document.getElementById('restart-btn').style.display = 'none';
+            
+            updateUI();
+            startTurn();
+        }
+
+        // 턴 시작
+        function startTurn() {
+            if (gameState.player.hp <= 0 || gameState.enemy.hp <= 0) return;
+
+            gameState.isPlayerTurn = true;
+            gameState.player.energy = 3;
+            gameState.player.block = 0; // 방어 초기화
+            gameState.turn++;
+
+            document.getElementById('turn-indicator').textContent = '🎮 Player Turn';
+            document.getElementById('turn-indicator').classList.remove('enemy-turn');
+
+            drawCards();
+            updateUI();
+        }
+
+        // 카드 드로우 (무작위 3장)
+        function drawCards() {
+            gameState.hand = [];
+            for (let i = 0; i < 3; i++) {
+                const randomCard = cardDatabase[Math.floor(Math.random() * cardDatabase.length)];
+                gameState.hand.push({ ...randomCard, uid: Date.now() + i });
+            }
+            renderHand();
+        }
+
+        // 카드 패 렌더링
+        function renderHand() {
+            const handArea = document.getElementById('hand-area');
+            handArea.innerHTML = '';
+
+            gameState.hand.forEach((card, index) => {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'card';
+                if (card.cost > gameState.player.energy) {
+                    cardEl.classList.add('disabled');
+                }
+
+                cardEl.innerHTML = `
+                    <div class="card-cost">${card.cost}</div>
+                    <div class="card-icon">${card.icon}</div>
+                    <div class="card-name" style="color: ${card.color}">${card.name}</div>
+                    <div class="card-desc">${card.desc}</div>
+                `;
+
+                cardEl.onclick = () => playCard(index);
+                handArea.appendChild(cardEl);
+            });
+        }
+
+        // 카드 사용
+        function playCard(index) {
+            const card = gameState.hand[index];
+            
+            // 에너지 체크
+            if (card.cost > gameState.player.energy) return;
+
+            // 에너지 소모
+            gameState.player.energy -= card.cost;
+
+            // 카드 효과 적용
+            applyCardEffect(card);
+            
+            // UI 애니메이션
+            const cardEls = document.querySelectorAll('.card');
+            cardEls[index].classList.add('used');
+            
+            // 카드 제거 (1장 사용 후 바로 사라지고 새로 드로우하지 않음 - 턴 종료 시 리필)
+            setTimeout(() => {
+                gameState.hand.splice(index, 1);
+                renderHand();
+                updateUI();
+            }, 300);
+
+            // 승리 체크
+            if (gameState.enemy.hp <= 0) {
+                setTimeout(() => gameOver(true), 500);
+            }
+        }
+
+        // 카드 효과 적용
+        function applyCardEffect(card) {
+            const enemy = document.getElementById('enemy');
+            const player = document.getElementById('player');
+
+            switch(card.type) {
+                case 'attack':
+                    // 데미지 계산 (적의 방어 고려)
+                    let damage = card.value;
+                    const hits = card.hits || 1;
+                    
+                    for (let i = 0; i < hits; i++) {
+                        setTimeout(() => {
+                            let actualDamage = damage;
+                            if (gameState.enemy.block > 0) {
+                                if (gameState.enemy.block >= actualDamage) {
+                                    gameState.enemy.block -= actualDamage;
+                                    actualDamage = 0;
+                                } else {
+                                    actualDamage -= gameState.enemy.block;
+                                    gameState.enemy.block = 0;
+                                }
+                            }
+                            gameState.enemy.hp = Math.max(0, gameState.enemy.hp - actualDamage);
+                            
+                            // 시각 효과
+                            enemy.classList.add('shake');
+                            setTimeout(() => enemy.classList.remove('shake'), 500);
+                            showFloatingText(actualDamage > 0 ? `-${actualDamage}` : 'Blocked!', 
+                                actualDamage > 0 ? 'damage-text' : 'block-text', 'enemy');
+                            
+                            updateUI();
+                        }, i * 200);
+                    }
+                    break;
+
+                case 'block':
+                    gameState.player.block += card.value;
+                    showFloatingText(`+${card.value} Block`, 'block-text', 'player');
+                    break;
+
+                case 'heal':
+                    const healAmount = Math.min(card.value, gameState.player.maxHp - gameState.player.hp);
+                    gameState.player.hp += healAmount;
+                    showFloatingText(`+${healAmount} Heal`, 'heal-text', 'player');
+                    break;
+            }
+        }
+
+        // 플로팅 텍스트 표시
+        function showFloatingText(text, className, target) {
+            const log = document.getElementById('battle-log');
+            const el = document.createElement('div');
+            el.className = className + ' damage-text';
+            el.textContent = text;
+            
+            const targetEl = document.getElementById(target);
+            const rect = targetEl.getBoundingClientRect();
+            const containerRect = document.querySelector('.battle-arena').getBoundingClientRect();
+            
+            el.style.left = (rect.left - containerRect.left + rect.width/2 - 30) + 'px';
+            el.style.top = (rect.top - containerRect.top) + 'px';
+            
+            log.appendChild(el);
+            setTimeout(() => el.remove(), 1000);
+        }
+
+        // 턴 종료
+        function endTurn() {
+            if (!gameState.isPlayerTurn) return;
+            
+            gameState.isPlayerTurn = false;
+            document.getElementById('end-turn-btn').disabled = true;
+            document.getElementById('turn-indicator').textContent = '👾 Enemy Turn';
+            document.getElementById('turn-indicator').classList.add('enemy-turn');
+
+            // 적 행동
+            setTimeout(enemyTurn, 1000);
+        }
+
+        // 적 턴 AI
+        function enemyTurn() {
+            if (gameState.enemy.hp <= 0) return;
+
+            // 적 방어 초기화
+            gameState.enemy.block = 0;
+
+            // 행동 결정 (70% 공격, 20% 강공, 10% 힐)
+            const rand = Math.random();
+            let action = {};
+            
+            if (rand < 0.7) {
+                action = { type: 'attack', value: Math.floor(Math.random() * 6) + 5, text: 'Attack!' };
+            } else if (rand < 0.9) {
+                action = { type: 'heavy', value: 12, text: 'Power Attack!' };
+            } else {
+                action = { type: 'heal', value: 8, text: 'Heal!' };
+            }
+
+            // 행동 실행
+            const player = document.getElementById('player');
+            
+            if (action.type === 'attack' || action.type === 'heavy') {
+                // 플레이어 방어 계산
+                let damage = action.value;
+                if (gameState.player.block > 0) {
+                    if (gameState.player.block >= damage) {
+                        gameState.player.block -= damage;
+                        damage = 0;
+                    } else {
+                        damage -= gameState.player.block;
+                        gameState.player.block = 0;
+                    }
+                }
+                
+                gameState.player.hp = Math.max(0, gameState.player.hp - damage);
+                player.classList.add('shake');
+                setTimeout(() => player.classList.remove('shake'), 500);
+                
+                showFloatingText(damage > 0 ? `-${damage}` : 'Blocked!', 
+                    damage > 0 ? 'damage-text' : 'block-text', 'player');
+            } else {
+                gameState.enemy.hp = Math.min(gameState.enemy.maxHp, gameState.enemy.hp + action.value);
+                showFloatingText(`+${action.value}`, 'heal-text', 'enemy');
+            }
+
+            updateUI();
+
+            // 패배 체크
+            if (gameState.player.hp <= 0) {
+                setTimeout(() => gameOver(false), 500);
+            } else {
+                // 다음 턴 시작
+                setTimeout(startTurn, 1500);
+            }
+        }
+
+        // UI 업데이트
+        function updateUI() {
+            // 플레이어
+            document.getElementById('player-hp').textContent = gameState.player.hp;
+            document.getElementById('player-hp-bar').style.width = 
+                (gameState.player.hp / gameState.player.maxHp * 100) + '%';
+            document.getElementById('player-block').textContent = gameState.player.block;
+            document.getElementById('player-block').classList.toggle('show', gameState.player.block > 0);
+            
+            // 적
+            document.getElementById('enemy-hp').textContent = gameState.enemy.hp;
+            document.getElementById('enemy-hp-bar').style.width = 
+                (gameState.enemy.hp / gameState.enemy.maxHp * 100) + '%';
+            document.getElementById('enemy-block').textContent = gameState.enemy.block;
+            document.getElementById('enemy-block').classList.toggle('show', gameState.enemy.block > 0);
+            
+            // 상태창
+            document.getElementById('status-hp').textContent = `${gameState.player.hp}/${gameState.player.maxHp}`;
+            document.getElementById('status-energy').textContent = `${gameState.player.energy}/3`;
+            document.getElementById('status-block').textContent = gameState.player.block;
+
+            // 카드 상태 업데이트
+            renderHand();
+        }
+
+        // 게임 오버
+        function gameOver(victory) {
+            const overlay = document.getElementById('game-over');
+            const text = document.getElementById('game-over-text');
+            
+            overlay.classList.add('show');
+            if (victory) {
+                text.textContent = '🎉 Victory!';
+                text.className = 'game-over-text victory';
+            } else {
+                text.textContent = '💀 Defeat...';
+                text.className = 'game-over-text defeat';
+            }
+            
+            document.getElementById('end-turn-btn').style.display = 'none';
+        }
+
+        // 게임 시작
+        initGame();
+    </script>
+</body>
+</html>

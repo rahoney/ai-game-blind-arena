@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Game Blind Arena - Survival Defense</title>
+    <style>
+        :root {
+            --bg-color: #0a0a0c;
+            --panel-color: rgba(20, 20, 25, 0.85);
+            --accent-color: #00f2ff;
+            --text-color: #ffffff;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+            border: 2px solid #333;
+            background: #000;
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        /* UI  */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.7);
+            color: var(--text-color);
+            z-index: 10;
+        }
+
+        .hidden { display: none !important; }
+
+        .menu-panel {
+            background: var(--panel-color);
+            padding: 2rem;
+            border-radius: 15px;
+            border: 1px solid var(--accent-color);
+            text-align: center;
+            min-width: 300px;
+            backdrop-filter: blur(10px);
+        }
+
+        h1 { color: var(--accent-color); margin-bottom: 0.5rem; }
+        p { margin-bottom: 1.5rem; opacity: 0.8; }
+
+        .btn {
+            background: transparent;
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+            padding: 10px 25px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-radius: 5px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .btn:hover {
+            background: var(--accent-color);
+            color: #000;
+            box-shadow: 0 0 20px var(--accent-color);
+        }
+
+        /* Level Up Select */
+        .upgrade-container {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .upgrade-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #444;
+            padding: 15px;
+            width: 120px;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .upgrade-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-color);
+            background: rgba(0, 242, 255, 0.1);
+        }
+
+        .upgrade-name { font-weight: bold; color: var(--accent-color); margin-bottom: 5px; }
+        .upgrade-desc { font-size: 0.8rem; opacity: 0.7; }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            pointer-events: none;
+            color: white;
+            text-shadow: 2px 2px 2px black;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="hud"></div>
+
+    <div id="start-screen" class="overlay">
+        <div class="menu-panel">
+            <h1 id="title-text">AI Game Blind Arena</h1>
+            <p id="subtitle-text">Evaluating LLM Performance</p>
+            <button class="btn" onclick="game.start()">Start Game</button>
+        </div>
+    </div>
+
+    <div id="upgrade-screen" class="overlay hidden">
+        <div class="menu-panel">
+            <h2 id="level-up-text">LEVEL UP!</h2>
+            <div class="upgrade-container" id="upgrade-list"></div>
+        </div>
+    </div>
+
+    <div id="game-over-screen" class="overlay hidden">
+        <div class="menu-panel">
+            <h2 id="game-over-title">Experiment Terminated</h2>
+            <p id="final-stats"></p>
+            <button class="btn" onclick="game.init()">Retry</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * LANG_DATA:    Strings  Management
+ */
+const LANG_DATA = {
+    TITLE: "AI Game Blind Arena",
+    SUBTITLE: "Evaluating LLM Performance via Zero-Shot Prompt-Generated Games",
+    LEVEL_UP: "Power Up",
+    GAME_OVER: "Test Terminated (Failed)",
+    RESTART: "Restart Test",
+    SCORE: "Data Collected",
+    WAVE: "Wave",
+    HP: "System Stability",
+    LEVEL: "Optimization Level",
+    HIGH_SCORE: "Best Record",
+    UPGRADES: [
+        { id: 'atk', name: 'Output Boost', desc: 'Attack power increases by 20%.' },
+        { id: 'spd', name: 'Processing Speed', desc: 'Movement speed increases by 15%.' },
+        { id: 'rate', name: 'Cycle Reduction', desc: 'Attack speed increases by 15%.' },
+        { id: 'hp', name: 'Structure Repair', desc: 'Max HP +20 and heals.' },
+        { id: 'range', name: 'Detection Range', desc: 'Attack range increases by 25%.' },
+        { id: 'crit', name: 'Fatal Error', desc: 'Critical hit chance increases by 10%.' }
+    ]
+};
+
+// ---     ---
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const hud = document.getElementById('hud');
+
+canvas.width = 800;
+canvas.height = 600;
+
+//   (Effect Creation)
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(freq, type, duration) {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+}
+
+class Game {
+    constructor() {
+        this.init();
+        this.bindEvents();
+        this.loop();
+    }
+
+    init() {
+        //  State Reset
+        this.player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            r: 15,
+            hp: 100,
+            maxHp: 100,
+            speed: 3,
+            level: 1,
+            exp: 0,
+            nextExp: 50,
+            atk: 10,
+            atkRate: 60, // frames
+            atkTimer: 0,
+            range: 250,
+            crit: 0.05
+        };
+
+        this.enemies = [];
+        this.projectiles = [];
+        this.particles = [];
+        this.gems = [];
+        
+        this.wave = 1;
+        this.score = 0;
+        this.spawnTimer = 0;
+        this.isPaused = true;
+        this.highScore = localStorage.getItem('blindArena_highScore') || 0;
+
+        // UI Reset
+        document.getElementById('start-screen').classList.remove('hidden');
+        document.getElementById('upgrade-screen').classList.add('hidden');
+        document.getElementById('game-over-screen').classList.add('hidden');
+        this.updateHUD();
+    }
+
+    start() {
+        this.isPaused = false;
+        document.getElementById('start-screen').classList.add('hidden');
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    bindEvents() {
+        this.keys = {};
+        window.onkeydown = (e) => this.keys[e.key.toLowerCase()] = true;
+        window.onkeyup = (e) => this.keys[e.key.toLowerCase()] = false;
+    }
+
+    update() {
+        if (this.isPaused) return;
+
+        // Player Move
+        let mx = 0, my = 0;
+        if (this.keys['w'] || this.keys['arrowup']) my -= 1;
+        if (this.keys['s'] || this.keys['arrowdown']) my += 1;
+        if (this.keys['a'] || this.keys['arrowleft']) mx -= 1;
+        if (this.keys['d'] || this.keys['arrowright']) mx += 1;
+
+        if (mx !== 0 || my !== 0) {
+            const mag = Math.sqrt(mx * mx + my * my);
+            this.player.x += (mx / mag) * this.player.speed;
+            this.player.y += (my / mag) * this.player.speed;
+        }
+
+        // Boundary 
+        this.player.x = Math.max(this.player.r, Math.min(canvas.width - this.player.r, this.player.x));
+        this.player.y = Math.max(this.player.r, Math.min(canvas.height - this.player.r, this.player.y));
+
+        //  Attack 
+        this.player.atkTimer++;
+        if (this.player.atkTimer >= this.player.atkRate) {
+            const nearest = this.getNearestEnemy();
+            if (nearest) {
+                this.shoot(nearest);
+                this.player.atkTimer = 0;
+            }
+        }
+
+        // Projectiles 
+        this.projectiles.forEach((p, i) => {
+            p.x += p.vx;
+            p.y += p.vy;
+            if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) {
+                this.projectiles.splice(i, 1);
+            }
+        });
+
+        // Enemy Creation  
+        this.spawnTimer++;
+        const spawnRate = Math.max(20, 100 - (this.wave * 5));
+        if (this.spawnTimer > spawnRate) {
+            this.spawnEnemy();
+            this.spawnTimer = 0;
+            if (this.enemies.length % 10 === 0) this.wave++; 
+        }
+
+        this.enemies.forEach((en, i) => {
+            const dx = this.player.x - en.x;
+            const dy = this.player.y - en.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            en.x += (dx/dist) * en.speed;
+            en.y += (dy/dist) * en.speed;
+
+            // Player Collision
+            if (dist < this.player.r + en.r) {
+                this.player.hp -= 0.5;
+                if (this.player.hp <= 0) this.gameOver();
+            }
+
+            // Projectiles Collision
+            this.projectiles.forEach((p, pi) => {
+                const pdx = p.x - en.x;
+                const pdy = p.y - en.y;
+                if (Math.sqrt(pdx*pdx + pdy*pdy) < en.r + 5) {
+                    const isCrit = Math.random() < this.player.crit;
+                    const damage = isCrit ? this.player.atk * 2 : this.player.atk;
+                    en.hp -= damage;
+                    this.createParticles(en.x, en.y, isCrit ? '#ff0' : en.color);
+                    this.projectiles.splice(pi, 1);
+                    if (en.hp <= 0) {
+                        this.score += en.maxHp;
+                        this.gems.push({x: en.x, y: en.y, val: en.maxHp});
+                        this.enemies.splice(i, 1);
+                        playSound(150, 'sine', 0.1);
+                    }
+                }
+            });
+        });
+
+        //   
+        this.gems.forEach((g, i) => {
+            const dx = this.player.x - g.x;
+            const dy = this.player.y - g.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < 30) {
+                g.x += (dx/dist) * 8;
+                g.y += (dy/dist) * 8;
+            }
+            if (dist < this.player.r + 5) {
+                this.player.exp += g.val;
+                this.gems.splice(i, 1);
+                if (this.player.exp >= this.player.nextExp) this.levelUp();
+            }
+        });
+
+        // Particles
+        this.particles.forEach((p, i) => {
+            p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+            if (p.life <= 0) this.particles.splice(i, 1);
+        });
+
+        this.updateHUD();
+    }
+
+    getNearestEnemy() {
+        let minTarget = null;
+        let minDist = this.player.range;
+        this.enemies.forEach(en => {
+            const d = Math.sqrt((en.x-this.player.x)**2 + (en.y-this.player.y)**2);
+            if (d < minDist) {
+                minDist = d;
+                minTarget = en;
+            }
+        });
+        return minTarget;
+    }
+
+    shoot(target) {
+        const dx = target.x - this.player.x;
+        const dy = target.y - this.player.y;
+        const angle = Math.atan2(dy, dx);
+        this.projectiles.push({
+            x: this.player.x,
+            y: this.player.y,
+            vx: Math.cos(angle) * 7,
+            vy: Math.sin(angle) * 7
+        });
+        playSound(440, 'square', 0.05);
+    }
+
+    spawnEnemy() {
+        const edge = Math.floor(Math.random() * 4);
+        let x, y;
+        if (edge === 0) { x = Math.random() * canvas.width; y = -20; }
+        else if (edge === 1) { x = Math.random() * canvas.width; y = canvas.height + 20; }
+        else if (edge === 2) { x = -20; y = Math.random() * canvas.height; }
+        else { x = canvas.width + 20; y = Math.random() * canvas.height; }
+
+        const typeRoll = Math.random();
+        let en = { x, y, r: 12, hp: 20 + (this.wave*5), maxHp: 20 + (this.wave*5), speed: 1 + (this.wave*0.1), color: '#f44' };
+        
+        if (typeRoll > 0.8) { // Tank
+            en.r = 22; en.hp *= 3; en.speed *= 0.6; en.color = '#a4f';
+        } else if (typeRoll > 0.6) { // Fast
+            en.r = 8; en.hp *= 0.5; en.speed *= 1.8; en.color = '#ff4';
+        }
+        this.enemies.push(en);
+    }
+
+    createParticles(x, y, color) {
+        for(let i=0; i<5; i++) {
+            this.particles.push({
+                x, y, color, life: 1,
+                vx: (Math.random()-0.5)*4, vy: (Math.random()-0.5)*4
+            });
+        }
+    }
+
+    levelUp() {
+        this.isPaused = true;
+        this.player.level++;
+        this.player.exp -= this.player.nextExp;
+        this.player.nextExp = Math.floor(this.player.nextExp * 1.3);
+        
+        const list = document.getElementById('upgrade-list');
+        list.innerHTML = '';
+        
+        //  3 Upgrade Select 
+        const shuffled = [...LANG_DATA.UPGRADES].sort(() => 0.5 - Math.random()).slice(0, 3);
+        
+        shuffled.forEach(up => {
+            const card = document.createElement('div');
+            card.className = 'upgrade-card';
+            card.innerHTML = `<div class="upgrade-name">${up.name}</div><div class="upgrade-desc">${up.desc}</div>`;
+            card.onclick = () => this.applyUpgrade(up.id);
+            list.appendChild(card);
+        });
+
+        document.getElementById('upgrade-screen').classList.remove('hidden');
+        playSound(600, 'triangle', 0.3);
+    }
+
+    applyUpgrade(id) {
+        switch(id) {
+            case 'atk': this.player.atk *= 1.2; break;
+            case 'spd': this.player.speed *= 1.15; break;
+            case 'rate': this.player.atkRate *= 0.85; break;
+            case 'hp': this.player.maxHp += 20; this.player.hp = this.player.maxHp; break;
+            case 'range': this.player.range *= 1.25; break;
+            case 'crit': this.player.crit += 0.1; break;
+        }
+        document.getElementById('upgrade-screen').classList.add('hidden');
+        this.isPaused = false;
+    }
+
+    gameOver() {
+        this.isPaused = true;
+        if (this.score > this.highScore) {
+            this.highScore = this.score;
+            localStorage.setItem('blindArena_highScore', this.highScore);
+        }
+        document.getElementById('final-stats').innerText = 
+            `${LANG_DATA.SCORE}: ${Math.floor(this.score)} | ${LANG_DATA.LEVEL}: ${this.player.level}`;
+        document.getElementById('game-over-screen').classList.remove('hidden');
+    }
+
+    updateHUD() {
+        hud.innerHTML = `
+            <div><strong>${LANG_DATA.HP}:</strong> ${Math.ceil(this.player.hp)} / ${this.player.maxHp}</div>
+            <div><strong>${LANG_DATA.WAVE}:</strong> ${this.wave}</div>
+            <div><strong>${LANG_DATA.LEVEL}:</strong> ${this.player.level} (${this.player.exp}/${this.player.nextExp})</div>
+            <div><strong>${LANG_DATA.SCORE}:</strong> ${Math.floor(this.score)}</div>
+            <div style="color: #ff0"><strong>${LANG_DATA.HIGH_SCORE}:</strong> ${Math.floor(this.highScore)}</div>
+        `;
+    }
+
+    draw() {
+        // Background 
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        //   (Procedural)
+        ctx.strokeStyle = '#111';
+        ctx.beginPath();
+        for(let i=0; i<canvas.width; i+=40) { ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); }
+        for(let i=0; i<canvas.height; i+=40) { ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); }
+        ctx.stroke();
+
+        // Area Display
+        ctx.strokeStyle = 'rgba(0, 242, 255, 0.1)';
+        ctx.beginPath();
+        ctx.arc(this.player.x, this.player.y, this.player.range, 0, Math.PI*2);
+        ctx.stroke();
+
+        // 
+        this.gems.forEach(g => {
+            ctx.fillStyle = '#4f4';
+            ctx.beginPath();
+            ctx.arc(g.x, g.y, 4, 0, Math.PI*2);
+            ctx.fill();
+        });
+
+        // Enemy
+        this.enemies.forEach(en => {
+            ctx.fillStyle = en.color;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = en.color;
+            ctx.beginPath();
+            ctx.arc(en.x, en.y, en.r, 0, Math.PI*2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            
+            // Enemy HP
+            ctx.fillStyle = '#555';
+            ctx.fillRect(en.x - 10, en.y - en.r - 10, 20, 4);
+            ctx.fillStyle = '#f00';
+            ctx.fillRect(en.x - 10, en.y - en.r - 10, (en.hp/en.maxHp)*20, 4);
+        });
+
+        // Projectiles
+        ctx.fillStyle = '#fff';
+        this.projectiles.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+            ctx.fill();
+        });
+
+        // Particles
+        this.particles.forEach(p => {
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x, p.y, 3, 3);
+        });
+        ctx.globalAlpha = 1;
+
+        // Player
+        ctx.fillStyle = '#00f2ff';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#00f2ff';
+        ctx.beginPath();
+        ctx.arc(this.player.x, this.player.y, this.player.r, 0, Math.PI*2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Player   (  Enemy )
+        const target = this.getNearestEnemy();
+        if (target) {
+            const angle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(this.player.x, this.player.y);
+            ctx.lineTo(this.player.x + Math.cos(angle)*25, this.player.y + Math.sin(angle)*25);
+            ctx.stroke();
+        }
+    }
+
+    loop() {
+        this.update();
+        this.draw();
+        requestAnimationFrame(() => this.loop());
+    }
+}
+
+//   Creation
+const game = new Game();
+
+</script>
+</body>
+</html>

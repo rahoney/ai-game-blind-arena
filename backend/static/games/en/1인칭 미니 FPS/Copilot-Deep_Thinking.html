@@ -1,0 +1,984 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Browser 1st Person Mini FPS</title>
+<style>
+  :root{
+    --bg:#0b0b0f;
+    --panel:#0f1720cc;
+    --accent:#ffcc33;
+    --danger:#ff4d4d;
+    --muted:#9aa6b2;
+  }
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#02030a 0%, #071025 100%);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;}
+  .wrap{height:100%;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;}
+  .game-container{width:1000px;max-width:calc(100vw - 40px);aspect-ratio:16/9;position:relative;display:flex;align-items:center;justify-content:center;border-radius:12px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.6);background:var(--bg);}
+  canvas#view{display:block;width:100%;height:100%;background:linear-gradient(#6b6b6b,#2b2b2b);cursor:crosshair;}
+  .ui{
+    position:absolute;left:12px;top:12px;color:#e6eef6;font-size:14px;padding:10px;border-radius:8px;background:var(--panel);backdrop-filter:blur(4px);
+    display:flex;gap:12px;align-items:center;
+  }
+  .ui .stat{display:flex;flex-direction:column;align-items:flex-start}
+  .ui .stat .label{font-size:11px;color:var(--muted)}
+  .ui .stat .value{font-weight:700;font-size:16px}
+  .top-right{position:absolute;right:12px;top:12px;color:#e6eef6;padding:10px;border-radius:8px;background:var(--panel);font-size:14px}
+  .crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;font-size:18px;color:rgba(255,255,255,0.9);text-shadow:0 0 6px rgba(0,0,0,0.6)}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:linear-gradient(180deg,rgba(2,6,23,0.6),rgba(2,6,23,0.85));backdrop-filter:blur(4px);color:#fff}
+  .panel{background:rgba(10,14,20,0.7);padding:18px;border-radius:10px;min-width:320px;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
+  .title{font-size:22px;font-weight:800;margin-bottom:6px}
+  .desc{color:var(--muted);font-size:13px;margin-bottom:12px}
+  .btn{background:var(--accent);color:#071025;padding:10px 16px;border-radius:8px;font-weight:700;border:none;cursor:pointer}
+  .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.08);color:#fff}
+  .small{font-size:12px;color:var(--muted)}
+  .bottom-left{position:absolute;left:12px;bottom:12px;color:#e6eef6;padding:10px;border-radius:8px;background:var(--panel);font-size:13px}
+  .hp-bar{width:180px;height:12px;background:#2b2b2b;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.03)}
+  .hp-fill{height:100%;background:linear-gradient(90deg,#ff6b6b,#ffcc33);width:100%}
+  .wave-badge{background:rgba(255,255,255,0.04);padding:6px 10px;border-radius:8px;font-weight:700}
+  /* center canvas wrapper */
+  .center-wrap{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+  footer.credit{position:absolute;right:12px;bottom:12px;color:var(--muted);font-size:12px;background:var(--panel);padding:8px;border-radius:8px}
+  @media(max-width:640px){
+    .ui{display:none}
+    .top-right{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="game-container" id="gameRoot">
+    <div class="center-wrap">
+      <canvas id="view" width="1280" height="720"></canvas>
+    </div>
+
+    <div class="ui" id="uiLeft">
+      <div class="stat">
+        <div class="label" id="lblHealth"></div>
+        <div class="value" id="valHealth">100</div>
+      </div>
+      <div class="stat">
+        <div class="label" id="lblAmmo"></div>
+        <div class="value" id="valAmmo">--</div>
+      </div>
+      <div class="stat">
+        <div class="label" id="lblScore"></div>
+        <div class="value" id="valScore">0</div>
+      </div>
+    </div>
+
+    <div class="top-right" id="uiRight">
+      <div><span id="lblWave"></span> <span class="wave-badge" id="valWave">1</span></div>
+      <div style="margin-top:8px"><span id="lblHigh"></span> <strong id="valHigh">0</strong></div>
+    </div>
+
+    <div class="crosshair" id="crosshair">+</div>
+
+    <div class="bottom-left" id="bottomLeft">
+      <div class="hp-bar" title="">
+        <div class="hp-fill" id="hpFill" style="width:100%"></div>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--muted)"><span id="lblControls"></span></div>
+    </div>
+
+    <div class="overlay" id="startOverlay">
+      <div class="panel">
+        <div class="title" id="titleText"></div>
+        <div class="desc" id="descText"></div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+          <button class="btn" id="startBtn"></button>
+          <button class="btn secondary" id="howBtn"></button>
+        </div>
+        <div style="margin-top:12px" class="small" id="creditsText"></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="gameOverOverlay" style="display:none">
+      <div class="panel">
+        <div class="title" id="gameOverTitle"></div>
+        <div class="desc" id="gameOverDesc"></div>
+        <div style="margin-top:10px;font-weight:700" id="finalScore"></div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
+          <button class="btn" id="restartBtn"></button>
+          <button class="btn secondary" id="toMenuBtn"></button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="credit" id="creditText"></footer>
+  </div>
+</div>
+
+<script>
+/* LANG_DATA: 모든 게임 문자열을 여기서 관리 (한국어) */
+const LANG_DATA = {
+  GAME_TITLE: "Dungeon Invader: Mini FPS",
+  DESC: "WASD Move · Mouse View · Left Click Shoot · Survive Waves",
+  START_BUTTON: "Start Game",
+  HOW_BUTTON: "Controls",
+  CONTROLS: "Controls: WASD Move · Mouse 회전 · Left Click 사격 · Esc 포인터 해제",
+  CREDITS: "Created: Browser Game Engine · All resources generated in code",
+  GAME_OVER_TITLE: "Game Over",
+  GAME_OVER_DESC: "You have fallen.",
+  RESTART_BUTTON: "Restart",
+  MENU_BUTTON: "Main Menu",
+  LABEL_HEALTH: "Health",
+  LABEL_AMMO: "Ammo",
+  LABEL_SCORE: "Score",
+  LABEL_WAVE: "Wave",
+  LABEL_HIGH: "High Score",
+  START_INSTRUCTIONS: "Click the screen to lock the pointer to the canvas.",
+  PICKUP_HEALTH: "Health Recovered",
+  PICKUP_AMMO: "Ammo Acquired",
+  ENEMY_TYPES: {
+    grunt: "Grunt",
+    brute: "Brute",
+    ranger: "Ranger"
+  }
+};
+
+/* ---------------------------
+   전역 변수 및 설정
+   --------------------------- */
+const canvas = document.getElementById('view');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const ui = {
+  valHealth: document.getElementById('valHealth'),
+  valAmmo: document.getElementById('valAmmo'),
+  valScore: document.getElementById('valScore'),
+  valWave: document.getElementById('valWave'),
+  valHigh: document.getElementById('valHigh'),
+  hpFill: document.getElementById('hpFill'),
+  lblHealth: document.getElementById('lblHealth'),
+  lblAmmo: document.getElementById('lblAmmo'),
+  lblScore: document.getElementById('lblScore'),
+  lblWave: document.getElementById('lblWave'),
+  lblHigh: document.getElementById('lblHigh'),
+  lblControls: document.getElementById('lblControls'),
+  startOverlay: document.getElementById('startOverlay'),
+  startBtn: document.getElementById('startBtn'),
+  howBtn: document.getElementById('howBtn'),
+  titleText: document.getElementById('titleText'),
+  descText: document.getElementById('descText'),
+  creditsText: document.getElementById('creditsText'),
+  gameOverOverlay: document.getElementById('gameOverOverlay'),
+  gameOverTitle: document.getElementById('gameOverTitle'),
+  gameOverDesc: document.getElementById('gameOverDesc'),
+  finalScore: document.getElementById('finalScore'),
+  restartBtn: document.getElementById('restartBtn'),
+  toMenuBtn: document.getElementById('toMenuBtn'),
+  crosshair: document.getElementById('crosshair'),
+  bottomLeft: document.getElementById('bottomLeft'),
+  creditText: document.getElementById('creditText')
+};
+
+/* UI 문자열 초기화 */
+ui.titleText.textContent = LANG_DATA.GAME_TITLE;
+ui.descText.textContent = LANG_DATA.DESC;
+ui.startBtn.textContent = LANG_DATA.START_BUTTON;
+ui.howBtn.textContent = LANG_DATA.HOW_BUTTON;
+ui.creditsText.textContent = LANG_DATA.CREDITS;
+ui.lblHealth.textContent = LANG_DATA.LABEL_HEALTH;
+ui.lblAmmo.textContent = LANG_DATA.LABEL_AMMO;
+ui.lblScore.textContent = LANG_DATA.LABEL_SCORE;
+ui.lblWave.textContent = LANG_DATA.LABEL_WAVE;
+ui.lblHigh.textContent = LANG_DATA.LABEL_HIGH;
+ui.lblControls.textContent = LANG_DATA.CONTROLS;
+ui.gameOverTitle.textContent = LANG_DATA.GAME_OVER_TITLE;
+ui.gameOverDesc.textContent = LANG_DATA.GAME_OVER_DESC;
+ui.restartBtn.textContent = LANG_DATA.RESTART_BUTTON;
+ui.toMenuBtn.textContent = LANG_DATA.MENU_BUTTON;
+ui.creditText.textContent = LANG_DATA.CREDITS;
+
+/* 게임 상태 (초기화 함수에서 재설정) */
+let state = null;
+
+/* 로컬스토리지 키 */
+const STORAGE_KEY = 'mini_fps_highscore_v1';
+
+/* 사운드: WebAudio 간단 효과 생성기 */
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+const audioCtx = AudioCtx ? new AudioCtx() : null;
+function playBeep(freq=440, time=0.08, type='sine', gain=0.12){
+  if(!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.value = gain;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start();
+  o.stop(audioCtx.currentTime + time);
+}
+
+/* ---------------------------
+   맵 및 레이캐스팅 엔진 (간단한 2D 그리드 기반 1인칭 렌더)
+   --------------------------- */
+/* 맵: 0 = 빈칸, 1 = 벽 */
+const MAP = [
+  [1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,1,0,1,0,1,0,1,0,0,1],
+  [1,0,1,0,1,0,1,0,1,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,1],
+  [1,0,1,1,1,0,1,0,1,0,0,1],
+  [1,0,0,0,1,0,0,0,0,0,0,1],
+  [1,0,1,0,1,0,1,1,1,0,0,1],
+  [1,0,0,0,0,0,0,0,1,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1]
+];
+const TILE = 64; // 월드 단위
+const MAP_W = MAP[0].length, MAP_H = MAP.length;
+const WORLD_W = MAP_W * TILE, WORLD_H = MAP_H * TILE;
+
+/* 플레이어 초기값 */
+const PLAYER_DEFAULT = {
+  x: TILE * 2.5,
+  y: TILE * 2.5,
+  angle: 0,
+  speed: 140, // units per second
+  health: 100,
+  maxHealth: 100,
+  ammo: 30,
+  maxAmmo: 60
+};
+
+/* 적 타입 정의 */
+const ENEMY_TYPES = {
+  grunt: {hp:20, speed:60, score:50, color:'#ff6b6b', size:18},
+  brute: {hp:60, speed:35, score:150, color:'#ff9933', size:28},
+  ranger: {hp:30, speed:50, score:100, color:'#66ccff', size:20, ranged:true}
+};
+
+/* 게임 초기화 및 Restart */
+function resetGame(){
+  // 완전 초기화: 모든 상태를 새 객체로 재생성
+  state = {
+    running: false,
+    player: {...PLAYER_DEFAULT},
+    keys: {w:false,a:false,s:false,d:false},
+    mouse: {dx:0,dy:0},
+    lastTime: performance.now(),
+    bullets: [], // Fire체(플레이어)
+    enemyBullets: [], // 적 Fire체
+    enemies: [],
+    pickups: [],
+    wave: 0,
+    score: 0,
+    highScore: loadHighScore(),
+    spawnTimer: 0,
+    waveActive: false,
+    waveEnemiesToSpawn: 0,
+    waveSpawnInterval: 0.6,
+    timeSinceWaveStart: 0,
+    pointerLocked: false,
+    canShoot: true,
+    shootCooldown: 0.18,
+    damageFlash: 0
+  };
+  ui.valAmmo.textContent = state.player.ammo;
+  ui.valHealth.textContent = state.player.health;
+  ui.valScore.textContent = state.score;
+  ui.valWave.textContent = state.wave;
+  ui.valHigh.textContent = state.highScore;
+  ui.hpFill.style.width = (state.player.health/state.player.maxHealth*100)+'%';
+  ui.startOverlay.style.display = 'flex';
+  ui.gameOverOverlay.style.display = 'none';
+}
+
+/* 로컬스토리지 High Score 로드/저장 */
+function loadHighScore(){
+  try{
+    const v = parseInt(localStorage.getItem(STORAGE_KEY) || '0',10);
+    return isNaN(v)?0:v;
+  }catch(e){return 0;}
+}
+function saveHighScore(v){
+  try{ localStorage.setItem(STORAGE_KEY, String(v)); }catch(e){}
+}
+
+/* ---------------------------
+   충돌 및 유틸리티
+   --------------------------- */
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function dist(ax,ay,bx,by){ const dx=ax-bx, dy=ay-by; return Math.sqrt(dx*dx+dy*dy); }
+function cellAt(x,y){
+  const cx = Math.floor(x / TILE), cy = Math.floor(y / TILE);
+  if(cx<0||cy<0||cx>=MAP_W||cy>=MAP_H) return 1;
+  return MAP[cy][cx];
+}
+function isWallAt(x,y){
+  return cellAt(x,y) === 1;
+}
+
+/* 플레이어-월드 충돌 처리: 단순 원형 충돌 */
+function resolvePlayerCollision(dt){
+  const p = state.player;
+  const radius = 12;
+  // sample nearby cells
+  const minX = Math.floor((p.x - radius) / TILE);
+  const maxX = Math.floor((p.x + radius) / TILE);
+  const minY = Math.floor((p.y - radius) / TILE);
+  const maxY = Math.floor((p.y + radius) / TILE);
+  for(let cy=minY; cy<=maxY; cy++){
+    for(let cx=minX; cx<=maxX; cx++){
+      if(cy<0||cx<0||cy>=MAP_H||cx>=MAP_W) continue;
+      if(MAP[cy][cx]===1){
+        const wx = cx*TILE + TILE/2;
+        const wy = cy*TILE + TILE/2;
+        // nearest point on square to player
+        const dx = p.x - clamp(p.x, cx*TILE, cx*TILE+TILE);
+        const dy = p.y - clamp(p.y, cy*TILE, cy*TILE+TILE);
+        const d = Math.sqrt(dx*dx + dy*dy);
+        if(d < radius){
+          // push out
+          const overlap = radius - d;
+          if(d===0){
+            // random push
+            p.x += (Math.random()-0.5)*overlap;
+            p.y += (Math.random()-0.5)*overlap;
+          }else{
+            p.x += (dx/d) * overlap;
+            p.y += (dy/d) * overlap;
+          }
+        }
+      }
+    }
+  }
+}
+
+/* 적-월드 충돌 처리 (간단) */
+function resolveEnemyCollision(enemy, dt){
+  const radius = enemy.size/2;
+  const minX = Math.floor((enemy.x - radius) / TILE);
+  const maxX = Math.floor((enemy.x + radius) / TILE);
+  const minY = Math.floor((enemy.y - radius) / TILE);
+  const maxY = Math.floor((enemy.y + radius) / TILE);
+  for(let cy=minY; cy<=maxY; cy++){
+    for(let cx=minX; cx<=maxX; cx++){
+      if(cy<0||cx<0||cy>=MAP_H||cx>=MAP_W) continue;
+      if(MAP[cy][cx]===1){
+        const dx = enemy.x - clamp(enemy.x, cx*TILE, cx*TILE+TILE);
+        const dy = enemy.y - clamp(enemy.y, cy*TILE, cy*TILE+TILE);
+        const d = Math.sqrt(dx*dx + dy*dy);
+        if(d < radius){
+          const overlap = radius - d;
+          if(d===0){
+            enemy.x += (Math.random()-0.5)*overlap;
+            enemy.y += (Math.random()-0.5)*overlap;
+          }else{
+            enemy.x += (dx/d) * overlap;
+            enemy.y += (dy/d) * overlap;
+          }
+        }
+      }
+    }
+  }
+}
+
+/* ---------------------------
+   적 스폰 및 Wave 시스템
+   --------------------------- */
+function startNextWave(){
+  state.wave++;
+  state.waveEnemiesToSpawn = 4 + Math.floor(state.wave * 1.5);
+  state.waveSpawnInterval = Math.max(0.35, 0.8 - state.wave*0.03);
+  state.spawnTimer = 0;
+  state.waveActive = true;
+  state.timeSinceWaveStart = 0;
+  ui.valWave.textContent = state.wave;
+  playBeep(220 + state.wave*10, 0.12, 'sawtooth', 0.12);
+}
+
+/* 스폰 가능한 위치 찾기 (플레이어와 충분히 떨어진 빈칸) */
+function findSpawnPosition(minDist=200){
+  for(let attempts=0; attempts<200; attempts++){
+    const cx = Math.floor(Math.random()*(MAP_W-2))+1;
+    const cy = Math.floor(Math.random()*(MAP_H-2))+1;
+    if(MAP[cy][cx]!==0) continue;
+    const x = cx*TILE + TILE/2;
+    const y = cy*TILE + TILE/2;
+    if(dist(x,y,state.player.x,state.player.y) < minDist) continue;
+    return {x,y};
+  }
+  // fallback: near center
+  return {x: TILE* (MAP_W/2), y: TILE*(MAP_H/2)};
+}
+
+/* 적 타입 랜덤 선택 (Wave에 따라 가중치) */
+function chooseEnemyType(){
+  const w = state.wave;
+  const r = Math.random();
+  if(r < 0.55) return 'grunt';
+  if(r < 0.8) return 'ranger';
+  return 'brute';
+}
+
+/* 적 생성 */
+function spawnEnemy(){
+  const pos = findSpawnPosition(160);
+  const type = chooseEnemyType();
+  const template = ENEMY_TYPES[type];
+  const e = {
+    id: Math.random().toString(36).slice(2,9),
+    type,
+    x: pos.x,
+    y: pos.y,
+    hp: template.hp,
+    maxHp: template.hp,
+    speed: template.speed,
+    size: template.size,
+    color: template.color,
+    state: 'idle',
+    lastShot: 0
+  };
+  state.enemies.push(e);
+}
+
+/* 픽업 생성 (Health/Ammo) */
+function spawnPickup(kind, x=null, y=null){
+  let pos = {x,y};
+  if(x===null || y===null) pos = findSpawnPosition(120);
+  const p = {id:Math.random().toString(36).slice(2,9), kind, x:pos.x, y:pos.y, ttl: 30};
+  state.pickups.push(p);
+}
+
+/* ---------------------------
+   입력 처리 (키보드, Mouse, 포인터락)
+   --------------------------- */
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='w' || e.key==='W' || e.key==='ArrowUp') state.keys.w = true;
+  if(e.key==='s' || e.key==='S' || e.key==='ArrowDown') state.keys.s = true;
+  if(e.key==='a' || e.key==='A' || e.key==='ArrowLeft') state.keys.a = true;
+  if(e.key==='d' || e.key==='D' || e.key==='ArrowRight') state.keys.d = true;
+  if(e.key==='Escape'){
+    if(document.pointerLockElement) document.exitPointerLock();
+  }
+});
+document.addEventListener('keyup', (e)=>{
+  if(e.key==='w' || e.key==='W' || e.key==='ArrowUp') state.keys.w = false;
+  if(e.key==='s' || e.key==='S' || e.key==='ArrowDown') state.keys.s = false;
+  if(e.key==='a' || e.key==='A' || e.key==='ArrowLeft') state.keys.a = false;
+  if(e.key==='d' || e.key==='D' || e.key==='ArrowRight') state.keys.d = false;
+});
+
+/* Mouse Move: 포인터락 필요 */
+canvas.addEventListener('click', async (e)=>{
+  // resume audio context on user gesture
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  // request pointer lock
+  canvas.requestPointerLock();
+  // start game if not running
+  if(!state.running){
+    startGame();
+  }
+});
+document.addEventListener('pointerlockchange', ()=>{
+  state.pointerLocked = (document.pointerLockElement === canvas);
+});
+document.addEventListener('mousemove', (e)=>{
+  if(!state.pointerLocked) return;
+  // update player angle by mouse movement
+  const sensitivity = 0.0022;
+  state.player.angle += e.movementX * sensitivity;
+  // clamp vertical? we only rotate horizontally for raycast
+});
+
+/* Mouse Click: 사격 */
+canvas.addEventListener('mousedown', (e)=>{
+  if(e.button === 0 && state.running){
+    attemptShoot();
+  }
+});
+
+/* 사격 로직: 레이캐스트로 적 명중 판정 */
+function attemptShoot(){
+  const now = performance.now()/1000;
+  if(!state.canShoot) return;
+  if(state.player.ammo <= 0){
+    playBeep(120,0.06,'square',0.08);
+    state.canShoot = false;
+    setTimeout(()=>state.canShoot=true, 200);
+    return;
+  }
+  if(now - (state.lastShotTime||0) < state.shootCooldown) return;
+  state.lastShotTime = now;
+  state.player.ammo--;
+  ui.valAmmo.textContent = state.player.ammo;
+  playBeep(900,0.06,'sine',0.12);
+  // raycast forward to hit nearest enemy within cone
+  const px = state.player.x, py = state.player.y;
+  const ang = state.player.angle;
+  const maxRange = 700;
+  let best = null;
+  for(const e of state.enemies){
+    const dx = e.x - px, dy = e.y - py;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if(d > maxRange) continue;
+    const a = Math.atan2(dy,dx);
+    let diff = Math.abs(normalizeAngle(a - ang));
+    if(diff < 0.25){ // hit cone ~14 degrees
+      // closer and smaller angle prioritized
+      const score = d + diff*200;
+      if(!best || score < best.score) best = {enemy:e, score, d};
+    }
+  }
+  if(best){
+    // 데미지 적용
+    const dmg = 25;
+    best.enemy.hp -= dmg;
+    // hit sound
+    playBeep(1200,0.04,'triangle',0.12);
+    if(best.enemy.hp <= 0){
+      killEnemy(best.enemy);
+    }
+  }
+}
+
+/* 적 처치 처리 */
+function killEnemy(enemy){
+  // remove enemy
+  const idx = state.enemies.findIndex(x=>x.id===enemy.id);
+  if(idx>=0) state.enemies.splice(idx,1);
+  // Score 추가
+  const pts = ENEMY_TYPES[enemy.type].score;
+  state.score += pts;
+  ui.valScore.textContent = state.score;
+  // 드랍 확률
+  if(Math.random() < 0.25) spawnPickup(Math.random()<0.6?'ammo':'health', enemy.x, enemy.y);
+  playBeep(400,0.12,'sine',0.16);
+}
+
+/* 적이 플레이어를 공격했을 때 */
+function damagePlayer(amount){
+  state.player.health -= amount;
+  state.player.health = Math.max(0, state.player.health);
+  ui.valHealth.textContent = state.player.health;
+  ui.hpFill.style.width = (state.player.health/state.player.maxHealth*100)+'%';
+  state.damageFlash = 0.6;
+  playBeep(120,0.12,'sawtooth',0.18);
+  if(state.player.health <= 0){
+    endGame();
+  }
+}
+
+/* 게임 종료 */
+function endGame(){
+  state.running = false;
+  ui.gameOverOverlay.style.display = 'flex';
+  ui.startOverlay.style.display = 'none';
+  ui.finalScore.textContent = `${LANG_DATA.LABEL_SCORE}: ${state.score}`;
+  if(state.score > state.highScore){
+    state.highScore = state.score;
+    saveHighScore(state.highScore);
+    ui.valHigh.textContent = state.highScore;
+  }
+  // release pointer lock
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+
+/* ---------------------------
+   메인 업데이트 루프
+   --------------------------- */
+function startGame(){
+  // hide overlays
+  ui.startOverlay.style.display = 'none';
+  ui.gameOverOverlay.style.display = 'none';
+  // reset dynamic parts but keep highscore
+  state.player = {...PLAYER_DEFAULT};
+  state.enemies = [];
+  state.pickups = [];
+  state.bullets = [];
+  state.enemyBullets = [];
+  state.wave = 0;
+  state.score = 0;
+  ui.valScore.textContent = '0';
+  ui.valAmmo.textContent = state.player.ammo;
+  ui.valHealth.textContent = state.player.health;
+  ui.valWave.textContent = state.wave;
+  state.running = true;
+  startNextWave();
+  state.lastTime = performance.now();
+  requestAnimationFrame(loop);
+}
+
+/* 메인 루프 */
+function loop(ts){
+  const now = ts;
+  const dt = Math.min(0.05, (now - state.lastTime)/1000);
+  state.lastTime = now;
+  update(dt);
+  render();
+  if(state.running) requestAnimationFrame(loop);
+}
+
+/* 업데이트: Move, 적 AI, 스폰, Fire체, 픽업 처리 */
+function update(dt){
+  // player movement
+  const p = state.player;
+  let mvx = 0, mvy = 0;
+  if(state.keys.w) { mvx += Math.cos(p.angle) * p.speed * dt; mvy += Math.sin(p.angle) * p.speed * dt; }
+  if(state.keys.s) { mvx -= Math.cos(p.angle) * p.speed * dt; mvy -= Math.sin(p.angle) * p.speed * dt; }
+  if(state.keys.a) { mvx += Math.cos(p.angle - Math.PI/2) * p.speed * dt; mvy += Math.sin(p.angle - Math.PI/2) * p.speed * dt; }
+  if(state.keys.d) { mvx += Math.cos(p.angle + Math.PI/2) * p.speed * dt; mvy += Math.sin(p.angle + Math.PI/2) * p.speed * dt; }
+  p.x += mvx; p.y += mvy;
+  resolvePlayerCollision(dt);
+
+  // spawn logic
+  if(state.waveActive){
+    state.spawnTimer += dt;
+    state.timeSinceWaveStart += dt;
+    while(state.waveEnemiesToSpawn > 0 && state.spawnTimer >= state.waveSpawnInterval){
+      spawnEnemy();
+      state.spawnTimer -= state.waveSpawnInterval;
+      state.waveEnemiesToSpawn--;
+    }
+    if(state.waveEnemiesToSpawn === 0 && state.enemies.length === 0){
+      state.waveActive = false;
+      // reward: spawn pickups and start next wave after delay
+      spawnPickup('health');
+      spawnPickup('ammo');
+      setTimeout(()=> startNextWave(), 1200);
+    }
+  }
+
+  // enemies AI
+  for(const e of state.enemies){
+    // simple steering towards player with wall avoidance via sampling
+    const dx = state.player.x - e.x;
+    const dy = state.player.y - e.y;
+    const angToPlayer = Math.atan2(dy,dx);
+    // if ranged and has line of sight, shoot
+    const canSee = hasLineOfSight(e.x,e.y,state.player.x,state.player.y);
+    if(e.type === 'ranger' && canSee){
+      // shoot periodically
+      e.lastShot = (e.lastShot || 0) + dt;
+      if(e.lastShot > 1.2){
+        e.lastShot = 0;
+        // spawn enemy bullet
+        state.enemyBullets.push({x:e.x,y:e.y,dx:Math.cos(angToPlayer)*260,dy:Math.sin(angToPlayer)*260,ttl:3,owner:e});
+        playBeep(600,0.06,'sine',0.08);
+      }
+    }
+    // movement: move towards player if not too close
+    const desiredDist = 28 + e.size/2;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if(d > desiredDist){
+      const moveStep = e.speed * dt;
+      e.x += Math.cos(angToPlayer) * moveStep;
+      e.y += Math.sin(angToPlayer) * moveStep;
+      resolveEnemyCollision(e, dt);
+    } else {
+      // melee attack cooldown
+      e.attackTimer = (e.attackTimer || 0) + dt;
+      if(e.attackTimer > 0.9){
+        e.attackTimer = 0;
+        damagePlayer(8 + (e.type==='brute'?8:0));
+      }
+    }
+  }
+
+  // enemy bullets update
+  for(let i=state.enemyBullets.length-1;i>=0;i--){
+    const b = state.enemyBullets[i];
+    b.x += b.dx * dt;
+    b.y += b.dy * dt;
+    b.ttl -= dt;
+    if(b.ttl <= 0) { state.enemyBullets.splice(i,1); continue; }
+    // collision with walls
+    if(isWallAt(b.x,b.y)){ state.enemyBullets.splice(i,1); continue; }
+    // collision with player
+    if(dist(b.x,b.y,state.player.x,state.player.y) < 18){
+      damagePlayer(12);
+      state.enemyBullets.splice(i,1);
+    }
+  }
+
+  // pickups TTL and pickup detection
+  for(let i=state.pickups.length-1;i>=0;i--){
+    const p = state.pickups[i];
+    p.ttl -= dt;
+    if(p.ttl <= 0){ state.pickups.splice(i,1); continue; }
+    if(dist(p.x,p.y,state.player.x,state.player.y) < 28){
+      if(p.kind === 'health'){
+        state.player.health = Math.min(state.player.maxHealth, state.player.health + 30);
+        ui.valHealth.textContent = state.player.health;
+        ui.hpFill.style.width = (state.player.health/state.player.maxHealth*100)+'%';
+      } else if(p.kind === 'ammo'){
+        state.player.ammo = Math.min(state.player.maxAmmo, state.player.ammo + 18);
+        ui.valAmmo.textContent = state.player.ammo;
+      }
+      // pickup sound
+      playBeep(1000,0.08,'triangle',0.12);
+      state.pickups.splice(i,1);
+    }
+  }
+
+  // damage flash decay
+  state.damageFlash = Math.max(0, state.damageFlash - dt);
+
+  // update UI
+  ui.valScore.textContent = state.score;
+  ui.valWave.textContent = state.wave;
+  ui.valHigh.textContent = state.highScore;
+}
+
+/* 단순한 선분-벽 충돌 검사 (샘플링) */
+function hasLineOfSight(x1,y1,x2,y2){
+  const steps = Math.ceil(dist(x1,y1,x2,y2)/12);
+  for(let i=1;i<=steps;i++){
+    const t = i/steps;
+    const x = x1 + (x2-x1)*t;
+    const y = y1 + (y2-y1)*t;
+    if(isWallAt(x,y)) return false;
+  }
+  return true;
+}
+
+/* ---------------------------
+   렌더링: 레이캐스팅 기반 1인칭 뷰
+   --------------------------- */
+function render(){
+  // clear
+  ctx.clearRect(0,0,W,H);
+  // sky and floor
+  const skyGrad = ctx.createLinearGradient(0,0,0,H/2);
+  skyGrad.addColorStop(0,'#1b2b4a');
+  skyGrad.addColorStop(1,'#0b1a2b');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0,0,W,H/2);
+  ctx.fillStyle = '#1b1b1b';
+  ctx.fillRect(0,H/2,W,H/2);
+
+  // simple raycasting walls
+  const fov = Math.PI/3; // 60deg
+  const numRays = 220;
+  const halfFov = fov/2;
+  const p = state.player;
+  for(let i=0;i<numRays;i++){
+    const rayScreenPos = (i/numRays) - 0.5;
+    const rayAngle = p.angle + rayScreenPos * fov;
+    // cast ray
+    const ray = castRay(p.x,p.y,rayAngle, 1200);
+    // fish-eye correction
+    const correctedDist = ray.dist * Math.cos(rayAngle - p.angle);
+    const wallHeight = (TILE * 320) / (correctedDist + 0.0001);
+    const x = Math.floor((i/numRays) * W);
+    const y1 = Math.floor(H/2 - wallHeight/2);
+    const y2 = Math.floor(H/2 + wallHeight/2);
+    // shade based on hit side
+    const shade = Math.max(0.15, 1 - Math.min(1, correctedDist/900));
+    ctx.fillStyle = shadeColor('#9aa6b2', shade);
+    ctx.fillRect(x, y1, Math.ceil(W/numRays)+1, Math.max(1, y2-y1));
+    // floor shading (simple)
+    ctx.fillStyle = shadeColor('#0f1720', 0.6 - Math.min(0.5, correctedDist/2000));
+    ctx.fillRect(x, y2, Math.ceil(W/numRays)+1, H - y2);
+  }
+
+  // render enemies as sprites projected
+  const sprites = [];
+  for(const e of state.enemies){
+    const dx = e.x - p.x, dy = e.y - p.y;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    const ang = Math.atan2(dy,dx) - p.angle;
+    const angNorm = normalizeAngle(ang);
+    if(Math.abs(angNorm) > Math.PI/2) continue; // behind
+    const screenX = (0.5 + (angNorm / (fov/2)) * 0.5) * W;
+    const size = (TILE * 220) / (d + 0.0001) * (e.size/24);
+    sprites.push({e,screenX,d,size});
+  }
+  // sort by distance far->near
+  sprites.sort((a,b)=>b.d - a.d);
+  for(const s of sprites){
+    const e = s.e;
+    const sx = s.screenX, sy = H/2 - s.size/2;
+    // body
+    ctx.fillStyle = e.color;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy + s.size*0.45, s.size*0.45, s.size*0.6, 0, 0, Math.PI*2);
+    ctx.fill();
+    // health bar
+    const barW = Math.max(24, s.size*0.8);
+    const barX = sx - barW/2;
+    const barY = sy - 12;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(barX-1, barY-1, barW+2, 8+2);
+    ctx.fillStyle = '#333';
+    ctx.fillRect(barX, barY, barW, 8);
+    ctx.fillStyle = '#ff6b6b';
+    ctx.fillRect(barX, barY, barW * (e.hp / e.maxHp), 8);
+    // name
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(LANG_DATA.ENEMY_TYPES[e.type], sx, barY - 6);
+  }
+
+  // pickups render as simple icons
+  for(const pck of state.pickups){
+    const dx = pck.x - p.x, dy = pck.y - p.y;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if(d > 900) continue;
+    const ang = Math.atan2(dy,dx) - p.angle;
+    const angNorm = normalizeAngle(ang);
+    if(Math.abs(angNorm) > Math.PI/2) continue;
+    const screenX = (0.5 + (angNorm / (fov/2)) * 0.5) * W;
+    const size = (TILE * 120) / (d + 0.0001);
+    ctx.fillStyle = pck.kind === 'health' ? '#66ff88' : '#88ccff';
+    ctx.beginPath();
+    ctx.rect(screenX - size/2, H/2 - size/2 + 60, size, size);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(pck.kind === 'health' ? LANG_DATA.PICKUP_HEALTH : LANG_DATA.PICKUP_AMMO, screenX, H/2 - size/2 + 60 + size + 12);
+  }
+
+  // HUD overlays: crosshair, damage flash
+  // damage flash
+  if(state.damageFlash > 0){
+    ctx.fillStyle = `rgba(255,0,0,${state.damageFlash})`;
+    ctx.fillRect(0,0,W,H);
+  }
+  // crosshair drawn by DOM element; but draw subtle center reticle
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(W/2 - 10, H/2);
+  ctx.lineTo(W/2 + 10, H/2);
+  ctx.moveTo(W/2, H/2 - 10);
+  ctx.lineTo(W/2, H/2 + 10);
+  ctx.stroke();
+
+  // mini-map (top-left small)
+  renderMiniMap();
+}
+
+/* 레이 캐스트: DDA 알고리즘 */
+function castRay(px,py,angle, maxDist){
+  // normalize angle
+  angle = normalizeAngle(angle);
+  const sin = Math.sin(angle), cos = Math.cos(angle);
+  let dist = 0;
+  let hitX = px, hitY = py;
+  const step = 6;
+  for(let i=0;i<maxDist/step;i++){
+    dist += step;
+    const x = px + cos * dist;
+    const y = py + sin * dist;
+    if(isWallAt(x,y)){
+      hitX = x; hitY = y;
+      break;
+    }
+  }
+  return {dist, x:hitX, y:hitY};
+}
+
+/* 미니맵 렌더 */
+function renderMiniMap(){
+  const size = 160;
+  const pad = 12;
+  const mapX = pad, mapY = H - size - pad;
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = 'rgba(10,14,20,0.7)';
+  ctx.fillRect(mapX-6, mapY-6, size+12, size+12);
+  ctx.translate(mapX, mapY);
+  const cellW = size / MAP_W;
+  const cellH = size / MAP_H;
+  // draw map
+  for(let y=0;y<MAP_H;y++){
+    for(let x=0;x<MAP_W;x++){
+      ctx.fillStyle = MAP[y][x]===1 ? '#222' : '#0b2b1b';
+      ctx.fillRect(x*cellW, y*cellH, cellW-1, cellH-1);
+    }
+  }
+  // draw pickups
+  for(const p of state.pickups){
+    ctx.fillStyle = p.kind==='health' ? '#66ff88' : '#88ccff';
+    ctx.fillRect((p.x/TILE - 0.25)*cellW, (p.y/TILE - 0.25)*cellH, cellW*0.5, cellH*0.5);
+  }
+  // draw enemies
+  for(const e of state.enemies){
+    ctx.fillStyle = e.color;
+    ctx.fillRect((e.x/TILE - 0.25)*cellW, (e.y/TILE - 0.25)*cellH, cellW*0.5, cellH*0.5);
+  }
+  // draw player
+  ctx.fillStyle = '#ffcc33';
+  ctx.beginPath();
+  ctx.arc((state.player.x/TILE)*cellW, (state.player.y/TILE)*cellH, 4, 0, Math.PI*2);
+  ctx.fill();
+  // direction line
+  ctx.strokeStyle = '#ffcc33';
+  ctx.beginPath();
+  ctx.moveTo((state.player.x/TILE)*cellW, (state.player.y/TILE)*cellH);
+  ctx.lineTo((state.player.x/TILE + Math.cos(state.player.angle)*0.6)*cellW, (state.player.y/TILE + Math.sin(state.player.angle)*0.6)*cellH);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* 색상 쉐이딩 유틸 */
+function shadeColor(hex, shade){
+  // hex like #rrggbb
+  const c = hex.replace('#','');
+  const r = Math.floor(parseInt(c.substring(0,2),16) * shade);
+  const g = Math.floor(parseInt(c.substring(2,4),16) * shade);
+  const b = Math.floor(parseInt(c.substring(4,6),16) * shade);
+  return `rgb(${r},${g},${b})`;
+}
+
+/* 각도 정규화 */
+function normalizeAngle(a){
+  while(a <= -Math.PI) a += Math.PI*2;
+  while(a > Math.PI) a -= Math.PI*2;
+  return a;
+}
+
+/* ---------------------------
+   UI 버튼 이벤트
+   --------------------------- */
+ui.startBtn.addEventListener('click', ()=>{
+  // request pointer lock and start
+  canvas.requestPointerLock();
+  startGame();
+});
+ui.howBtn.addEventListener('click', ()=>{
+  alert(LANG_DATA.CONTROLS + "\n\n" + LANG_DATA.START_INSTRUCTIONS);
+});
+ui.restartBtn.addEventListener('click', ()=>{
+  // full reset and start
+  resetGame();
+  // start immediately
+  canvas.requestPointerLock();
+  startGame();
+});
+ui.toMenuBtn.addEventListener('click', ()=>{
+  resetGame();
+});
+
+/* 초기화 호출 */
+resetGame();
+
+/* ---------------------------
+   작은 보완: 게임 루프가 멈춘 상태에서도 UI 업데이트 (Yes: start screen shows highscore)
+   --------------------------- */
+(function uiTick(){
+  ui.valHigh.textContent = state ? state.highScore : loadHighScore();
+  ui.valWave.textContent = state ? state.wave : 0;
+  ui.valScore.textContent = state ? state.score : 0;
+  ui.valAmmo.textContent = state ? state.player.ammo : '--';
+  ui.valHealth.textContent = state ? state.player.health : '--';
+  requestAnimationFrame(uiTick);
+})();
+
+/* ---------------------------
+   추가: Start Game 전 간단한 안내 텍스트
+   --------------------------- */
+ui.startOverlay.querySelector('.desc').textContent = LANG_DATA.DESC + " · " + LANG_DATA.START_INSTRUCTIONS;
+
+/* ---------------------------
+   끝: 모든 문자열은 LANG_DATA에서 관리됩니다.
+   --------------------------- */
+</script>
+</body>
+</html>

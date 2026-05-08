@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Arkanoid - Particle Edition</title>
+    <style>
+        :root {
+            --bg-color: #1a1a2e;
+            --game-bg: #16213e;
+            --accent: #e94560;
+            --text-color: #fff;
+            --ui-bg: rgba(22, 33, 62, 0.9);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: var(--bg-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            color: var(--text-color);
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        canvas {
+            background-color: var(--game-bg);
+            display: block;
+            border-bottom: 4px solid var(--accent);
+        }
+
+        /* UI Overlay Styles */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: var(--ui-bg);
+            z-index: 10;
+            transition: opacity 0.3s;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-shadow: 0 0 10px var(--accent);
+        }
+
+        p {
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+            color: #ddd;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-size: 1.2rem;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(233, 69, 96, 0.6);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            box-sizing: border-box;
+            font-size: 1.2rem;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .key-hint {
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            text-align: center;
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.3);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- HUD -->
+    <div id="hud">
+        <span id="score-display">Score: 0</span>
+        <span id="lives-display">Lives: 3</span>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="overlay">
+        <h1>Neon Breaker</h1>
+        <p>Break bricks and increase your Score!</p>
+        <button onclick="game.start()">Start Game</button>
+        <p style="font-size: 0.9rem; margin-top: 20px;">Controls: ← → Arrow keys</p>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen" class="overlay hidden">
+        <h1 style="color: #ff4757;">Game Over</h1>
+        <p>Final Score: <span id="final-score-loss">0</span></p>
+        <button onclick="game.reset()">Try Again</button>
+    </div>
+
+    <!-- Victory Screen -->
+    <div id="victory-screen" class="overlay hidden">
+        <h1 style="color: #2ed573;">Victory!</h1>
+        <p>Broke all bricks!</p>
+        <p>Total Score: <span id="final-score-win">0</span></p>
+        <button onclick="game.reset()">Return to initial Level</button>
+    </div>
+
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+</div>
+
+<script>
+/**
+ * 게임 설정 상수
+ */
+const CANVAS_WIDTH = 800;
+const CANVAS_HEIGHT = 600;
+const PADDLE_WIDTH = 100;
+const PADDLE_HEIGHT = 15;
+const BALL_RADIUS = 8;
+const BRICK_ROW_COUNT = 6;
+const BRICK_COLUMN_COUNT = 9;
+const BRICK_PADDING = 10;
+const BRICK_OFFSET_TOP = 50;
+const BRICK_OFFSET_LEFT = 35;
+const BRICK_WIDTH = (CANVAS_WIDTH - (BRICK_OFFSET_LEFT * 2) - (BRICK_PADDING * (BRICK_COLUMN_COUNT - 1))) / BRICK_COLUMN_COUNT;
+const BRICK_HEIGHT = 20;
+
+// 파워업 타입 정의
+const POWERUP_TYPES = {
+    WIDER_PADDLE: { type: 'wider', color: '#FFD700', effect: () => game.paddle.width += 30 }, // 노란색
+    MINI_BALL: { type: 'mini', color: '#00FFFF', effect: () => { game.balls.forEach(b => b.radius = Math.max(4, b.radius - 2)); } }, // 청록색
+    FROZEN_TIME: { type: 'frozen', color: '#FF69B4', effect: () => game.frozenTimer = 300 } // 분홍색 (시간 정지 느낌으로 속도를 줄임)
+};
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        // 파티클의 랜덤 속도 (-3 ~ 3)
+        this.dx = (Math.random() - 0.5) * 6; 
+        this.dy = (Math.random() - 0.5) * 6;
+        this.alpha = 1;
+        this.size = Math.random() * 3 + 2;
+        this.decay = Math.random() * 0.02 + 0.015; // 사라지는 속도
+    }
+
+    update() {
+        this.x += this.dx;
+        this.y += this.dy;
+        this.alpha -= this.decay;
+        // 중력 효과 약간 추가
+        this.dy += 0.1; 
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.size, this.size);
+        ctx.restore();
+    }
+}
+
+class PowerUp {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 20;
+        this.height = 10;
+        this.dy = 2; // 떨어지는 속도
+        
+        // 랜덤 아이템 선택
+        const keys = Object.keys(POWERUP_TYPES);
+        const randomKey = keys[Math.floor(Math.random() * keys.length)];
+        this.itemData = POWERUP_TYPES[randomKey];
+    }
+
+    update() {
+        this.y += this.dy;
+    }
+
+    draw(ctx) {
+        ctx.fillStyle = this.itemData.color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = this.itemData.color;
+        ctx.beginPath();
+        ctx.rect(this.x, this.y, this.width, this.height);
+        ctx.fill();
+        
+        // 텍스트 표시
+        ctx.fillStyle = "#000";
+        ctx.font = "10px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("?", this.x + this.width/2, this.y + 8);
+        ctx.shadowBlur = 0;
+    }
+}
+
+class Ball {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.dx = 4 * (Math.random() > 0.5 ? 1 : -1); // 초기 속도
+        this.dy = -4;
+        this.radius = BALL_RADIUS;
+        this.speedMultiplier = 1;
+    }
+
+    draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff";
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "#fff";
+        ctx.fill();
+        ctx.closePath();
+        ctx.shadowBlur = 0;
+    }
+
+    update(frozen) {
+        let speedMult = frozen ? 0.5 : this.speedMultiplier;
+
+        // 벽 충돌 처리
+        if (this.x + this.dx > CANVAS_WIDTH - this.radius || this.x + this.dx < this.radius) {
+            this.dx = -this.dx;
+        }
+        if (this.y + this.dy < this.radius) {
+            this.dy = -this.dy;
+        } else if (this.y + this.dy > CANVAS_HEIGHT - this.radius) {
+            return true; // Touched the floor (손실)
+        }
+        
+        this.x += this.dx * speedMult;
+        this.y += this.dy * speedMult;
+        return false;
+    }
+}
+
+class Game {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        
+        // 초기 상태 변수
+        this.score = 0;
+        this.lives = 3;
+        this.level = 1;
+        this.running = false;
+        this.paused = false;
+        this.frozenTimer = 0; // Pause 타이머 (파워업용)
+        
+        this.bricks = [];
+        this.particles = [];
+        this.powerups = [];
+        
+        this.paddle = {
+            x: (CANVAS_WIDTH - PADDLE_WIDTH) / 2,
+            width: PADDLE_WIDTH,
+            height: PADDLE_HEIGHT,
+            dx: 0,
+            speed: 7
+        };
+        
+        this.balls = [];
+        this.rightPressed = false;
+        this.leftPressed = false;
+
+        this.initInput();
+        this.resetBricks(); // 초기 배치
+        
+        // 즉시 렌더링 하지 않고 대기 모드
+        this.loop = this.loop.bind(this);
+    }
+
+    initInput() {
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Right') this.rightPressed = true;
+            if (e.key === 'Left') this.leftPressed = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'Right') this.rightPressed = false;
+            if (e.key === 'Left') this.leftPressed = false;
+        });
+    }
+
+    resetBricks() {
+        this.bricks = [];
+        const colors = ['#e94560', '#5352ed', '#0f3460', '#e94560', '#ffd700']; // 색상 테마
+        
+        for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
+            this.bricks[c] = [];
+            for (let r = 0; r < BRICK_ROW_COUNT; r++) {
+                // Brick state: 1 이면 있음, 0 이면 없음
+                this.bricks[c][r] = { 
+                    x: 0, 
+                    y: 0, 
+                    status: 1, 
+                    color: colors[r % colors.length] 
+                };
+            }
+        }
+    }
+
+    reset() {
+        // Reset all screen UI
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('game-over-screen').classList.add('hidden');
+        document.getElementById('victory-screen').classList.add('hidden');
+        
+        // 게임 데이터 완전 초기화
+        this.score = 0;
+        this.lives = 3;
+        this.frozenTimer = 0;
+        this.updateHud();
+        
+        this.paddle.x = (CANVAS_WIDTH - this.paddle.width) / 2;
+        this.paddle.width = PADDLE_WIDTH; // Paddle Size 원상복구
+        this.balls = [new Ball(CANVAS_WIDTH / 2, CANVAS_HEIGHT - 30)];
+        
+        this.particles = [];
+        this.powerups = [];
+        this.resetBricks();
+        
+        this.start();
+    }
+
+    start() {
+        this.running = true;
+        document.getElementById('start-screen').classList.add('hidden');
+        requestAnimationFrame(this.loop);
+    }
+
+    gameOver() {
+        this.running = false;
+        document.getElementById('final-score-loss').innerText = this.score;
+        document.getElementById('game-over-screen').classList.remove('hidden');
+    }
+
+    victory() {
+        this.running = false;
+        document.getElementById('final-score-win').innerText = this.score;
+        document.getElementById('victory-screen').classList.remove('hidden');
+    }
+
+    createParticles(x, y, color) {
+        for (let i = 0; i < 10; i++) {
+            this.particles.push(new Particle(x, y, color));
+        }
+    }
+
+    // Check and handle ball and brick collision
+    checkBrickCollisions(ball) {
+        for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
+            for (let r = 0; r < BRICK_ROW_COUNT; r++) {
+                const b = this.bricks[c][r];
+                if (b.status === 1) {
+                    const brickX = (c * (BRICK_WIDTH + BRICK_PADDING)) + BRICK_OFFSET_LEFT;
+                    const brickY = (r * (BRICK_HEIGHT + BRICK_PADDING)) + BRICK_OFFSET_TOP;
+                    
+                    b.x = brickX; // 위치 저장 (애니메이션 용도 아님, 계산 용도)
+                    b.y = brickY;
+
+                    // 간단한 충돌 판정 (Ball Circle vs Rect) 보다 간단하게 AABB+거리 사용 가능하지만 여기서는 단순 박스충돌로 구현
+                    if (ball.x + ball.radius > b.x && 
+                        ball.x - ball.radius < b.x + BRICK_WIDTH &&
+                        ball.y + ball.radius > b.y && 
+                        ball.y - ball.radius < b.y + BRICK_HEIGHT) {
+                            
+                        // Determine reflection direction
+                        // 중심점 비교해서 X/Y 축 반사 구분
+                        const centerX = b.x + BRICK_WIDTH / 2;
+                        const centerY = b.y + BRICK_HEIGHT / 2;
+                        
+                        if (Math.abs(ball.x - centerX) > Math.abs(ball.y - centerY)) {
+                             ball.dx = -ball.dx;
+                        } else {
+                             ball.dy = -ball.dy;
+                        }
+
+                        b.status = 0;
+                        this.score += 10;
+                        this.createParticles(ball.x, ball.y, b.color);
+                        
+                        // 아이템 드롭 확률 (10%)
+                        if (Math.random() < 0.1) {
+                            this.powerups.push(new PowerUp(centerX, b.y));
+                        }
+                        
+                        this.updateHud();
+                        
+                        // Check win condition (모두 깨졌는가?)
+                        let activeBricks = false;
+                        for(let cc=0; cc<BRICK_COLUMN_COUNT; cc++){
+                            for(let rr=0; rr<brICK_ROW_COUNT; rr++){
+                                if(this.bricks[cc][rr].status === 1) activeBricks = true;
+                            }
+                        }
+                        if (!activeBrricks) setTimeout(() => this.victory(), 200);
+                        return; // Only one brick destroyed per frame
+                    }
+                }
+            }
+        }
+    }
+
+    // 패들 충돌 체크
+    checkPaddleCollision(ball) {
+        // 패들과 공의 거리를 확인하여 패들 내부인지 판단
+        if (ball.y + ball.radius >= CANVAS_HEIGHT - 20 && // 패들 y 위치 부근
+            ball.y - ball.radius <= CANVAS_HEIGHT - 5 &&
+            ball.x >= this.paddle.x &&
+            ball.x <= this.paddle.x + this.paddle.width) {
+                
+            // 공이 패들에 닿았을 때의 위치에 따라 탄각 조절
+            let collidePoint = ball.x - (this.paddle.x + this.paddle.width / 2);
+            // 정규화 (-1 ~ 1 사이 값)
+            collidePoint = collidePoint / (this.paddle.width / 2);
+            
+            // 각도 변환 (최대 60 도 정도)
+            const angle = collidePoint * (Math.PI / 3);
+            
+            const currentSpeed = Math.sqrt(ball.dx*ball.dx + ball.dy*ball.dy);
+            ball.dx = currentSpeed * Math.sin(angle);
+            ball.dy = -currentSpeed * Math.cos(angle);
+            
+            // 볼의 스피드를 아주 약간씩 증가시켜 난이도 상승
+            ball.speedMultiplier = Math.min(1.5, ball.speedMultiplier + 0.02);
+        }
+    }
+
+    // 파워업 체크
+    checkPowerUp(ball) {
+         // 공과 충돌 시 (파워업은 공이 맞아야 먹히거나 패들이 받아도 됨. 여기서는 공이 맞으면 폭발 효과 없이 적용되게 함)
+         // 실제로는 파워업을 패들이 잡도록 하는 것이 일반적이나, 재미를 위해 공이 맞는 경우도 추가하거나
+         // 아래 로직은 파워업이 Acquire when touching the paddle하도록 수정.
+    }
+
+    updateHud() {
+        document.getElementById('score-display').innerText = `Score: ${this.score}`;
+        document.getElementById('lives-display').innerText = `Lives: ${this.lives}`;
+    }
+
+    update() {
+        if (!this.running) return;
+
+        // 패들 Move
+        if (this.rightPressed && this.paddle.x < CANVAS_WIDTH - this.paddle.width) {
+            this.paddle.x += this.paddle.speed;
+        } else if (this.leftPressed && this.paddle.x > 0) {
+            this.paddle.x -= this.paddle.speed;
+        }
+
+        // 시간 정지 타이머 감소
+        if (this.frozenTimer > 0) this.frozenTimer--;
+
+        // 볼 업데이트
+        for (let i = this.balls.length - 1; i >= 0; i--) {
+            const ball = this.balls[i];
+            const lostLife = ball.update(this.frozenTimer > 0);
+
+            // 벽돌 충돌
+            this.checkBrickCollisions(ball);
+            // 패들 충돌
+            this.checkPaddleCollision(ball);
+
+            // 체력 손실 로직 (Check here to allow all to fly at once instead of outside the loop)
+            if (lostLife) {
+                // 이 볼 삭제
+                this.balls.splice(i, 1);
+                
+                // 아직 살아있는 볼이 없는 경우만 체력 감소
+                // But if there were multiple, the rest survive, requiring logic update.
+                // 여기서는 전통적으로 '볼이 하나라도 남았다면 Game Over 안함' 혹은 'Reset when all balls disappear'.
+                // Reset when the basic ball dies, rather than waiting for all balls to die.
+                // 복잡도를 낮추기 위해: 공이 바닥에 닿으면 즉시 리셋 또는 lives 감소 후 초기위치로
+                
+                // 현재 로직: lives 가 있다면 lives -- 하고 다시 중앙에서 공 생성. 없으면 gameover.
+                this.lives--;
+                this.updateHud();
+                
+                if (this.lives <= 0) {
+                    this.gameOver();
+                } else {
+                    // 공 재발생 (패들 위에)
+                    this.balls.push(new Ball(this.paddle.x + this.paddle.width/2, CANVAS_HEIGHT - 30));
+                }
+            }
+        }
+
+        // Update particles
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            const p = this.particles[i];
+            p.update();
+            if (p.alpha <= 0) {
+                this.particles.splice(i, 1);
+            }
+        }
+
+        // 파워업 업데이트 및 충돌 체크
+        for (let i = this.powerups.length - 1; i >= 0; i--) {
+            let pu = this.powerups[i];
+            pu.update();
+
+            // 파워업 바닥 감지 (삭제)
+            if (pu.y > CANVAS_HEIGHT) {
+                this.powerups.splice(i, 1);
+                continue;
+            }
+
+            // 패들과 파워업 충돌
+            if (pu.x < this.paddle.x + this.paddle.width &&
+                pu.x + pu.width > this.paddle.x &&
+                pu.y < CANVAS_HEIGHT && // Paddle is at the edge
+                pu.y + pu.height > CANVAS_HEIGHT - 10 - 15 // Consider paddle height
+               ) {
+                    // Apply effect
+                    pu.itemData.effect();
+                    this.createParticles(pu.x, pu.y, pu.itemData.color);
+                    
+                    // Visual feedback: Score Overlays etc... omitted here
+                    this.powerups.splice(i, 1);
+                    continue;
+            }
+        }
+    }
+
+    draw() {
+        this.ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // 벽돌 그리기
+        for (let c = 0; c < BRICK_COLUMN_COUNT; c++) {
+            for (let r = 0; r < BRICK_ROW_COUNT; r++) {
+                if (this.bricks[c][r].status === 1) {
+                    const brickX = (c * (BRICK_WIDTH + BRICK_PADDING)) + BRICK_OFFSET_LEFT;
+                    const brickY = (r * (BRICK_HEIGHT + BRICK_PADDING)) + BRICK_OFFSET_TOP;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.roundRect(brickX, brickY, BRICK_WIDTH, BRICK_HEIGHT, 3);
+                    this.ctx.fillStyle = this.bricks[c][r].color;
+                    this.ctx.shadowBlur = 5;
+                    this.ctx.shadowColor = this.bricks[c][r].color;
+                    this.ctx.fill();
+                    this.ctx.closePath();
+                    this.ctx.shadowBlur = 0;
+                }
+            }
+        }
+
+        // 볼 그리기
+        this.balls.forEach(ball => ball.draw(this.ctx));
+
+        // 패들 그리기
+        this.ctx.beginPath();
+        this.ctx.roundRect(this.paddle.x, CANVAS_HEIGHT - 20, this.paddle.width, PADDLE_HEIGHT, 5);
+        this.ctx.fillStyle = "#444";
+        this.ctx.fill();
+        this.ctx.strokeStyle = "#fff";
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+        this.ctx.closePath();
+
+        // Draw particles
+        this.particles.forEach(p => p.draw(this.ctx));
+
+        // 파워업 그리기
+        this.powerups.forEach(p => p.draw(this.ctx));
+        
+        // 상태 메시지 (When power-up activated, etc.)
+        if(this.frozenTimer > 0) {
+             this.ctx.fillStyle = "rgba(255, 105, 180, 0.2)";
+             this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+             
+             this.ctx.fillStyle = "#fff";
+             this.ctx.font = "bold 24px Arial";
+             this.ctx.textAlign = "center";
+             this.ctx.fillText(`SLOW MOTION! (${Math.ceil(this.frozenTimer/60)}s)`, CANVAS_WIDTH/2, 50);
+        }
+    }
+
+    loop() {
+        if (!this.running) return;
+        this.update();
+        this.draw();
+        requestAnimationFrame(this.loop);
+    }
+}
+
+// 게임 인스턴스 생성
+const game = new Game();
+
+</script>
+</body>
+</html>

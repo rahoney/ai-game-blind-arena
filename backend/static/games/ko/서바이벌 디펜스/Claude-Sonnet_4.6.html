@@ -1,0 +1,1262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>서바이벌 디펜스</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; font-family: 'Segoe UI', sans-serif;
+    overflow: hidden;
+  }
+  #gameWrapper {
+    position: relative;
+    width: 900px; height: 650px;
+  }
+  #gameCanvas {
+    display: block;
+    border: 2px solid #2a2a4a;
+    box-shadow: 0 0 40px rgba(100,100,255,0.3);
+  }
+  /* 오버레이 공통 */
+  .overlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(5,5,15,0.92);
+    z-index: 10;
+  }
+  .overlay.hidden { display: none; }
+  .overlay h1 {
+    font-size: 3rem; font-weight: 900; letter-spacing: 4px;
+    background: linear-gradient(135deg,#7c7cff,#ff7ccc);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 10px;
+  }
+  .overlay h2 {
+    font-size: 2rem; font-weight: 800;
+    color: #fff; margin-bottom: 20px;
+  }
+  .overlay p { color: #aaa; font-size: 0.95rem; margin-bottom: 8px; }
+  .overlay .stat-box {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid #333; border-radius: 12px;
+    padding: 16px 32px; margin: 12px 0;
+    color: #ccc; font-size: 1rem; text-align: center; line-height: 1.9;
+  }
+  .overlay .stat-box span { color: #7c7cff; font-weight: 700; }
+  .btn {
+    margin-top: 18px; padding: 14px 48px;
+    font-size: 1.1rem; font-weight: 700; letter-spacing: 2px;
+    background: linear-gradient(135deg,#4a4aff,#cc44ff);
+    color: #fff; border: none; border-radius: 50px;
+    cursor: pointer; transition: transform .15s, box-shadow .15s;
+    box-shadow: 0 4px 24px rgba(100,100,255,0.4);
+  }
+  .btn:hover { transform: scale(1.05); box-shadow: 0 6px 32px rgba(100,100,255,0.6); }
+  .controls-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 6px 24px; color: #888; font-size: 0.85rem;
+    margin: 8px 0 4px;
+  }
+  .controls-grid span { color: #bbb; }
+  /* 레벨업 선택 UI */
+  #upgradeOverlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(5,5,15,0.88);
+    z-index: 20;
+  }
+  #upgradeOverlay.hidden { display: none; }
+  #upgradeOverlay h2 {
+    font-size: 1.8rem; color: #fff; font-weight: 800;
+    letter-spacing: 2px; margin-bottom: 6px;
+  }
+  #upgradeOverlay p { color: #aaa; font-size: 0.9rem; margin-bottom: 20px; }
+  .upgrade-cards {
+    display: flex; gap: 16px;
+  }
+  .upgrade-card {
+    width: 200px; background: rgba(20,20,50,0.95);
+    border: 2px solid #3a3a7a; border-radius: 16px;
+    padding: 20px 16px; cursor: pointer; transition: all .2s;
+    text-align: center;
+  }
+  .upgrade-card:hover {
+    border-color: #7c7cff;
+    transform: translateY(-6px);
+    box-shadow: 0 8px 32px rgba(120,120,255,0.4);
+  }
+  .upgrade-card .uc-icon { font-size: 2.4rem; margin-bottom: 10px; }
+  .upgrade-card .uc-name {
+    font-size: 1rem; font-weight: 700; color: #e0e0ff; margin-bottom: 6px;
+  }
+  .upgrade-card .uc-desc { font-size: 0.78rem; color: #888; line-height: 1.4; }
+  .upgrade-card .uc-level {
+    margin-top: 10px; font-size: 0.75rem; color: #5577ff;
+  }
+  /* HUD */
+  #hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 56px; background: rgba(5,5,15,0.85);
+    display: flex; align-items: center; padding: 0 16px;
+    gap: 18px; border-bottom: 1px solid #1a1a3a;
+    z-index: 5; pointer-events: none;
+  }
+  .hud-item { display: flex; flex-direction: column; align-items: center; min-width: 80px; }
+  .hud-label { font-size: 0.62rem; color: #666; letter-spacing: 1px; text-transform: uppercase; }
+  .hud-value { font-size: 1rem; font-weight: 700; color: #e0e0ff; }
+  .hud-bar-wrap {
+    display: flex; flex-direction: column; align-items: flex-start;
+    min-width: 160px;
+  }
+  .hud-bar-label { font-size: 0.62rem; color: #666; letter-spacing: 1px; margin-bottom: 3px; }
+  .hud-bar-bg {
+    width: 160px; height: 10px; background: #1a1a2a;
+    border-radius: 5px; overflow: hidden; border: 1px solid #2a2a4a;
+  }
+  .hud-bar-fill { height: 100%; border-radius: 5px; transition: width .2s; }
+  #hpBar { background: linear-gradient(90deg,#ff4466,#ff6680); }
+  #xpBar { background: linear-gradient(90deg,#44aaff,#aa44ff); }
+  .hud-sep { width: 1px; height: 36px; background: #1a1a3a; }
+  .hud-best { font-size: 0.7rem; color: #555; }
+</style>
+</head>
+<body>
+<div id="gameWrapper">
+  <canvas id="gameCanvas" width="900" height="650"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-bar-wrap">
+      <div class="hud-bar-label" id="hudHpLabel">HP</div>
+      <div class="hud-bar-bg"><div class="hud-bar-fill" id="hpBar" style="width:100%"></div></div>
+    </div>
+    <div class="hud-sep"></div>
+    <div class="hud-bar-wrap">
+      <div class="hud-bar-label" id="hudXpLabel">XP</div>
+      <div class="hud-bar-bg"><div class="hud-bar-fill" id="xpBar" style="width:0%"></div></div>
+    </div>
+    <div class="hud-sep"></div>
+    <div class="hud-item">
+      <span class="hud-label" id="hudLvLabel">레벨</span>
+      <span class="hud-value" id="hudLv">1</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label" id="hudWaveLabel">웨이브</span>
+      <span class="hud-value" id="hudWave">1</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label" id="hudKillLabel">처치</span>
+      <span class="hud-value" id="hudKill">0</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label" id="hudScoreLabel">점수</span>
+      <span class="hud-value" id="hudScore">0</span>
+    </div>
+    <div class="hud-item">
+      <span class="hud-label" id="hudBestLabel">최고</span>
+      <span class="hud-value hud-best" id="hudBest">0</span>
+    </div>
+  </div>
+
+  <!-- 시작 화면 -->
+  <div class="overlay" id="startOverlay">
+    <h1 id="startTitle">SURVIVAL DEFENSE</h1>
+    <p id="startSub" style="color:#7c7cff;font-size:1rem;letter-spacing:2px;margin-bottom:20px;">탑다운 로그라이크 서바이벌</p>
+    <div class="stat-box" id="startStatBox">
+      <div class="controls-grid">
+        <div><span>이동</span></div><div>WASD / 방향키</div>
+        <div><span>공격</span></div><div>자동 공격</div>
+        <div><span>목표</span></div><div>최대한 오래 생존</div>
+        <div><span>레벨업</span></div><div>강화 카드 선택</div>
+      </div>
+    </div>
+    <div id="startBestBox" class="stat-box" style="padding:10px 32px;"></div>
+    <button class="btn" id="startBtn">게임 시작</button>
+  </div>
+
+  <!-- 레벨업 선택 -->
+  <div id="upgradeOverlay" class="hidden">
+    <h2 id="upgTitle">레벨 업!</h2>
+    <p id="upgDesc">강화 카드를 선택하세요</p>
+    <div class="upgrade-cards" id="upgradeCards"></div>
+  </div>
+
+  <!-- 게임 오버 -->
+  <div class="overlay hidden" id="gameoverOverlay">
+    <h2 id="goTitle">게임 오버</h2>
+    <div class="stat-box" id="goStatBox"></div>
+    <button class="btn" id="goRestartBtn">다시 시작</button>
+  </div>
+
+  <!-- 클리어(최종 웨이브 생존) -->
+  <div class="overlay hidden" id="clearOverlay">
+    <h1 id="clearTitle">CLEAR!</h1>
+    <div class="stat-box" id="clearStatBox"></div>
+    <button class="btn" id="clearRestartBtn">다시 시작</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  LANG_DATA — 모든 표시 문자열 중앙 관리 (한국어)
+// ════════════════════════════════════════════════════════
+const LANG = {
+  title: "SURVIVAL DEFENSE",
+  subtitle: "탑다운 로그라이크 서바이벌",
+  startBtn: "게임 시작",
+  restartBtn: "다시 시작",
+  bestRecord: "최고 기록",
+  noRecord: "기록 없음",
+  moveCtrl: "WASD / 방향키",
+  attackCtrl: "자동 공격",
+  goalDesc: "최대한 오래 생존",
+  levelUpTitle: "레벨 업!",
+  levelUpDesc: "강화 카드를 선택하세요",
+  gameoverTitle: "게임 오버",
+  clearTitle: "CLEAR!",
+  clearSubtitle: "모든 웨이브를 돌파했습니다!",
+  hudHp: "체력",
+  hudXp: "경험치",
+  hudLv: "레벨",
+  hudWave: "웨이브",
+  hudKill: "처치",
+  hudScore: "점수",
+  hudBest: "최고",
+  statWave: "도달 웨이브",
+  statKills: "총 처치 수",
+  statScore: "최종 점수",
+  statBest: "최고 기록",
+  statLevel: "최종 레벨",
+  statTime: "생존 시간",
+  seconds: "초",
+  // 강화 카드
+  upg: {
+    atkSpd:  { name: "공격 속도", desc: "공격 속도가 +20% 증가합니다.", icon: "⚡" },
+    atkDmg:  { name: "공격력",   desc: "모든 투사체 피해가 +25% 증가합니다.", icon: "🗡️" },
+    moveSpd: { name: "이동 속도", desc: "플레이어 이동 속도가 +15% 증가합니다.", icon: "👟" },
+    maxHp:   { name: "최대 체력", desc: "최대 체력 +40, 현재 체력 +40 회복합니다.", icon: "❤️" },
+    regen:   { name: "체력 재생", desc: "초당 체력 재생 +2 증가합니다.", icon: "🌿" },
+    multiShot:{ name: "다중 발사", desc: "투사체 추가 발사 수가 +1 증가합니다.", icon: "🔱" },
+    pierce:  { name: "관통",     desc: "투사체가 적을 관통하는 횟수 +1 증가합니다.", icon: "🏹" },
+    area:    { name: "범위 공격", desc: "폭발 범위가 +30% 증가합니다. (폭발 유형 활성화)", icon: "💥" },
+    magnet:  { name: "경험치 자석", desc: "경험치 흡수 범위가 크게 증가합니다.", icon: "🧲" },
+    shield:  { name: "보호막",   desc: "피해를 한 번 무효화하는 보호막을 획득합니다.", icon: "🛡️" },
+  },
+  // 적 타입
+  enemyNames: { basic: "일반", fast: "고속", tank: "탱커", boss: "보스" },
+};
+
+// ════════════════════════════════════════════════════════
+//  상수
+// ════════════════════════════════════════════════════════
+const CANVAS_W = 900, CANVAS_H = 650;
+const PLAY_Y = 56; // HUD 높이
+const PLAY_H = CANVAS_H - PLAY_Y;
+const MAX_WAVE = 15;
+const STORAGE_KEY = "survivalDefense_best";
+const UPGRADE_POOL = Object.keys(LANG.upg); // 강화 목록
+
+// 웨이브별 설정 생성
+function makeWaveConfig(w) {
+  const base = 4 + w * 3;
+  const speed = 1 + w * 0.08;
+  const hp = 40 + w * 25;
+  const hasFast = w >= 2;
+  const hasTank = w >= 4;
+  const hasBoss = w % 5 === 0 && w > 0;
+  return { count: base, speed, hp, hasFast, hasTank, hasBoss, spawnInterval: Math.max(300, 1800 - w * 80) };
+}
+
+// ════════════════════════════════════════════════════════
+//  Web Audio — 절차적 사운드 생성
+// ════════════════════════════════════════════════════════
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playSound(type) {
+  try {
+    const ac = getAudio();
+    const g = ac.createGain();
+    g.connect(ac.destination);
+    if (type === 'shoot') {
+      const o = ac.createOscillator();
+      o.type = 'square'; o.frequency.setValueAtTime(880, ac.currentTime);
+      o.frequency.exponentialRampToValueAtTime(220, ac.currentTime + 0.08);
+      g.gain.setValueAtTime(0.12, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.08);
+      o.connect(g); o.start(); o.stop(ac.currentTime + 0.08);
+    } else if (type === 'hit') {
+      const o = ac.createOscillator();
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(180, ac.currentTime);
+      o.frequency.exponentialRampToValueAtTime(60, ac.currentTime + 0.12);
+      g.gain.setValueAtTime(0.2, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.12);
+      o.connect(g); o.start(); o.stop(ac.currentTime + 0.12);
+    } else if (type === 'die') {
+      const o = ac.createOscillator();
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(300, ac.currentTime);
+      o.frequency.exponentialRampToValueAtTime(40, ac.currentTime + 0.25);
+      g.gain.setValueAtTime(0.3, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + 0.25);
+      o.connect(g); o.start(); o.stop(ac.currentTime + 0.25);
+    } else if (type === 'levelup') {
+      [523, 659, 784, 1047].forEach((f, i) => {
+        const o = ac.createOscillator(), g2 = ac.createGain();
+        o.type = 'sine'; o.frequency.value = f;
+        g2.gain.setValueAtTime(0.25, ac.currentTime + i * 0.1);
+        g2.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + i * 0.1 + 0.18);
+        o.connect(g2); g2.connect(ac.destination);
+        o.start(ac.currentTime + i * 0.1); o.stop(ac.currentTime + i * 0.1 + 0.18);
+      });
+    } else if (type === 'damage') {
+      const buf = ac.createBuffer(1, ac.sampleRate * 0.15, ac.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+      const src = ac.createBufferSource();
+      src.buffer = buf; g.gain.value = 0.35;
+      src.connect(g); src.start();
+    } else if (type === 'explode') {
+      const buf = ac.createBuffer(1, ac.sampleRate * 0.3, ac.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.5);
+      const src = ac.createBufferSource();
+      src.buffer = buf; g.gain.value = 0.45;
+      src.connect(g); src.start();
+    } else if (type === 'wave') {
+      [220, 330, 440].forEach((f, i) => {
+        const o = ac.createOscillator(), g2 = ac.createGain();
+        o.type = 'triangle'; o.frequency.value = f;
+        g2.gain.setValueAtTime(0.2, ac.currentTime + i * 0.12);
+        g2.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + i * 0.12 + 0.22);
+        o.connect(g2); g2.connect(ac.destination);
+        o.start(ac.currentTime + i * 0.12); o.stop(ac.currentTime + i * 0.12 + 0.22);
+      });
+    }
+  } catch(e) {}
+}
+
+// ════════════════════════════════════════════════════════
+//  게임 상태
+// ════════════════════════════════════════════════════════
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// 입력 상태
+const keys = {};
+document.addEventListener('keydown', e => { keys[e.code] = true; });
+document.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+// 파티클 풀
+let particles = [];
+// 투사체
+let bullets = [];
+// 적
+let enemies = [];
+// 경험치 아이템
+let xpOrbs = [];
+// 장애물
+let obstacles = [];
+
+// 플레이어 초기 상태 팩토리
+function makePlayer() {
+  return {
+    x: CANVAS_W / 2, y: PLAY_Y + PLAY_H / 2,
+    r: 16,
+    hp: 120, maxHp: 120,
+    spd: 2.8,
+    atkSpd: 1.0,   // 배율 (클수록 빠름)
+    atkDmg: 1.0,
+    multiShot: 1,   // 발사 수
+    pierce: 0,      // 관통 횟수
+    hasExplosion: false,
+    explosionRadius: 60,
+    magnetRange: 80,
+    regen: 0,
+    shield: 0,      // 보호막 횟수
+    lastShot: 0,
+    baseFireRate: 700, // ms
+    xp: 0, xpNeeded: 60,
+    level: 1,
+    upgrades: {},   // 업그레이드 레벨 기록
+    angle: 0,       // 조준 방향
+    iframes: 0,     // 무적 프레임(ms)
+    alive: true,
+  };
+}
+
+// 전체 게임 상태 객체
+let G = {};
+
+function resetGame() {
+  particles = [];
+  bullets = [];
+  enemies = [];
+  xpOrbs = [];
+  G = {
+    player: makePlayer(),
+    wave: 1,
+    kills: 0,
+    score: 0,
+    time: 0,        // 생존 시간(ms)
+    paused: false,  // 레벨업 화면 중
+    over: false,
+    cleared: false,
+    waveTimer: 0,
+    waveConfig: makeWaveConfig(1),
+    spawned: 0,     // 현재 웨이브 스폰 수
+    waveEnemiesTotal: 0,
+    waveComplete: false,
+    nextWaveDelay: 0,
+    waveAnnounce: 0, // 웨이브 알림 남은 시간
+    upgradeChoices: [],
+    best: parseInt(localStorage.getItem(STORAGE_KEY) || '0'),
+    regenTimer: 0,
+  };
+  obstacles = makeObstacles();
+}
+
+// 장애물 배치 (플레이 영역 내 랜덤)
+function makeObstacles() {
+  const obs = [];
+  const count = 10;
+  for (let i = 0; i < count; i++) {
+    const w = 30 + Math.random() * 50;
+    const h = 20 + Math.random() * 40;
+    const x = 60 + Math.random() * (CANVAS_W - 120);
+    const y = PLAY_Y + 60 + Math.random() * (PLAY_H - 120);
+    // 플레이어 시작 위치 근처 제외
+    if (Math.abs(x - CANVAS_W/2) < 100 && Math.abs(y - (PLAY_Y + PLAY_H/2)) < 100) continue;
+    obs.push({ x, y, w, h });
+  }
+  return obs;
+}
+
+// ════════════════════════════════════════════════════════
+//  충돌 유틸
+// ════════════════════════════════════════════════════════
+function circleRect(cx, cy, cr, rx, ry, rw, rh) {
+  const nearX = Math.max(rx, Math.min(cx, rx + rw));
+  const nearY = Math.max(ry, Math.min(cy, ry + rh));
+  const dx = cx - nearX, dy = cy - nearY;
+  return dx * dx + dy * dy < cr * cr;
+}
+function circleCirlce(ax, ay, ar, bx, by, br) {
+  const dx = ax - bx, dy = ay - by;
+  return dx * dx + dy * dy < (ar + br) * (ar + br);
+}
+// 장애물과 원 충돌 푸시
+function resolveObstacles(obj) {
+  for (const o of obstacles) {
+    if (circleRect(obj.x, obj.y, obj.r, o.x - o.w/2, o.y - o.h/2, o.w, o.h)) {
+      // 가장 가까운 면에서 밀어내기
+      const l = o.x - o.w/2, r = o.x + o.w/2;
+      const t = o.y - o.h/2, b = o.y + o.h/2;
+      const overL = obj.x - l, overR = r - obj.x;
+      const overT = obj.y - t, overB = b - obj.y;
+      const min = Math.min(overL + obj.r, overR + obj.r, overT + obj.r, overB + obj.r);
+      if (min === overL + obj.r) obj.x = l - obj.r;
+      else if (min === overR + obj.r) obj.x = r + obj.r;
+      else if (min === overT + obj.r) obj.y = t - obj.r;
+      else obj.y = b + obj.r;
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  적 정의
+// ════════════════════════════════════════════════════════
+function makeEnemy(type, wave, x, y) {
+  const wc = makeWaveConfig(wave);
+  const def = {
+    basic: { r: 13, color: '#ff4466', spd: wc.speed * 0.9, hp: wc.hp, score: 10, xp: 8 },
+    fast:  { r: 9,  color: '#ff9900', spd: wc.speed * 1.8, hp: wc.hp * 0.5, score: 15, xp: 10 },
+    tank:  { r: 20, color: '#aa44ff', spd: wc.speed * 0.45, hp: wc.hp * 3, score: 30, xp: 25 },
+    boss:  { r: 32, color: '#ff2244', spd: wc.speed * 0.65, hp: wc.hp * 8, score: 150, xp: 100 },
+  };
+  const d = def[type];
+  return {
+    type, x, y, r: d.r, color: d.color,
+    spd: d.spd, hp: d.hp, maxHp: d.hp,
+    score: d.score, xp: d.xp,
+    vx: 0, vy: 0,
+    hitFlash: 0,
+    alive: true,
+    // 군집 분리용
+    sepX: 0, sepY: 0,
+  };
+}
+
+// 스폰 위치 (화면 밖 4면 랜덤)
+function spawnPos() {
+  const side = Math.floor(Math.random() * 4);
+  if (side === 0) return { x: Math.random() * CANVAS_W, y: PLAY_Y - 20 };
+  if (side === 1) return { x: CANVAS_W + 20, y: PLAY_Y + Math.random() * PLAY_H };
+  if (side === 2) return { x: Math.random() * CANVAS_W, y: CANVAS_H + 20 };
+  return { x: -20, y: PLAY_Y + Math.random() * PLAY_H };
+}
+
+// ════════════════════════════════════════════════════════
+//  파티클
+// ════════════════════════════════════════════════════════
+function spawnParticles(x, y, color, count, spd) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const s = spd * (0.5 + Math.random());
+    particles.push({
+      x, y, vx: Math.cos(angle) * s, vy: Math.sin(angle) * s,
+      life: 1, decay: 0.03 + Math.random() * 0.04,
+      r: 2 + Math.random() * 3, color,
+    });
+  }
+}
+
+function spawnExplosion(x, y, radius) {
+  // 시각 파티클
+  spawnParticles(x, y, '#ff8800', 20, 4);
+  spawnParticles(x, y, '#ffcc00', 12, 6);
+  playSound('explode');
+  // 범위 피해 판정
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const dx = e.x - x, dy = e.y - y;
+    if (dx*dx + dy*dy < radius*radius) {
+      const dmg = Math.floor(20 * G.player.atkDmg);
+      e.hp -= dmg;
+      e.hitFlash = 0.3;
+      spawnDmgNum(e.x, e.y, dmg, '#ff8800');
+      if (e.hp <= 0) killEnemy(e);
+    }
+  }
+}
+
+// 피해 숫자 파티클
+function spawnDmgNum(x, y, num, color) {
+  particles.push({
+    x, y: y - 10, vx: (Math.random() - 0.5) * 1.5, vy: -1.5,
+    life: 1, decay: 0.025, r: 0, color,
+    text: num, isText: true,
+  });
+}
+
+// ════════════════════════════════════════════════════════
+//  강화 시스템
+// ════════════════════════════════════════════════════════
+function pickUpgrades() {
+  // 풀에서 3개 랜덤 비복원 추출
+  const pool = [...UPGRADE_POOL];
+  const chosen = [];
+  while (chosen.length < 3 && pool.length > 0) {
+    const idx = Math.floor(Math.random() * pool.length);
+    chosen.push(pool.splice(idx, 1)[0]);
+  }
+  return chosen;
+}
+
+function applyUpgrade(key) {
+  const p = G.player;
+  p.upgrades[key] = (p.upgrades[key] || 0) + 1;
+  switch(key) {
+    case 'atkSpd':    p.atkSpd    = Math.min(p.atkSpd * 1.2, 4.0); break;
+    case 'atkDmg':    p.atkDmg   *= 1.25; break;
+    case 'moveSpd':   p.spd       = Math.min(p.spd * 1.15, 7.0); break;
+    case 'maxHp':     p.maxHp += 40; p.hp = Math.min(p.hp + 40, p.maxHp); break;
+    case 'regen':     p.regen += 2; break;
+    case 'multiShot': p.multiShot = Math.min(p.multiShot + 1, 6); break;
+    case 'pierce':    p.pierce   += 1; break;
+    case 'area':      p.hasExplosion = true; p.explosionRadius *= 1.3; break;
+    case 'magnet':    p.magnetRange += 80; break;
+    case 'shield':    p.shield   += 1; break;
+  }
+}
+
+function showUpgradeUI() {
+  G.paused = true;
+  G.upgradeChoices = pickUpgrades();
+  const container = document.getElementById('upgradeCards');
+  container.innerHTML = '';
+  G.upgradeChoices.forEach(key => {
+    const data = LANG.upg[key];
+    const lv = (G.player.upgrades[key] || 0) + 1;
+    const card = document.createElement('div');
+    card.className = 'upgrade-card';
+    card.innerHTML = `
+      <div class="uc-icon">${data.icon}</div>
+      <div class="uc-name">${data.name}</div>
+      <div class="uc-desc">${data.desc}</div>
+      <div class="uc-level">Lv ${lv}</div>`;
+    card.addEventListener('click', () => {
+      applyUpgrade(key);
+      document.getElementById('upgradeOverlay').classList.add('hidden');
+      G.paused = false;
+      playSound('levelup');
+    });
+    container.appendChild(card);
+  });
+  document.getElementById('upgradeOverlay').classList.remove('hidden');
+}
+
+// ════════════════════════════════════════════════════════
+//  레벨업
+// ════════════════════════════════════════════════════════
+function gainXP(amount) {
+  const p = G.player;
+  p.xp += amount;
+  while (p.xp >= p.xpNeeded) {
+    p.xp -= p.xpNeeded;
+    p.level++;
+    p.xpNeeded = Math.floor(p.xpNeeded * 1.35);
+    spawnParticles(p.x, p.y, '#44aaff', 20, 3);
+    showUpgradeUI();
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  적 처치
+// ════════════════════════════════════════════════════════
+function killEnemy(e) {
+  if (!e.alive) return;
+  e.alive = false;
+  G.kills++;
+  G.score += e.score;
+  spawnParticles(e.x, e.y, e.color, 12, 3);
+  playSound('die');
+  // XP 오브 드롭
+  xpOrbs.push({ x: e.x, y: e.y, xp: e.xp, r: 7, life: 12000 });
+}
+
+// ════════════════════════════════════════════════════════
+//  투사체 발사
+// ════════════════════════════════════════════════════════
+function fireBullets(now) {
+  const p = G.player;
+  const rate = p.baseFireRate / p.atkSpd;
+  if (now - p.lastShot < rate) return;
+  p.lastShot = now;
+
+  // 가장 가까운 적 탐색
+  let target = null, minDist = Infinity;
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const dx = e.x - p.x, dy = e.y - p.y;
+    const d = dx*dx + dy*dy;
+    if (d < minDist) { minDist = d; target = e; }
+  }
+
+  let angle = p.angle;
+  if (target) { angle = Math.atan2(target.y - p.y, target.x - p.x); }
+
+  // 다중 발사 각도 분산
+  const spread = p.multiShot > 1 ? 0.22 : 0;
+  for (let i = 0; i < p.multiShot; i++) {
+    const off = p.multiShot > 1 ? (i - (p.multiShot-1)/2) * spread : 0;
+    const a = angle + off;
+    bullets.push({
+      x: p.x, y: p.y,
+      vx: Math.cos(a) * 9, vy: Math.sin(a) * 9,
+      r: 5, dmg: Math.floor(18 * p.atkDmg),
+      pierce: p.pierce, pierced: 0,
+      hasExplosion: p.hasExplosion,
+      explosionRadius: p.explosionRadius,
+      life: 1500,
+      alive: true,
+    });
+  }
+  playSound('shoot');
+}
+
+// ════════════════════════════════════════════════════════
+//  웨이브 관리
+// ════════════════════════════════════════════════════════
+function startWave(w) {
+  G.wave = w;
+  G.waveConfig = makeWaveConfig(w);
+  G.spawned = 0;
+  G.waveComplete = false;
+  G.waveTimer = 0;
+  // 총 스폰 수 계산
+  const wc = G.waveConfig;
+  let total = wc.count;
+  if (wc.hasBoss) total += 1;
+  G.waveEnemiesTotal = total;
+  G.waveAnnounce = 2500;
+  playSound('wave');
+}
+
+function spawnEnemy() {
+  const wc = G.waveConfig;
+  const pos = spawnPos();
+  let type = 'basic';
+  const r = Math.random();
+  if (wc.hasBoss && G.spawned === 0 && G.wave % 5 === 0) { type = 'boss'; }
+  else if (wc.hasTank && r < 0.2) { type = 'tank'; }
+  else if (wc.hasFast && r < 0.4) { type = 'fast'; }
+  enemies.push(makeEnemy(type, G.wave, pos.x, pos.y));
+  G.spawned++;
+}
+
+// ════════════════════════════════════════════════════════
+//  적 AI — 플레이어 추적 + 군집 분리
+// ════════════════════════════════════════════════════════
+function updateEnemies(dt) {
+  const p = G.player;
+  const living = enemies.filter(e => e.alive);
+
+  // 군집 분리 벡터 계산
+  for (let i = 0; i < living.length; i++) {
+    living[i].sepX = 0; living[i].sepY = 0;
+    for (let j = 0; j < living.length; j++) {
+      if (i === j) continue;
+      const dx = living[i].x - living[j].x;
+      const dy = living[i].y - living[j].y;
+      const d2 = dx*dx + dy*dy;
+      const minD = living[i].r + living[j].r + 4;
+      if (d2 < minD * minD && d2 > 0) {
+        const d = Math.sqrt(d2);
+        living[i].sepX += dx/d * (minD - d) * 0.35;
+        living[i].sepY += dy/d * (minD - d) * 0.35;
+      }
+    }
+  }
+
+  for (const e of living) {
+    // 플레이어 방향 추적
+    const dx = p.x - e.x, dy = p.y - e.y;
+    const d = Math.sqrt(dx*dx + dy*dy) || 1;
+    e.vx = (dx/d) * e.spd + e.sepX * 0.1;
+    e.vy = (dy/d) * e.spd + e.sepY * 0.1;
+    e.x += e.vx;
+    e.y += e.vy;
+
+    // 장애물 충돌 해소
+    resolveObstacles(e);
+
+    // 플레이 영역 클램프
+    e.x = Math.max(e.r, Math.min(CANVAS_W - e.r, e.x));
+    e.y = Math.max(PLAY_Y + e.r, Math.min(CANVAS_H - e.r, e.y));
+
+    // 히트 플래시 감소
+    if (e.hitFlash > 0) e.hitFlash -= dt * 0.004;
+
+    // 플레이어와 접촉 피해
+    if (circleCirlce(e.x, e.y, e.r, p.x, p.y, p.r)) {
+      damagePlayer(e.type === 'boss' ? 20 : e.type === 'tank' ? 12 : 8);
+    }
+  }
+}
+
+function damagePlayer(amount) {
+  const p = G.player;
+  if (p.iframes > 0) return;
+  if (p.shield > 0) {
+    p.shield--;
+    p.iframes = 600;
+    spawnParticles(p.x, p.y, '#88aaff', 10, 3);
+    return;
+  }
+  p.hp -= amount;
+  p.iframes = 500;
+  playSound('damage');
+  spawnParticles(p.x, p.y, '#ff4466', 8, 3);
+  if (p.hp <= 0) { p.hp = 0; p.alive = false; }
+}
+
+// ════════════════════════════════════════════════════════
+//  메인 루프
+// ════════════════════════════════════════════════════════
+let lastTime = 0;
+let rafId = null;
+let gameRunning = false;
+
+function gameLoop(ts) {
+  if (!gameRunning) return;
+  const dt = Math.min(ts - lastTime, 50); // 최대 50ms 캡
+  lastTime = ts;
+
+  if (!G.paused) {
+    update(dt, ts);
+  }
+  render(ts);
+  rafId = requestAnimationFrame(gameLoop);
+}
+
+function update(dt, ts) {
+  const p = G.player;
+
+  G.time += dt;
+  if (p.iframes > 0) p.iframes -= dt;
+
+  // 이동
+  let mx = 0, my = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])    my -= 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  my += 1;
+  if (keys['KeyA'] || keys['ArrowLeft'])  mx -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
+  if (mx !== 0 || my !== 0) {
+    const len = Math.sqrt(mx*mx + my*my);
+    p.x += (mx/len) * p.spd;
+    p.y += (my/len) * p.spd;
+    if (mx !== 0 || my !== 0) p.angle = Math.atan2(my, mx);
+  }
+  // 경계 클램프
+  p.x = Math.max(p.r, Math.min(CANVAS_W - p.r, p.x));
+  p.y = Math.max(PLAY_Y + p.r, Math.min(CANVAS_H - p.r, p.y));
+  resolveObstacles(p);
+
+  // 체력 재생
+  if (p.regen > 0) {
+    G.regenTimer += dt;
+    if (G.regenTimer >= 1000) {
+      G.regenTimer -= 1000;
+      p.hp = Math.min(p.maxHp, p.hp + p.regen);
+    }
+  }
+
+  // 자동 사격
+  fireBullets(ts);
+
+  // 투사체 이동 & 충돌
+  for (const b of bullets) {
+    if (!b.alive) continue;
+    b.x += b.vx; b.y += b.vy;
+    b.life -= dt;
+    if (b.life <= 0 || b.x < 0 || b.x > CANVAS_W || b.y < PLAY_Y || b.y > CANVAS_H) {
+      b.alive = false; continue;
+    }
+    // 장애물 충돌
+    let blocked = false;
+    for (const o of obstacles) {
+      if (circleRect(b.x, b.y, b.r, o.x-o.w/2, o.y-o.h/2, o.w, o.h)) {
+        blocked = true; break;
+      }
+    }
+    if (blocked) { b.alive = false; continue; }
+
+    // 적 충돌
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      if (circleCirlce(b.x, b.y, b.r, e.x, e.y, e.r)) {
+        e.hp -= b.dmg;
+        e.hitFlash = 0.4;
+        spawnDmgNum(e.x, e.y - e.r, b.dmg, '#fff');
+        playSound('hit');
+        b.pierced++;
+        if (b.pierced > b.pierce) {
+          b.alive = false;
+          if (b.hasExplosion) spawnExplosion(b.x, b.y, b.explosionRadius);
+        }
+        if (e.hp <= 0) killEnemy(e);
+        if (!b.alive) break;
+      }
+    }
+  }
+  bullets = bullets.filter(b => b.alive);
+
+  // 경험치 오브 수집
+  for (const orb of xpOrbs) {
+    orb.life -= dt;
+    const dx = p.x - orb.x, dy = p.y - orb.y;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    // 자석 범위 이내 → 끌어당기기
+    if (d < p.magnetRange) {
+      orb.x += (dx/d) * 4;
+      orb.y += (dy/d) * 4;
+    }
+    if (d < p.r + orb.r) {
+      gainXP(orb.xp);
+      orb.life = 0;
+    }
+  }
+  xpOrbs = xpOrbs.filter(o => o.life > 0);
+
+  // 파티클 업데이트
+  for (const pt of particles) {
+    pt.x += pt.vx; pt.y += pt.vy;
+    pt.vx *= 0.93; pt.vy *= 0.93;
+    pt.life -= pt.decay;
+  }
+  particles = particles.filter(pt => pt.life > 0);
+
+  // 적 업데이트
+  updateEnemies(dt);
+  enemies = enemies.filter(e => e.alive);
+
+  // 웨이브 관리
+  if (G.waveAnnounce > 0) G.waveAnnounce -= dt;
+
+  G.waveTimer += dt;
+  const wc = G.waveConfig;
+  const spawnReady = G.spawned < G.waveEnemiesTotal;
+  if (spawnReady && G.waveTimer >= wc.spawnInterval) {
+    G.waveTimer = 0;
+    spawnEnemy();
+  }
+
+  // 웨이브 클리어 판정 (스폰 완료 + 적 전멸)
+  if (G.spawned >= G.waveEnemiesTotal && enemies.length === 0 && !G.waveComplete) {
+    G.waveComplete = true;
+    G.nextWaveDelay = 3000;
+  }
+  if (G.waveComplete && G.nextWaveDelay > 0) {
+    G.nextWaveDelay -= dt;
+    if (G.nextWaveDelay <= 0) {
+      if (G.wave >= MAX_WAVE) {
+        // 게임 클리어
+        endGame(true);
+      } else {
+        startWave(G.wave + 1);
+      }
+    }
+  }
+
+  // 플레이어 사망
+  if (!p.alive) { endGame(false); }
+
+  // HUD 갱신
+  updateHUD();
+}
+
+// ════════════════════════════════════════════════════════
+//  HUD 갱신
+// ════════════════════════════════════════════════════════
+function updateHUD() {
+  const p = G.player;
+  document.getElementById('hpBar').style.width = Math.max(0, p.hp/p.maxHp*100) + '%';
+  document.getElementById('xpBar').style.width = Math.min(100, p.xp/p.xpNeeded*100) + '%';
+  document.getElementById('hudLv').textContent = p.level;
+  document.getElementById('hudWave').textContent = G.wave + '/' + MAX_WAVE;
+  document.getElementById('hudKill').textContent = G.kills;
+  document.getElementById('hudScore').textContent = G.score;
+  document.getElementById('hudBest').textContent = G.best;
+}
+
+// ════════════════════════════════════════════════════════
+//  렌더링
+// ════════════════════════════════════════════════════════
+function render(ts) {
+  const p = G.player;
+
+  // 배경
+  ctx.fillStyle = '#080812';
+  ctx.fillRect(0, PLAY_Y, CANVAS_W, PLAY_H);
+
+  // 격자 패턴
+  ctx.strokeStyle = 'rgba(30,30,60,0.5)';
+  ctx.lineWidth = 1;
+  const gridSize = 50;
+  for (let x = 0; x < CANVAS_W; x += gridSize) {
+    ctx.beginPath(); ctx.moveTo(x, PLAY_Y); ctx.lineTo(x, CANVAS_H); ctx.stroke();
+  }
+  for (let y = PLAY_Y; y < CANVAS_H; y += gridSize) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_W, y); ctx.stroke();
+  }
+
+  // 장애물
+  for (const o of obstacles) {
+    ctx.fillStyle = '#1a1a3a';
+    ctx.strokeStyle = '#2a2a5a';
+    ctx.lineWidth = 2;
+    ctx.fillRect(o.x - o.w/2, o.y - o.h/2, o.w, o.h);
+    ctx.strokeRect(o.x - o.w/2, o.y - o.h/2, o.w, o.h);
+  }
+
+  // 경험치 오브
+  for (const orb of xpOrbs) {
+    const pulse = 0.7 + 0.3 * Math.sin(ts * 0.005);
+    ctx.beginPath();
+    ctx.arc(orb.x, orb.y, orb.r * pulse, 0, Math.PI * 2);
+    ctx.fillStyle = '#44aaff';
+    ctx.shadowColor = '#44aaff';
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // 적 HP 바 + 바디
+  for (const e of enemies) {
+    // 히트 플래시
+    const flash = e.hitFlash > 0;
+    ctx.save();
+    // 그림자 글로우
+    ctx.shadowColor = flash ? '#ffffff' : e.color;
+    ctx.shadowBlur = flash ? 20 : 10;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+    ctx.fillStyle = flash ? '#ffffff' : e.color;
+    ctx.fill();
+    ctx.restore();
+
+    // 내부 원 (타입 구분)
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.r * 0.55, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fill();
+
+    // HP 바
+    if (e.hp < e.maxHp) {
+      const bw = e.r * 2 + 6, bh = 4;
+      const bx = e.x - bw/2, by = e.y - e.r - 8;
+      ctx.fillStyle = '#300';
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = '#f44';
+      ctx.fillRect(bx, by, bw * (e.hp/e.maxHp), bh);
+    }
+
+    // 보스 특수 마킹
+    if (e.type === 'boss') {
+      ctx.save();
+      ctx.strokeStyle = '#ff4400';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = '#ff4400';
+      ctx.shadowBlur = 15;
+      const pulse = 1 + 0.15 * Math.sin(ts * 0.004);
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // 투사체
+  for (const b of bullets) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fillStyle = b.hasExplosion ? '#ff8800' : '#88ddff';
+    ctx.shadowColor = b.hasExplosion ? '#ff8800' : '#44aaff';
+    ctx.shadowBlur = 12;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 파티클
+  for (const pt of particles) {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, pt.life);
+    if (pt.isText) {
+      ctx.font = `bold 13px Segoe UI`;
+      ctx.fillStyle = pt.color;
+      ctx.shadowColor = pt.color;
+      ctx.shadowBlur = 6;
+      ctx.fillText(pt.text, pt.x, pt.y);
+    } else {
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, pt.r * pt.life, 0, Math.PI * 2);
+      ctx.fillStyle = pt.color;
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 플레이어
+  if (p.alive) {
+    ctx.save();
+    const blink = p.iframes > 0 && Math.floor(ts / 80) % 2 === 0;
+    if (!blink) {
+      // 본체 글로우
+      ctx.shadowColor = '#7c7cff';
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = '#5555ff';
+      ctx.fill();
+
+      // 내부 밝은 원
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * 0.55, 0, Math.PI * 2);
+      ctx.fillStyle = '#aaaaff';
+      ctx.fill();
+
+      // 조준 방향 표시선
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#fff';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + Math.cos(p.angle) * (p.r + 8), p.y + Math.sin(p.angle) * (p.r + 8));
+      ctx.stroke();
+
+      // 보호막 표시
+      if (p.shield > 0) {
+        ctx.strokeStyle = 'rgba(136,170,255,0.7)';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#88aaff';
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r + 6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  // 웨이브 알림
+  if (G.waveAnnounce > 0) {
+    const alpha = Math.min(1, G.waveAnnounce / 800);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 32px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#7c7cff';
+    ctx.shadowBlur = 20;
+    ctx.fillText(`WAVE ${G.wave}`, CANVAS_W/2, PLAY_Y + 80);
+    ctx.font = '18px Segoe UI';
+    ctx.fillStyle = '#aaa';
+    ctx.shadowBlur = 0;
+    if (G.wave % 5 === 0) ctx.fillText('⚠️ 보스 웨이브!', CANVAS_W/2, PLAY_Y + 112);
+    ctx.restore();
+    ctx.textAlign = 'left';
+  }
+
+  // 다음 웨이브 카운트다운
+  if (G.waveComplete && G.nextWaveDelay > 0 && G.wave < MAX_WAVE) {
+    const sec = Math.ceil(G.nextWaveDelay / 1000);
+    ctx.save();
+    ctx.font = 'bold 22px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#88ff88';
+    ctx.shadowColor = '#44ff44';
+    ctx.shadowBlur = 12;
+    ctx.fillText(`다음 웨이브까지 ${sec}초`, CANVAS_W/2, PLAY_Y + 50);
+    ctx.restore();
+    ctx.textAlign = 'left';
+  }
+
+  // HUD 배경 재렌더 (위에 그려지도록)
+  ctx.fillStyle = 'rgba(5,5,15,0.0)';
+  ctx.fillRect(0, 0, CANVAS_W, PLAY_Y);
+}
+
+// ════════════════════════════════════════════════════════
+//  게임 종료
+// ════════════════════════════════════════════════════════
+function endGame(cleared) {
+  gameRunning = false;
+  cancelAnimationFrame(rafId);
+  G.over = !cleared;
+  G.cleared = cleared;
+
+  // 최고 기록 갱신
+  if (G.score > G.best) {
+    G.best = G.score;
+    localStorage.setItem(STORAGE_KEY, G.score);
+  }
+
+  const sec = Math.floor(G.time / 1000);
+  const statHTML = `
+    ${LANG.statWave}: <span>${G.wave} / ${MAX_WAVE}</span><br>
+    ${LANG.statLevel}: <span>${G.player.level}</span><br>
+    ${LANG.statKills}: <span>${G.kills}</span><br>
+    ${LANG.statScore}: <span>${G.score}</span><br>
+    ${LANG.statBest}: <span>${G.best}</span><br>
+    ${LANG.statTime}: <span>${sec}${LANG.seconds}</span>
+  `;
+
+  if (cleared) {
+    document.getElementById('clearStatBox').innerHTML = statHTML;
+    document.getElementById('clearOverlay').classList.remove('hidden');
+  } else {
+    document.getElementById('goStatBox').innerHTML = statHTML;
+    document.getElementById('gameoverOverlay').classList.remove('hidden');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  게임 시작 / 재시작
+// ════════════════════════════════════════════════════════
+function startGame() {
+  // 모든 오버레이 숨김
+  document.getElementById('startOverlay').classList.add('hidden');
+  document.getElementById('gameoverOverlay').classList.add('hidden');
+  document.getElementById('clearOverlay').classList.add('hidden');
+  document.getElementById('upgradeOverlay').classList.add('hidden');
+
+  // 상태 완전 초기화
+  resetGame();
+  startWave(1);
+
+  // HUD 텍스트 설정
+  document.getElementById('hudHpLabel').textContent = LANG.hudHp;
+  document.getElementById('hudXpLabel').textContent = LANG.hudXp;
+  document.getElementById('hudLvLabel').textContent = LANG.hudLv;
+  document.getElementById('hudWaveLabel').textContent = LANG.hudWave;
+  document.getElementById('hudKillLabel').textContent = LANG.hudKill;
+  document.getElementById('hudScoreLabel').textContent = LANG.hudScore;
+  document.getElementById('hudBestLabel').textContent = LANG.hudBest;
+  updateHUD();
+
+  gameRunning = true;
+  lastTime = performance.now();
+  rafId = requestAnimationFrame(gameLoop);
+}
+
+// ════════════════════════════════════════════════════════
+//  UI 텍스트 초기 적용
+// ════════════════════════════════════════════════════════
+function initUI() {
+  document.getElementById('startTitle').textContent = LANG.title;
+  document.getElementById('startSub').textContent = LANG.subtitle;
+  document.getElementById('startBtn').textContent = LANG.startBtn;
+  document.getElementById('goTitle').textContent = LANG.gameoverTitle;
+  document.getElementById('clearTitle').textContent = LANG.clearTitle;
+  document.getElementById('upgTitle').textContent = LANG.levelUpTitle;
+  document.getElementById('upgDesc').textContent = LANG.levelUpDesc;
+  document.getElementById('goRestartBtn').textContent = LANG.restartBtn;
+  document.getElementById('clearRestartBtn').textContent = LANG.restartBtn;
+
+  const best = parseInt(localStorage.getItem(STORAGE_KEY) || '0');
+  const bestBox = document.getElementById('startBestBox');
+  bestBox.innerHTML = best > 0
+    ? `${LANG.bestRecord}: <span style="color:#7c7cff;font-weight:700">${best}</span>`
+    : LANG.noRecord;
+}
+
+// ════════════════════════════════════════════════════════
+//  이벤트 바인딩
+// ════════════════════════════════════════════════════════
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('goRestartBtn').addEventListener('click', startGame);
+document.getElementById('clearRestartBtn').addEventListener('click', startGame);
+
+// AudioContext 재개 (브라우저 정책)
+document.addEventListener('keydown', () => { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }, { once: false });
+document.addEventListener('click', () => { if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }, { once: false });
+
+// 초기 시작 화면 렌더 (배경)
+function renderStartBg(ts) {
+  if (gameRunning) return;
+  ctx.fillStyle = '#080812';
+  ctx.fillRect(0, PLAY_Y, CANVAS_W, PLAY_H);
+  // 별 배경 효과
+  ctx.fillStyle = 'rgba(8,8,18,0.85)';
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+  const t = ts * 0.001;
+  for (let i = 0; i < 80; i++) {
+    const x = ((Math.sin(i * 137.5) + 1) / 2) * CANVAS_W;
+    const y = ((Math.cos(i * 97.3) + 1) / 2) * CANVAS_H;
+    const r = 0.5 + ((i % 5) / 5) * 1.5;
+    const a = 0.3 + 0.4 * Math.sin(t + i);
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(150,150,255,${a})`;
+    ctx.fill();
+  }
+  requestAnimationFrame(renderStartBg);
+}
+
+// 초기화
+initUI();
+requestAnimationFrame(renderStartBg);
+</script>
+</body>
+</html>

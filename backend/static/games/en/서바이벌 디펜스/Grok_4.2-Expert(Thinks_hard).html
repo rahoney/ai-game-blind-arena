@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top-down Survival Defense</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&amp;display=swap');
+        
+        body {
+            font-family: 'Press Start 2P', system-ui;
+        }
+        
+        #canvas {
+            image-rendering: pixelated;
+            box-shadow: 0 0 0 8px #052e05, 0 0 0 10px #0f4d0f;
+        }
+        
+        .overlay {
+            animation: fadeIn 0.3s ease forwards;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .modal-card {
+            animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+    </style>
+</head>
+<body class="bg-[#051405] flex items-center justify-center min-h-screen overflow-hidden">
+    <div class="relative w-[920px] mx-auto">
+        
+        <!--   -->
+        <canvas id="canvas" width="900" height="600" class="block bg-[#0a2a0a] rounded-2xl"></canvas>
+        
+        <!--  UI Overlay -->
+        <div id="ingame-ui" class="hidden absolute top-0 left-0 w-full h-full pointer-events-none z-10">
+            <!--   -->
+            <div class="flex justify-between items-start px-8 pt-6 text-white">
+                
+                <!-- HP -->
+                <div class="flex items-center gap-3 bg-black/60 backdrop-blur-md px-5 py-2 rounded-3xl border border-lime-400">
+                    <div class="text-lime-400 text-sm font-bold tracking-widest">HP</div>
+                    <div class="w-52 h-5 bg-[#112211] rounded-2xl overflow-hidden border border-lime-300/30">
+                        <div id="hp-bar" class="h-full bg-gradient-to-r from-lime-400 to-emerald-400 w-[100%] transition-all"></div>
+                    </div>
+                    <div id="hp-text" class="font-mono text-lg font-bold text-lime-300 min-w-[68px]">100/100</div>
+                </div>
+                
+                <!-- Wave &  -->
+                <div class="flex flex-col items-center">
+                    <div class="flex items-center gap-8">
+                        <div class="text-center">
+                            <div class="text-emerald-400 text-xs tracking-[2px]">WAVE</div>
+                            <div id="wave-text" class="text-4xl font-bold text-white">01</div>
+                        </div>
+                        <div class="h-10 w-px bg-white/30"></div>
+                        <div class="text-center">
+                            <div class="text-amber-400 text-xs tracking-[2px]">LV</div>
+                            <div id="level-text" class="text-4xl font-bold text-amber-300">01</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Score & Kills -->
+                <div class="flex items-center gap-6 bg-black/60 backdrop-blur-md px-6 py-3 rounded-3xl border border-amber-400">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-amber-400 text-xl">★</span>
+                            <div id="score-text" class="font-mono text-2xl font-bold">00000</div>
+                        </div>
+                        <div class="text-xs text-amber-300/70 text-center -mt-1">SCORE</div>
+                    </div>
+                    <div class="h-8 w-px bg-white/30"></div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-red-400 text-xl">☠</span>
+                            <div id="kills-text" class="font-mono text-2xl font-bold">000</div>
+                        </div>
+                        <div class="text-xs text-red-300/70 text-center -mt-1">KILLS</div>
+                    </div>
+                    <div class="text-xs text-white/60 font-mono">HI <span id="highscore-text" class="text-white">00000</span></div>
+                </div>
+            </div>
+            
+            <!--    -->
+            <div class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur-md px-8 py-2 rounded-3xl border border-sky-400 flex items-center gap-4 w-[420px]">
+                <div class="text-sky-400 text-xs font-bold tracking-widest whitespace-nowrap">EXP</div>
+                <div class="flex-1 h-3 bg-[#112233] rounded-3xl overflow-hidden border border-sky-300/30">
+                    <div id="xp-bar" class="h-full bg-gradient-to-r from-sky-400 to-cyan-300 transition-all w-0"></div>
+                </div>
+                <div id="xp-text" class="font-mono text-sm text-sky-300">0 / 40</div>
+            </div>
+        </div>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="overlay absolute inset-0 bg-black/90 flex flex-col items-center justify-center rounded-2xl z-50">
+            <div class="text-center">
+                <div class="mb-4 text-lime-400 text-6xl tracking-[8px] drop-shadow-[0_0_20px_#84cc16]">SURVIVAL</div>
+                <h1 class="text-7xl font-bold text-white tracking-widest mb-2 drop-shadow-[0_0_30px_#bef575]">TOP-DOWN<br>DEFENSE</h1>
+                <p id="start-subtitle" class="text-emerald-300 text-xl mb-12">Survive endless waves with auto-fire</p>
+                
+                <button onclick="startGame()" 
+                        class="px-14 py-6 bg-lime-400 hover:bg-lime-300 active:scale-95 transition text-black text-3xl font-bold rounded-2xl shadow-[0_0_40px_-10px_#84cc16] mb-8">
+                    Start Game
+                </button>
+                
+                <div class="flex items-center justify-center gap-8 text-white/70">
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">WASD</span>
+                        <span class="text-sm">Move</span>
+                    </div>
+                    <div class="h-6 w-px bg-white/30"></div>
+                    <div class="text-sm">Auto Attack</div>
+                    <div class="h-6 w-px bg-white/30"></div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-2xl">↑</span>
+                        <span class="text-sm">Select Upgrade</span>
+                    </div>
+                </div>
+                
+                <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 text-white/50 text-sm">
+                    Best Score 
+                    <span id="start-highscore" class="font-mono text-lime-300 text-xl">00000</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Level Up  -->
+        <div id="levelup-modal" class="hidden overlay absolute inset-0 bg-black/80 flex items-center justify-center z-50 rounded-2xl">
+            <div class="modal-card bg-[#0f1f0f] border-4 border-lime-400 w-full max-w-2xl mx-4 rounded-3xl p-8 shadow-2xl">
+                <div class="text-center mb-8">
+                    <div class="inline-flex items-center gap-3 bg-lime-300 text-black text-xl font-bold px-8 py-2 rounded-2xl">
+                        <span>LV UP!</span>
+                        <span id="levelup-level" class="text-4xl">02</span>
+                    </div>
+                    <h2 class="text-4xl text-white mt-6 mb-1">Power Up</h2>
+                    <p class="text-emerald-200">Choose one of 3 upgrades</p>
+                </div>
+                
+                <div id="upgrade-choices" class="grid grid-cols-3 gap-4">
+                    <!-- JS Enemy  -->
+                </div>
+                
+                <div class="text-center text-emerald-400/60 text-xs mt-8">Cannot cancel with ESC · Applies immediately</div>
+            </div>
+        </div>
+        
+        <!-- Defeat Screen -->
+        <div id="gameover-screen" class="hidden overlay absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 rounded-2xl">
+            <div class="text-red-500 text-8xl mb-4 animate-pulse">☠</div>
+            <h2 class="text-6xl font-bold text-white mb-2">GAME OVER</h2>
+            <p class="text-red-300 text-2xl mb-10">Survival Failed</p>
+            
+            <div class="bg-black/60 rounded-3xl px-12 py-8 mb-10 w-96 text-center">
+                <div class="flex justify-between text-xl mb-6">
+                    <span class="text-white/70">Final Wave</span>
+                    <span id="go-wave" class="font-mono text-4xl text-white">08</span>
+                </div>
+                <div class="flex justify-between text-xl mb-6">
+                    <span class="text-white/70">Kills</span>
+                    <span id="go-kills" class="font-mono text-4xl text-red-400">142</span>
+                </div>
+                <div class="flex justify-between text-xl">
+                    <span class="text-white/70">Final Score</span>
+                    <span id="go-score" class="font-mono text-4xl text-amber-400">12480</span>
+                </div>
+            </div>
+            
+            <button onclick="restartGame()" 
+                    class="px-16 py-6 bg-white text-black text-3xl font-bold rounded-3xl hover:bg-amber-400 transition active:scale-95">
+                    Restart
+            </button>
+            
+            <div onclick="showStartScreen()" class="mt-8 text-white/50 hover:text-white cursor-pointer text-sm flex items-center gap-2">
+                ← To Main Menu
+            </div>
+        </div>
+        
+        <!-- Victory Screen -->
+        <div id="win-screen" class="hidden overlay absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 rounded-2xl">
+            <div class="text-lime-400 text-8xl mb-6">🏆</div>
+            <h2 class="text-6xl font-bold text-lime-300 mb-2">SURVIVED!</h2>
+            <p class="text-emerald-400 text-3xl mb-10">All Waves Cleared</p>
+            
+            <div class="bg-black/60 rounded-3xl px-12 py-8 mb-10 w-96 text-center">
+                <div class="text-center mb-6">
+                    <div class="text-emerald-400 text-2xl">Final Record</div>
+                    <div id="win-score" class="font-mono text-7xl text-white">24860</div>
+                </div>
+                <div class="flex justify-center gap-12 text-xl">
+                    <div>
+                        <div class="text-emerald-300">Wave</div>
+                        <div id="win-wave" class="font-mono text-5xl">12</div>
+                    </div>
+                    <div>
+                        <div class="text-emerald-300">Kills</div>
+                        <div id="win-kills" class="font-mono text-5xl">387</div>
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="restartGame()" 
+                    class="px-16 py-6 bg-lime-400 text-black text-3xl font-bold rounded-3xl hover:bg-lime-300 transition active:scale-95">
+                    Restart
+            </button>
+            
+            <div onclick="showStartScreen()" class="mt-8 text-white/50 hover:text-white cursor-pointer text-sm flex items-center gap-2">
+                ← To Main Menu
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =============================================
+        // LANG_DATA -    Strings Korean  Management
+        // =============================================
+        const LANG_DATA = {
+            title: "Top-down Survival Defense",
+            subtitle: "Survive with auto-fire!",
+            startBtn: "Start Game",
+            highScoreLabel: "Best Score",
+            hp: "HP",
+            wave: "WAVE",
+            level: "LV",
+            score: "SCORE",
+            kills: "KILLS",
+            upgradeTitle: "LEVEL UP!",
+            upgradeSubtitle: "Choose 1 of 3 upgrades",
+            gameOverTitle: "GAME OVER",
+            winTitle: "SURVIVED!",
+            restartBtn: "Restart",
+            upgrades: {
+                hp: { name: "HP Boost", desc: "Max HP +20" },
+                speed: { name: "Movement Speed", desc: "Speed +0.6" },
+                damage: { name: "Damage", desc: "Damage +6" },
+                fireRate: { name: "Fire Rate", desc: "Shots/sec +1.2" },
+                range: { name: "Range", desc: "Attack Range +60" },
+                bulletSpeed: { name: "Projectile Speed", desc: "Projectile Speed +1.8" }
+            }
+        }
+
+        // =============================================
+        //   
+        // =============================================
+        let canvas, ctx
+        let WIDTH = 900
+        let HEIGHT = 600
+        let gameState = 'start' // start | playing | levelup | gameover | win
+        
+        let player = {}
+        let enemies = []
+        let bullets = []
+        let particles = []
+        
+        let keys = {}
+        let score = 0
+        let kills = 0
+        let wave = 1
+        let highScore = 0
+        
+        let enemiesSpawnedInWave = 0
+        let enemiesPerWave = 0
+        let spawnInterval = 0
+        let lastSpawnTime = 0
+        let MAX_WAVE = 12
+        
+        let audioContext = null
+        let lastTime = 0
+        
+        //   ( 6,   )
+        const UPGRADES_POOL = [
+            {
+                id: 'hp',
+                name: LANG_DATA.upgrades.hp.name,
+                desc: LANG_DATA.upgrades.hp.desc,
+                apply: () => {
+                    player.maxHp += 20
+                    player.hp = Math.min(player.maxHp, player.hp + 20)
+                }
+            },
+            {
+                id: 'speed',
+                name: LANG_DATA.upgrades.speed.name,
+                desc: LANG_DATA.upgrades.speed.desc,
+                apply: () => { player.speed += 0.6 }
+            },
+            {
+                id: 'damage',
+                name: LANG_DATA.upgrades.damage.name,
+                desc: LANG_DATA.upgrades.damage.desc,
+                apply: () => { player.damage += 6 }
+            },
+            {
+                id: 'fireRate',
+                name: LANG_DATA.upgrades.fireRate.name,
+                desc: LANG_DATA.upgrades.fireRate.desc,
+                apply: () => { player.fireRate = Math.min(12, player.fireRate + 1.2) }
+            },
+            {
+                id: 'range',
+                name: LANG_DATA.upgrades.range.name,
+                desc: LANG_DATA.upgrades.range.desc,
+                apply: () => { player.attackRange += 60 }
+            },
+            {
+                id: 'bulletSpeed',
+                name: LANG_DATA.upgrades.bulletSpeed.name,
+                desc: LANG_DATA.upgrades.bulletSpeed.desc,
+                apply: () => { player.bulletSpeed += 1.8 }
+            }
+        ]
+        
+        let currentChoices = []
+        
+        // =============================================
+        // Web Audio API Sound (Base64     Creation)
+        // =============================================
+        function getAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)()
+            }
+            return audioContext
+        }
+        
+        function playSound(freq, duration, type = 'sine', volume = 0.4) {
+            const ctx = getAudioContext()
+            const osc = ctx.createOscillator()
+            const gain = ctx.createGain()
+            osc.frequency.setValueAtTime(freq, ctx.currentTime)
+            osc.type = type
+            gain.gain.value = volume
+            osc.connect(gain).connect(ctx.destination)
+            osc.start()
+            gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duration)
+            osc.stop(ctx.currentTime + duration + 0.1)
+        }
+        
+        function playShootSound() {
+            playSound(720, 0.06, 'sine', 0.25)
+            setTimeout(() => playSound(920, 0.04, 'sine', 0.15), 12)
+        }
+        
+        function playHitSound() {
+            playSound(180, 0.12, 'sawtooth', 0.6)
+        }
+        
+        function playKillSound() {
+            playSound(420, 0.08, 'square', 0.5)
+            setTimeout(() => playSound(280, 0.2, 'sawtooth', 0.3), 30)
+        }
+        
+        function playLevelUpSound() {
+            playSound(880, 0.1, 'sine', 0.6)
+            setTimeout(() => playSound(1100, 0.1, 'sine', 0.6), 60)
+            setTimeout(() => playSound(1320, 0.3, 'sine', 0.8), 140)
+        }
+        
+        // =============================================
+        //  Reset   (Start   State  Reset)
+        // =============================================
+        function resetGame() {
+            player = {
+                x: WIDTH / 2,
+                y: HEIGHT / 2,
+                hp: 100,
+                maxHp: 100,
+                speed: 3.8,
+                level: 1,
+                xp: 0,
+                xpToNext: 42,
+                damage: 13,
+                fireRate: 3.2,
+                attackRange: 370,
+                bulletSpeed: 8.5,
+                size: 18,
+                lastShot: 0
+            }
+            
+            enemies = []
+            bullets = []
+            particles = []
+            
+            score = 0
+            kills = 0
+            wave = 1
+            enemiesSpawnedInWave = 0
+            enemiesPerWave = 8
+            spawnInterval = 680
+            lastSpawnTime = Date.now()
+            
+            currentChoices = []
+            
+            // UI Update
+            refreshIngameUI()
+        }
+        
+        // =============================================
+        // Enemy Creation (3  + Wave  Upgrade)
+        // =============================================
+        function spawnEnemy() {
+            const side = Math.floor(Math.random() * 4)
+            let ex = 0
+            let ey = 0
+            const margin = 60
+            
+            if (side === 0) { // 
+                ex = Math.random() * WIDTH
+                ey = -margin
+            } else if (side === 1) { // 
+                ex = WIDTH + margin
+                ey = Math.random() * HEIGHT
+            } else if (side === 2) { // 
+                ex = Math.random() * WIDTH
+                ey = HEIGHT + margin
+            } else { // 
+                ex = -margin
+                ey = Math.random() * HEIGHT
+            }
+            
+            //  Select (0:Normal, 1:Fast, 2:Tank)
+            let typeRoll = Math.random()
+            let type = typeRoll < 0.55 ? 0 : typeRoll < 0.85 ? 1 : 2
+            
+            const baseHp = [22, 13, 48][type]
+            const baseSpeed = [1.9, 3.4, 1.05][type]
+            const baseDamage = [5, 3, 8][type]
+            const size = [17, 13, 23][type]
+            const color = ['#f33', '#fa4', '#a3f'][type]
+            
+            // Wave  Upgrade
+            const hpMultiplier = 1 + (wave - 1) * 0.28
+            const speedMultiplier = Math.max(0.9, 1 - (wave - 1) * 0.015)
+            
+            enemies.push({
+                x: ex,
+                y: ey,
+                hp: Math.floor(baseHp * hpMultiplier),
+                maxHp: Math.floor(baseHp * hpMultiplier),
+                speed: baseSpeed * speedMultiplier,
+                damage: baseDamage,
+                size: size,
+                color: color,
+                lastDamageTime: 0
+            })
+        }
+        
+        // =============================================
+        // Particles Creation
+        // =============================================
+        function createParticles(x, y, color, count = 14) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2
+                const vel = 1.5 + Math.random() * 3.5
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * vel,
+                    vy: Math.sin(angle) * vel,
+                    life: 22 + Math.random() * 18,
+                    color: color,
+                    size: 3 + Math.random() * 3
+                })
+            }
+        }
+        
+        // =============================================
+        // Level Up 
+        // =============================================
+        function checkLevelUp() {
+            while (player.xp >= player.xpToNext) {
+                player.xp -= player.xpToNext
+                player.level++
+                player.xpToNext = Math.floor(player.xpToNext * 1.32) + 12
+                
+                // Level Up  Display
+                gameState = 'levelup'
+                showLevelUpModal()
+                playLevelUpSound()
+                return //      
+            }
+        }
+        
+        // =============================================
+        // Level Up  Display
+        // =============================================
+        function showLevelUpModal() {
+            const modal = document.getElementById('levelup-modal')
+            const container = document.getElementById('upgrade-choices')
+            container.innerHTML = ''
+            
+            // 3  Select (  X)
+            const shuffled = [...UPGRADES_POOL].sort(() => Math.random() - 0.5).slice(0, 3)
+            currentChoices = shuffled
+            
+            shuffled.forEach((upgrade, index) => {
+                const cardHTML = `
+                    <div onclick="selectUpgrade(${index})" 
+                         class="modal-card bg-[#112211] hover:bg-[#1a331a] border-2 border-transparent hover:border-lime-400 rounded-2xl p-5 cursor-pointer transition-all active:scale-95">
+                        <div class="text-lime-300 text-xl font-bold mb-2">${upgrade.name}</div>
+                        <div class="text-emerald-100 text-base leading-tight">${upgrade.desc}</div>
+                    </div>
+                `
+                container.innerHTML += cardHTML
+            })
+            
+            document.getElementById('levelup-level').textContent = String(player.level).padStart(2, '0')
+            modal.classList.remove('hidden')
+        }
+        
+        // =============================================
+        //  Select ( Function - onclick )
+        // =============================================
+        window.selectUpgrade = function(index) {
+            const upgrade = currentChoices[index]
+            if (upgrade && typeof upgrade.apply === 'function') {
+                upgrade.apply()
+            }
+            const modal = document.getElementById('levelup-modal')
+            modal.classList.add('hidden')
+            currentChoices = []
+            gameState = 'playing'
+            refreshIngameUI()
+        }
+        
+        // =============================================
+        //   ( Loop)
+        // =============================================
+        function update() {
+            if (gameState !== 'playing') return
+            
+            const now = Date.now()
+            
+            // ==================== Player Move (WASD / ) ====================
+            let moveX = 0
+            let moveY = 0
+            if (keys['w'] || keys['arrowup']) moveY -= 1
+            if (keys['s'] || keys['arrowdown']) moveY += 1
+            if (keys['a'] || keys['arrowleft']) moveX -= 1
+            if (keys['d'] || keys['arrowright']) moveX += 1
+            
+            if (moveX !== 0 || moveY !== 0) {
+                const len = Math.hypot(moveX, moveY)
+                moveX /= len
+                moveY /= len
+                player.x += moveX * player.speed
+                player.y += moveY * player.speed
+            }
+            
+            //  Boundary 
+            player.x = Math.max(player.size, Math.min(WIDTH - player.size, player.x))
+            player.y = Math.max(player.size, Math.min(HEIGHT - player.size, player.y))
+            
+            // ====================  Attack ====================
+            const shotCooldown = 1000 / player.fireRate
+            if (now - player.lastShot > shotCooldown && enemies.length > 0) {
+                //   Enemy 
+                let nearest = null
+                let minDistSq = Infinity
+                
+                for (let i = 0; i < enemies.length; i++) {
+                    const e = enemies[i]
+                    const dx = e.x - player.x
+                    const dy = e.y - player.y
+                    const distSq = dx * dx + dy * dy
+                    
+                    if (distSq < minDistSq && Math.sqrt(distSq) < player.attackRange) {
+                        minDistSq = distSq
+                        nearest = e
+                    }
+                }
+                
+                if (nearest) {
+                    const dx = nearest.x - player.x
+                    const dy = nearest.y - player.y
+                    const dist = Math.hypot(dx, dy)
+                    
+                    const vx = (dx / dist) * player.bulletSpeed
+                    const vy = (dy / dist) * player.bulletSpeed
+                    
+                    bullets.push({
+                        x: player.x,
+                        y: player.y,
+                        vx: vx,
+                        vy: vy,
+                        damage: player.damage,
+                        size: 4.5
+                    })
+                    
+                    player.lastShot = now
+                    playShootSound()
+                }
+            }
+            
+            // ====================   & Collision ====================
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i]
+                b.x += b.vx
+                b.y += b.vy
+                
+                // Screen  
+                if (b.x < -20 || b.x > WIDTH + 20 || b.y < -20 || b.y > HEIGHT + 20) {
+                    bullets.splice(i, 1)
+                    continue
+                }
+                
+                // Enemy Collision 
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const e = enemies[j]
+                    const dx = b.x - e.x
+                    const dy = b.y - e.y
+                    if (dx * dx + dy * dy < (b.size + e.size) ** 2) {
+                        e.hp -= b.damage
+                        bullets.splice(i, 1)
+                        
+                        // Enemy 
+                        if (e.hp <= 0) {
+                            enemies.splice(j, 1)
+                            score += 15 + wave * 4
+                            kills++
+                            player.xp += 11 + Math.floor(wave * 0.8)
+                            createParticles(e.x, e.y, '#ffcc44', 18)
+                            playKillSound()
+                            checkLevelUp()
+                        } else {
+                            //  Effect Particles
+                            createParticles(b.x, b.y, '#ffee99', 6)
+                            playHitSound()
+                        }
+                        break
+                    }
+                }
+            }
+            
+            // ==================== Enemy Move & Player Collision ====================
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const e = enemies[i]
+                
+                const dx = player.x - e.x
+                const dy = player.y - e.y
+                const dist = Math.hypot(dx, dy)
+                
+                if (dist > 1) {
+                    e.x += (dx / dist) * e.speed
+                    e.y += (dy / dist) * e.speed
+                }
+                
+                // Player    (0.8)
+                const pDist = Math.hypot(player.x - e.x, player.y - e.y)
+                if (pDist < player.size + e.size && now - e.lastDamageTime > 780) {
+                    player.hp -= e.damage
+                    e.lastDamageTime = now
+                    createParticles(player.x, player.y, '#ff3366', 9)
+                    playHitSound()
+                    
+                    if (player.hp <= 0) {
+                        player.hp = 0
+                        endGame(false) // lose
+                        return
+                    }
+                }
+            }
+            
+            // ==================== Enemy  ====================
+            if (enemiesSpawnedInWave < enemiesPerWave && now - lastSpawnTime > spawnInterval) {
+                spawnEnemy()
+                enemiesSpawnedInWave++
+                lastSpawnTime = now
+            }
+            
+            // ====================  Wave  ====================
+            if (enemies.length === 0 && enemiesSpawnedInWave >= enemiesPerWave) {
+                if (wave >= MAX_WAVE) {
+                    endGame(true) // win
+                } else {
+                    wave++
+                    enemiesSpawnedInWave = 0
+                    enemiesPerWave = 8 + Math.floor(wave * 4.8)
+                    spawnInterval = Math.max(160, 680 - wave * 32)
+                    lastSpawnTime = now
+                    
+                    // Wave  Sound
+                    playSound(660, 0.1)
+                    setTimeout(() => playSound(880, 0.25), 80)
+                    
+                    refreshIngameUI()
+                }
+            }
+            
+            // ==================== Particles  ====================
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i]
+                p.x += p.vx
+                p.y += p.vy
+                p.life--
+                p.vx *= 0.96
+                p.vy *= 0.96
+                if (p.life <= 0) particles.splice(i, 1)
+            }
+            
+            refreshIngameUI()
+        }
+        
+        // =============================================
+        //  Function
+        // =============================================
+        function draw() {
+            ctx.clearRect(0, 0, WIDTH, HEIGHT)
+            
+            // Background
+            ctx.fillStyle = '#0a2a0a'
+            ctx.fillRect(0, 0, WIDTH, HEIGHT)
+            
+            //   
+            ctx.strokeStyle = '#1a3f1a'
+            ctx.lineWidth = 2
+            for (let x = 40; x < WIDTH; x += 40) {
+                ctx.beginPath()
+                ctx.moveTo(x, 0)
+                ctx.lineTo(x, HEIGHT)
+                ctx.stroke()
+            }
+            for (let y = 40; y < HEIGHT; y += 40) {
+                ctx.beginPath()
+                ctx.moveTo(0, y)
+                ctx.lineTo(WIDTH, y)
+                ctx.stroke()
+            }
+            
+            // Player ( )
+            ctx.save()
+            ctx.translate(player.x, player.y)
+            // 
+            ctx.fillStyle = '#22ff55'
+            ctx.beginPath()
+            ctx.arc(0, 0, player.size, 0, Math.PI * 2)
+            ctx.fill()
+            //  
+            ctx.shadowBlur = 25
+            ctx.shadowColor = '#aaff88'
+            ctx.lineWidth = 4
+            ctx.strokeStyle = '#ccffaa'
+            ctx.beginPath()
+            ctx.arc(0, 0, player.size + 2, 0, Math.PI * 2)
+            ctx.stroke()
+            ctx.shadowBlur = 0
+            // 
+            ctx.fillStyle = '#113311'
+            ctx.beginPath()
+            ctx.arc(0, 0, 7, 0, Math.PI * 2)
+            ctx.fill()
+            ctx.restore()
+            
+            // Enemy
+            for (let e of enemies) {
+                ctx.fillStyle = e.color
+                ctx.beginPath()
+                ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2)
+                ctx.fill()
+                
+                // Tank   
+                if (e.size > 20) {
+                    ctx.lineWidth = 4
+                    ctx.strokeStyle = '#ffffff'
+                    ctx.beginPath()
+                    ctx.arc(e.x, e.y, e.size + 3, 0, Math.PI * 2)
+                    ctx.stroke()
+                }
+                
+                //  HP  (Tank)
+                if (e.maxHp > 40) {
+                    const ratio = Math.max(0, e.hp / e.maxHp)
+                    ctx.fillStyle = '#111'
+                    ctx.fillRect(e.x - 18, e.y - e.size - 14, 36, 5)
+                    ctx.fillStyle = ratio > 0.4 ? '#ff0' : '#f44'
+                    ctx.fillRect(e.x - 17, e.y - e.size - 13, 34 * ratio, 3)
+                }
+            }
+            
+            // 
+            ctx.shadowBlur = 12
+            ctx.shadowColor = '#ffee66'
+            ctx.fillStyle = '#ffee44'
+            for (let b of bullets) {
+                ctx.beginPath()
+                ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2)
+                ctx.fill()
+            }
+            ctx.shadowBlur = 0
+            
+            // Particles
+            for (let p of particles) {
+                const alpha = p.life / 30
+                ctx.globalAlpha = alpha
+                ctx.fillStyle = p.color
+                ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size)
+            }
+            ctx.globalAlpha = 1
+        }
+        
+        // =============================================
+        //  UI Update
+        // =============================================
+        function refreshIngameUI() {
+            // HP
+            const hpPercent = Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100))
+            document.getElementById('hp-bar').style.width = hpPercent + '%'
+            document.getElementById('hp-text').innerHTML = `<span class="font-mono">${Math.floor(player.hp)}</span><span class="text-white/40 mx-px">/</span>${player.maxHp}`
+            
+            // Wave
+            document.getElementById('wave-text').textContent = String(wave).padStart(2, '0')
+            
+            // 
+            document.getElementById('level-text').innerHTML = `<span class="text-amber-300">${String(player.level).padStart(2, '0')}</span>`
+            
+            // Score
+            document.getElementById('score-text').textContent = String(Math.floor(score)).padStart(5, '0')
+            
+            // Kills
+            document.getElementById('kills-text').textContent = String(kills).padStart(3, '0')
+            
+            //  Record
+            document.getElementById('highscore-text').textContent = String(highScore).padStart(5, '0')
+            
+            // 
+            const xpPercent = (player.xp / player.xpToNext) * 100
+            document.getElementById('xp-bar').style.width = xpPercent + '%'
+            document.getElementById('xp-text').innerHTML = `<span class="font-mono">${Math.floor(player.xp)}</span><span class="text-white/40 mx-px">/</span>${player.xpToNext}`
+        }
+        
+        // =============================================
+        //  End (Defeat / Victory)
+        // =============================================
+        function endGame(isWin) {
+            gameState = isWin ? 'win' : 'gameover'
+            
+            if (score > highScore) {
+                highScore = Math.floor(score)
+                localStorage.setItem('tdSurvivalHighScore', highScore)
+            }
+            
+            if (isWin) {
+                // Victory Screen
+                document.getElementById('win-screen').classList.remove('hidden')
+                document.getElementById('win-wave').textContent = wave
+                document.getElementById('win-kills').textContent = kills
+                document.getElementById('win-score').textContent = String(Math.floor(score)).padStart(5, '0')
+            } else {
+                // Defeat Screen
+                document.getElementById('gameover-screen').classList.remove('hidden')
+                document.getElementById('go-wave').textContent = wave
+                document.getElementById('go-kills').textContent = kills
+                document.getElementById('go-score').textContent = String(Math.floor(score)).padStart(5, '0')
+            }
+            
+            document.getElementById('ingame-ui').classList.add('hidden')
+        }
+        
+        // =============================================
+        //  Start
+        // =============================================
+        window.startGame = function() {
+            document.getElementById('start-screen').classList.add('hidden')
+            document.getElementById('ingame-ui').classList.remove('hidden')
+            
+            resetGame()
+            gameState = 'playing'
+            
+            //  Enemy  Start
+            lastSpawnTime = Date.now() - spawnInterval + 200
+            
+            //  Loop Start ( requestAnimationFrame  )
+        }
+        
+        // =============================================
+        // Start ( State  Reset)
+        // =============================================
+        window.restartGame = function() {
+            document.getElementById('gameover-screen').classList.add('hidden')
+            document.getElementById('win-screen').classList.add('hidden')
+            document.getElementById('levelup-modal').classList.add('hidden')
+            document.getElementById('ingame-ui').classList.remove('hidden')
+            
+            resetGame()
+            gameState = 'playing'
+            lastSpawnTime = Date.now() - spawnInterval + 300
+        }
+        
+        // =============================================
+        // Main Screen 
+        // =============================================
+        window.showStartScreen = function() {
+            document.getElementById('gameover-screen').classList.add('hidden')
+            document.getElementById('win-screen').classList.add('hidden')
+            document.getElementById('levelup-modal').classList.add('hidden')
+            document.getElementById('ingame-ui').classList.add('hidden')
+            document.getElementById('start-screen').classList.remove('hidden')
+            
+            //  Record 
+            document.getElementById('start-highscore').textContent = String(highScore).padStart(5, '0')
+            gameState = 'start'
+        }
+        
+        // =============================================
+        // Main  Loop
+        // =============================================
+        function gameLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp
+            update()
+            draw()
+            requestAnimationFrame(gameLoop)
+        }
+        
+        // =============================================
+        //  Input 
+        // =============================================
+        function setupInput() {
+            window.addEventListener('keydown', e => {
+                keys[e.key.toLowerCase()] = true
+                
+                // ESC   (Level Up )
+            })
+            
+            window.addEventListener('keyup', e => {
+                keys[e.key.toLowerCase()] = false
+            })
+            
+            //    ( )
+            canvas.addEventListener('contextmenu', e => e.preventDefault())
+        }
+        
+        // =============================================
+        // Tailwind Reset +  Start 
+        // =============================================
+        function initializeTailwind() {
+            return {
+                config(userConfig = {}) {
+                    return {
+                        content: [],
+                        theme: { extend: {} },
+                        plugins: [],
+                        ...userConfig,
+                    }
+                },
+                theme: { extend: {} }
+            }
+        }
+        
+        // =============================================
+        //  
+        // =============================================
+        window.onload = function() {
+            // Tailwind CDN 
+            const config = initializeTailwind().config()
+            document.documentElement.setAttribute('data-tailwind-config', JSON.stringify(config))
+            
+            //  Reset
+            canvas = document.getElementById('canvas')
+            ctx = canvas.getContext('2d', { alpha: true })
+            
+            //  Record 
+            const savedHigh = localStorage.getItem('tdSurvivalHighScore')
+            if (savedHigh) highScore = parseInt(savedHigh, 10)
+            document.getElementById('start-highscore').textContent = String(highScore).padStart(5, '0')
+            
+            // Input Settings
+            setupInput()
+            
+            //  Loop Start
+            requestAnimationFrame(gameLoop)
+            
+            console.log('%c✅ Top-down Survival Defense loaded - Ready to play', 'color:#84cc16;font-family:monospace;font-size:13px')
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Arcade joystick favicon">
+  <defs>
+    <linearGradient id="shaft" x1="48" x2="80" y1="20" y2="98" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#94a3b8"/>
+      <stop offset="100%" stop-color="#475569"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#ffffff"/>
+  <ellipse cx="64" cy="108" rx="18" ry="6" fill="#0f172a" fill-opacity=".12"/>
+  <path d="M50 42h28v50H50z" fill="url(#shaft)" stroke="#334155" stroke-width="2"/>
+  <circle cx="64" cy="34" r="30" fill="#ef4444" stroke="#7f1d1d" stroke-width="5"/>
+  <circle cx="64" cy="28" r="12" fill="#fecaca" fill-opacity=".6"/>
+</svg>

@@ -1,0 +1,113 @@
+async function apiFetchGames() {
+    const lang = state.language || 'ko';
+    const res = await fetch(`${API_BASE}/games?lang=${lang}`);
+    const data = await res.json();
+    state.games = data.games;
+    state.categories = data.categories || [];
+}
+
+async function apiFetchUserEvals() {
+    if (!state.nickname) return;
+    const res = await fetch(`${API_BASE}/user_evals/${state.nickname}`);
+    const data = await res.json();
+    state.userEvals = data.evals;
+}
+
+async function apiNicknameLogin(nickname) {
+    return await fetch(`${API_BASE}/nickname/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname })
+    });
+}
+
+async function apiRecordPlay(gameType, blindId) {
+    await fetch(`${API_BASE}/play`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ game_type: gameType, blind_model_id: blindId, nickname: state.nickname || null })
+    });
+    // Refresh game list behind the scenes to update play count
+    await apiFetchGames();
+}
+
+async function apiSubmitEvaluation(payload) {
+    return await fetch(`${API_BASE}/evaluate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+}
+
+async function apiFetchResults(gameType) {
+    const nicknameQuery = state.nickname ? `?nickname=${encodeURIComponent(state.nickname)}` : '';
+    const headers = state.adminToken ? { 'X-Admin-Token': state.adminToken } : {};
+    const res = await fetch(`${API_BASE}/results/${gameType}${nicknameQuery}`, { headers });
+    return await res.json();
+}
+
+async function apiFetchMyPage() {
+    if (!state.nickname) return null;
+    const res = await fetch(`${API_BASE}/mypage/${encodeURIComponent(state.nickname)}`);
+    const data = await res.json();
+    state.myPageData = data;
+    return data;
+}
+
+async function apiUpdateProfileBadge(badgeKey) {
+    return await fetch(`${API_BASE}/mypage/profile-badge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            nickname: state.nickname,
+            badge_key: badgeKey
+        })
+    });
+}
+
+async function apiToggleCommentReaction(evaluationId, reactionType) {
+    return await fetch(`${API_BASE}/comment-reaction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            evaluation_id: evaluationId,
+            nickname: state.nickname,
+            reaction_type: reactionType
+        })
+    });
+}
+
+async function apiSubmitCommentReply(evaluationId, reply) {
+    return await fetch(`${API_BASE}/comment-reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            evaluation_id: evaluationId,
+            nickname: state.nickname,
+            reply
+        })
+    });
+}
+
+async function apiAdminAuth(nickname, password) {
+    return await fetch(`${API_BASE}/admin/auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nickname, password })
+    });
+}
+
+async function apiAdminToggleBlind(targetType, targetId, isBlinded) {
+    return await fetch(`${API_BASE}/admin/blind`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Token': state.adminToken
+        },
+        body: JSON.stringify({
+            target_type: targetType,
+            target_id: targetId,
+            is_blinded: isBlinded
+        })
+    });
+}

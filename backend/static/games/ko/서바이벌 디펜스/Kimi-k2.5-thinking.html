@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>서바이벌 디펜스</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+        
+        body {
+            background: #1a1a2e;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 1200px;
+            max-height: 800px;
+            background: #0f0f1e;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+        
+        canvas {
+            display: block;
+            background: #16213e;
+        }
+        
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0,0,0,0.85);
+            pointer-events: auto;
+            z-index: 10;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        h1 {
+            color: #e94560;
+            font-size: 4em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(233,69,96,0.5);
+            letter-spacing: 3px;
+        }
+        
+        .btn {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.5em;
+            cursor: pointer;
+            border-radius: 5px;
+            margin: 10px;
+            transition: all 0.3s;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        
+        .btn:hover {
+            background: #ff6b6b;
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(233,69,96,0.5);
+        }
+        
+        .hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            color: white;
+            font-size: 1.2em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        
+        .stat-box {
+            background: rgba(0,0,0,0.6);
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: 1px solid #e94560;
+        }
+        
+        .health-bar {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 20px;
+            background: rgba(0,0,0,0.6);
+            border: 2px solid #fff;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #ee5a24);
+            transition: width 0.2s;
+        }
+        
+        .xp-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 10px;
+            background: rgba(0,0,0,0.8);
+        }
+        
+        .xp-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4ecdc4, #44a3aa);
+            transition: width 0.2s;
+        }
+        
+        .upgrade-menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            pointer-events: auto;
+        }
+        
+        .upgrade-card {
+            background: rgba(20,20,40,0.95);
+            border: 2px solid #e94560;
+            border-radius: 10px;
+            padding: 30px;
+            width: 200px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: white;
+        }
+        
+        .upgrade-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(233,69,96,0.4);
+            border-color: #ff6b6b;
+        }
+        
+        .upgrade-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+        
+        .upgrade-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #e94560;
+        }
+        
+        .upgrade-desc {
+            font-size: 0.9em;
+            color: #aaa;
+        }
+        
+        .controls-info {
+            color: #888;
+            margin-top: 20px;
+            font-size: 1em;
+        }
+        
+        .game-over-stats {
+            color: white;
+            font-size: 1.5em;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .stat-value {
+            color: #e94560;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div class="ui-overlay">
+            <div class="hud hidden" id="hud">
+                <div class="stat-box">
+                    <div id="waveText">웨이브: 1</div>
+                </div>
+                <div class="stat-box">
+                    <div id="scoreText">점수: 0</div>
+                    <div id="killText">처치: 0</div>
+                </div>
+                <div class="stat-box">
+                    <div id="levelText">레벨: 1</div>
+                    <div id="highScoreText">최고: 0</div>
+                </div>
+            </div>
+            
+            <div class="health-bar hidden" id="healthBar">
+                <div class="health-fill" id="healthFill" style="width: 100%"></div>
+            </div>
+            
+            <div class="xp-bar hidden" id="xpBar">
+                <div class="xp-fill" id="xpFill" style="width: 0%"></div>
+            </div>
+            
+            <div id="startScreen" class="screen">
+                <h1 id="titleText">서바이벌 디펜스</h1>
+                <button class="btn" id="startBtn">게임 시작</button>
+                <div class="controls-info" id="controlsText">
+                    WASD 또는 방향키로 이동<br>
+                    자동으로 가장 가까운 적을 공격합니다
+                </div>
+            </div>
+            
+            <div id="upgradeScreen" class="screen hidden">
+                <h2 id="levelUpText">레벨 업!</h2>
+                <p style="color: #aaa; margin-bottom: 30px;" id="upgradeDescText">능력을 선택하세요</p>
+                <div class="upgrade-menu" id="upgradeMenu"></div>
+            </div>
+            
+            <div id="gameOverScreen" class="screen hidden">
+                <h1 id="gameOverText">게임 오버</h1>
+                <div class="game-over-stats">
+                    <div id="finalScoreText">최종 점수: <span class="stat-value" id="finalScore">0</span></div>
+                    <div id="finalWaveText">생존 웨이브: <span class="stat-value" id="finalWave">1</span></div>
+                </div>
+                <button class="btn" id="restartBtn">다시 시작</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 언어 데이터 - 모든 게임 내 문자열은 여기서 관리
+        const LANG_DATA = {
+            ko: {
+                title: "서바이벌 디펜스",
+                start: "게임 시작",
+                controls: "WASD 또는 방향키로 이동<br>자동으로 가장 가까운 적을 공격합니다",
+                wave: "웨이브",
+                score: "점수",
+                kills: "처치",
+                level: "레벨",
+                highScore: "최고",
+                levelUp: "레벨 업!",
+                upgradeDesc: "능력을 선택하세요",
+                gameOver: "게임 오버",
+                finalScore: "최종 점수",
+                finalWave: "생존 웨이브",
+                restart: "다시 시작",
+                upgrades: {
+                    damage: { name: "공격력 증가", desc: "투사체 공격력 +25%", icon: "⚔️" },
+                    speed: { name: "공격 속도", desc: "발사 속도 +20%", icon: "⚡" },
+                    move: { name: "이동 속도", desc: "이동 속도 +15%", icon: "👟" },
+                    health: { name: "체력 회복", desc: "최대 체력 +20 및 회복", icon: "❤️" },
+                    pierce: { name: "관통 샷", desc: "투사체가 +1 적을 관통", icon: "🎯" },
+                    orbital: { name: "회전 방패", desc: "주변을 도는 공격 추가", icon: "🛡️" }
+                },
+                enemyTypes: {
+                    zombie: "좀비",
+                    runner: "러너",
+                    shooter: "슈터"
+                }
+            }
+        };
+        
+        const LANG = LANG_DATA.ko;
+        
+        // 오디오 컨텍스트
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        
+        // 사운드 생성 함수
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            const now = audioCtx.currentTime;
+            
+            if (type === 'shoot') {
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'hit') {
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'levelup') {
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.3);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            } else if (type === 'enemyShoot') {
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(50, now + 0.2);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            }
+        }
+        
+        // 캔버스 설정
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 게임 상태
+        const GameState = {
+            MENU: 0,
+            PLAYING: 1,
+            PAUSED: 2,
+            GAMEOVER: 3
+        };
+        
+        let gameState = GameState.MENU;
+        let animationId = null;
+        let lastTime = 0;
+        
+        // 게임 객체들
+        let player = null;
+        let enemies = [];
+        let projectiles = [];
+        let enemyProjectiles = [];
+        let particles = [];
+        let experienceOrbs = [];
+        let orbitals = [];
+        
+        // 게임 데이터
+        let score = 0;
+        let kills = 0;
+        let wave = 1;
+        let highScore = 0;
+        let gameTime = 0;
+        let enemySpawnTimer = 0;
+        let difficultyMultiplier = 1;
+        
+        // 입력 상태
+        const keys = {};
+        
+        // 저장된 데이터 로드
+        function loadHighScore() {
+            const saved = localStorage.getItem('survivalDefenseHighScore');
+            if (saved) highScore = parseInt(saved);
+        }
+        
+        function saveHighScore() {
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('survivalDefenseHighScore', highScore);
+            }
+        }
+        
+        // 유틸리티 함수
+        function distance(a, b) {
+            return Math.hypot(a.x - b.x, a.y - b.y);
+        }
+        
+        function normalizeAngle(angle) {
+            return Math.atan2(Math.sin(angle), Math.cos(angle));
+        }
+        
+        // 클래스 정의
+        class Player {
+            constructor() {
+                this.x = canvas.width / 2;
+                this.y = canvas.height / 2;
+                this.radius = 15;
+                this.speed = 4;
+                this.maxHealth = 100;
+                this.health = 100;
+                this.level = 1;
+                this.xp = 0;
+                this.xpToNext = 100;
+                this.shootCooldown = 0;
+                this.shootSpeed = 20; // 프레임
+                this.damage = 25;
+                this.pierce = 0;
+                this.hasOrbital = false;
+                this.orbitalCount = 0;
+                this.orbitalAngle = 0;
+            }
+            
+            update() {
+                // 이동
+                let dx = 0;
+                let dy = 0;
+                
+                if (keys['w'] || keys['ArrowUp']) dy -= 1;
+                if (keys['s'] || keys['ArrowDown']) dy += 1;
+                if (keys['a'] || keys['ArrowLeft']) dx -= 1;
+                if (keys['d'] || keys['ArrowRight']) dx += 1;
+                
+                // 대각선 이동 정규화
+                if (dx !== 0 && dy !== 0) {
+                    const len = Math.hypot(dx, dy);
+                    dx /= len;
+                    dy /= len;
+                }
+                
+                this.x += dx * this.speed;
+                this.y += dy * this.speed;
+                
+                // 화면 경계 제한
+                this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x));
+                this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y));
+                
+                // 자동 공격
+                if (this.shootCooldown > 0) this.shootCooldown--;
+                
+                if (this.shootCooldown <= 0) {
+                    this.shoot();
+                    this.shootCooldown = this.shootSpeed;
+                }
+                
+                // 회전 방패 업데이트
+                if (this.hasOrbital) {
+                    this.orbitalAngle += 0.05;
+                    orbitals = [];
+                    for (let i = 0; i < this.orbitalCount; i++) {
+                        const angle = this.orbitalAngle + (Math.PI * 2 * i / this.orbitalCount);
+                        orbitals.push({
+                            x: this.x + Math.cos(angle) * 60,
+                            y: this.y + Math.sin(angle) * 60,
+                            radius: 10,
+                            damage: this.damage * 0.5
+                        });
+                    }
+                }
+            }
+            
+            shoot() {
+                // 가장 가까운 적 찾기
+                let closest = null;
+                let minDist = Infinity;
+                
+                for (const enemy of enemies) {
+                    const dist = distance(this, enemy);
+                    if (dist < minDist && dist < 400) {
+                        minDist = dist;
+                        closest = enemy;
+                    }
+                }
+                
+                if (closest) {
+                    const angle = Math.atan2(closest.y - this.y, closest.x - this.x);
+                    projectiles.push(new Projectile(
+                        this.x, this.y, angle, this.damage, this.pierce
+                    ));
+                    playSound('shoot');
+                }
+            }
+            
+            gainXp(amount) {
+                this.xp += amount;
+                if (this.xp >= this.xpToNext) {
+                    this.levelUp();
+                }
+            }
+            
+            levelUp() {
+                this.level++;
+                this.xp -= this.xpToNext;
+                this.xpToNext = Math.floor(this.xpToNext * 1.2);
+                playSound('levelup');
+                showUpgradeMenu();
+            }
+            
+            takeDamage(amount) {
+                this.health -= amount;
+                // 화면 흔들림 효과
+                shakeScreen(5);
+                if (this.health <= 0) {
+                    endGame();
+                }
+            }
+            
+            draw() {
+                // 플레이어 본체
+                ctx.fillStyle = '#4ecdc4';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 방향 표시
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(
+                    this.x + Math.cos(0) * 20,
+                    this.y + Math.sin(0) * 20
+                );
+                ctx.stroke();
+                
+                // 회전 방패
+                if (this.hasOrbital) {
+                    ctx.fillStyle = '#ffd700';
+                    for (const orb of orbitals) {
+                        ctx.beginPath();
+                        ctx.arc(orb.x, orb.y, orb.radius, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+        
+        class Enemy {
+            constructor(type) {
+                this.type = type;
+                
+                // 화면 밖에서 생성
+                const side = Math.floor(Math.random() * 4);
+                switch(side) {
+                    case 0: this.x = Math.random() * canvas.width; this.y = -30; break;
+                    case 1: this.x = canvas.width + 30; this.y = Math.random() * canvas.height; break;
+                    case 2: this.x = Math.random() * canvas.width; this.y = canvas.height + 30; break;
+                    case 3: this.x = -30; this.y = Math.random() * canvas.height; break;
+                }
+                
+                if (type === 'zombie') {
+                    this.speed = 1.5 + (wave * 0.1);
+                    this.health = 40 * difficultyMultiplier;
+                    this.maxHealth = this.health;
+                    this.radius = 18;
+                    this.damage = 10;
+                    this.color = '#e94560';
+                    this.xpValue = 10;
+                } else if (type === 'runner') {
+                    this.speed = 3 + (wave * 0.15);
+                    this.health = 25 * difficultyMultiplier;
+                    this.maxHealth = this.health;
+                    this.radius = 14;
+                    this.damage = 8;
+                    this.color = '#ff6b6b';
+                    this.xpValue = 15;
+                } else if (type === 'shooter') {
+                    this.speed = 1 + (wave * 0.05);
+                    this.health = 60 * difficultyMultiplier;
+                    this.maxHealth = this.health;
+                    this.radius = 20;
+                    this.damage = 15;
+                    this.color = '#c44569';
+                    this.xpValue = 25;
+                    this.shootTimer = 0;
+                }
+            }
+            
+            update() {
+                // 플레이어 추적
+                const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                this.x += Math.cos(angle) * this.speed;
+                this.y += Math.sin(angle) * this.speed;
+                
+                // 슈터 타입은 원거리 공격
+                if (this.type === 'shooter') {
+                    this.shootTimer++;
+                    if (this.shootTimer > 120) {
+                        this.shootTimer = 0;
+                        const dist = distance(this, player);
+                        if (dist < 300) {
+                            enemyProjectiles.push(new EnemyProjectile(
+                                this.x, this.y, angle
+                            ));
+                            playSound('enemyShoot');
+                        }
+                    }
+                }
+                
+                // 충돌: 적끼리 밀어내기
+                for (const other of enemies) {
+                    if (other === this) continue;
+                    const dist = distance(this, other);
+                    const minDist = this.radius + other.radius;
+                    if (dist < minDist) {
+                        const pushAngle = Math.atan2(this.y - other.y, this.x - other.x);
+                        const pushForce = (minDist - dist) * 0.05;
+                        this.x += Math.cos(pushAngle) * pushForce;
+                        this.y += Math.sin(pushAngle) * pushForce;
+                    }
+                }
+                
+                // 플레이어와 충돌
+                if (distance(this, player) < this.radius + player.radius) {
+                    player.takeDamage(this.damage);
+                    this.health = 0; // 자폭
+                }
+            }
+            
+            takeDamage(amount) {
+                this.health -= amount;
+                
+                // 피격 파티클
+                for (let i = 0; i < 3; i++) {
+                    particles.push(new Particle(this.x, this.y, this.color));
+                }
+                
+                if (this.health <= 0) {
+                    this.die();
+                }
+            }
+            
+            die() {
+                score += this.xpValue;
+                kills++;
+                
+                // 경험치 구슬 생성
+                experienceOrbs.push(new ExperienceOrb(this.x, this.y, this.xpValue));
+                
+                // 죽음 파티클
+                for (let i = 0; i < 8; i++) {
+                    particles.push(new Particle(this.x, this.y, this.color, 2));
+                }
+                
+                playSound('hit');
+            }
+            
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 체력바
+                const barWidth = 30;
+                const barHeight = 4;
+                ctx.fillStyle = '#000';
+                ctx.fillRect(this.x - barWidth/2, this.y - this.radius - 10, barWidth, barHeight);
+                
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(
+                    this.x - barWidth/2, 
+                    this.y - this.radius - 10, 
+                    barWidth * (this.health / this.maxHealth), 
+                    barHeight
+                );
+                
+                // 타입 표시 (작은 원)
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        class Projectile {
+            constructor(x, y, angle, damage, pierce) {
+                this.x = x;
+                this.y = y;
+                this.vx = Math.cos(angle) * 10;
+                this.vy = Math.sin(angle) * 10;
+                this.damage = damage;
+                this.pierce = pierce;
+                this.radius = 5;
+                this.hitEnemies = new Set();
+            }
+            
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // 화면 밖으로 나가면 제거
+                if (this.x < 0 || this.x > canvas.width || 
+                    this.y < 0 || this.y > canvas.height) {
+                    return false;
+                }
+                
+                // 적과 충돌
+                for (const enemy of enemies) {
+                    if (this.hitEnemies.has(enemy)) continue;
+                    
+                    if (distance(this, enemy) < this.radius + enemy.radius) {
+                        enemy.takeDamage(this.damage);
+                        this.hitEnemies.add(enemy);
+                        
+                        if (this.pierce <= 0) return false;
+                        this.pierce--;
+                    }
+                }
+                
+                return true;
+            }
+            
+            draw() {
+                ctx.fillStyle = '#4ecdc4';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 꼬리 효과
+                ctx.strokeStyle = 'rgba(78,205,196,0.5)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - this.vx * 2, this.y - this.vy * 2);
+                ctx.stroke();
+            }
+        }
+        
+        class EnemyProjectile {
+            constructor(x, y, angle) {
+                this.x = x;
+                this.y = y;
+                this.vx = Math.cos(angle) * 5;
+                this.vy = Math.sin(angle) * 5;
+                this.radius = 6;
+            }
+            
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                // 플레이어와 충돌
+                if (distance(this, player) < this.radius + player.radius) {
+                    player.takeDamage(10);
+                    return false;
+                }
+                
+                // 화면 밖
+                if (this.x < 0 || this.x > canvas.width || 
+                    this.y < 0 || this.y > canvas.height) {
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            draw() {
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        class Particle {
+            constructor(x, y, color, speed = 1) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 5 * speed;
+                this.vy = (Math.random() - 0.5) * 5 * speed;
+                this.life = 1.0;
+                this.decay = 0.02 + Math.random() * 0.03;
+                this.color = color;
+                this.radius = Math.random() * 4 + 2;
+            }
+            
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= this.decay;
+                return this.life > 0;
+            }
+            
+            draw() {
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+        
+        class ExperienceOrb {
+            constructor(x, y, value) {
+                this.x = x;
+                this.y = y;
+                this.value = value;
+                this.radius = 6;
+                this.vx = 0;
+                this.vy = 0;
+            }
+            
+            update() {
+                // 플레이어에게 흡수됨
+                const dist = distance(this, player);
+                if (dist < player.radius + this.radius + 50) {
+                    const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                    this.vx += Math.cos(angle) * 0.5;
+                    this.vy += Math.sin(angle) * 0.5;
+                }
+                
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vx *= 0.95;
+                this.vy *= 0.95;
+                
+                // 직접 흡수
+                if (dist < player.radius + this.radius) {
+                    player.gainXp(this.value);
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            draw() {
+                ctx.fillStyle = '#44a3aa';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = '#4ecdc4';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+        
+        // 화면 흔들림
+        let shakeIntensity = 0;
+        function shakeScreen(intensity) {
+            shakeIntensity = intensity;
+        }
+        
+        // 업그레이드 시스템
+        const UPGRADES = [
+            { id: 'damage', type: 'stat', apply: (p) => { p.damage *= 1.25; } },
+            { id: 'speed', type: 'stat', apply: (p) => { p.shootSpeed = Math.max(5, p.shootSpeed * 0.8); } },
+            { id: 'move', type: 'stat', apply: (p) => { p.speed *= 1.15; } },
+            { id: 'health', type: 'stat', apply: (p) => { p.maxHealth *= 1.2; p.health = p.maxHealth; } },
+            { id: 'pierce', type: 'stat', apply: (p) => { p.pierce += 1; } },
+            { id: 'orbital', type: 'special', apply: (p) => { 
+                if (!p.hasOrbital) {
+                    p.hasOrbital = true;
+                    p.orbitalCount = 2;
+                } else {
+                    p.orbitalCount++;
+                }
+            }}
+        ];
+        
+        function showUpgradeMenu() {
+            gameState = GameState.PAUSED;
+            const menu = document.getElementById('upgradeMenu');
+            menu.innerHTML = '';
+            
+            // 랜덤 3개 선택
+            const choices = [];
+            const temp = [...UPGRADES];
+            for (let i = 0; i < 3; i++) {
+                const idx = Math.floor(Math.random() * temp.length);
+                choices.push(temp[idx]);
+                temp.splice(idx, 1);
+            }
+            
+            for (const upg of choices) {
+                const card = document.createElement('div');
+                card.className = 'upgrade-card';
+                const data = LANG.upgrades[upg.id];
+                card.innerHTML = `
+                    <div class="upgrade-icon">${data.icon}</div>
+                    <div class="upgrade-title">${data.name}</div>
+                    <div class="upgrade-desc">${data.desc}</div>
+                `;
+                card.onclick = () => selectUpgrade(upg);
+                menu.appendChild(card);
+            }
+            
+            document.getElementById('upgradeScreen').classList.remove('hidden');
+        }
+        
+        function selectUpgrade(upgrade) {
+            upgrade.apply(player);
+            document.getElementById('upgradeScreen').classList.add('hidden');
+            gameState = GameState.PLAYING;
+        }
+        
+        // 적 생성
+        function spawnEnemy() {
+            const rand = Math.random();
+            let type = 'zombie';
+            
+            if (wave > 3 && rand < 0.3) type = 'runner';
+            if (wave > 5 && rand < 0.2) type = 'shooter';
+            
+            enemies.push(new Enemy(type));
+        }
+        
+        // 게임 초기화
+        function initGame() {
+            player = new Player();
+            enemies = [];
+            projectiles = [];
+            enemyProjectiles = [];
+            particles = [];
+            experienceOrbs = [];
+            orbitals = [];
+            
+            score = 0;
+            kills = 0;
+            wave = 1;
+            gameTime = 0;
+            enemySpawnTimer = 0;
+            difficultyMultiplier = 1;
+            
+            loadHighScore();
+            updateUI();
+            
+            gameState = GameState.PLAYING;
+            
+            // UI 표시
+            document.getElementById('hud').classList.remove('hidden');
+            document.getElementById('healthBar').classList.remove('hidden');
+            document.getElementById('xpBar').classList.remove('hidden');
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            
+            if (animationId) cancelAnimationFrame(animationId);
+            gameLoop();
+        }
+        
+        // 게임 종료
+        function endGame() {
+            gameState = GameState.GAMEOVER;
+            saveHighScore();
+            
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('finalWave').textContent = wave;
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+        }
+        
+        // UI 업데이트
+        function updateUI() {
+            document.getElementById('waveText').textContent = `${LANG.wave}: ${wave}`;
+            document.getElementById('scoreText').textContent = `${LANG.score}: ${score}`;
+            document.getElementById('killText').textContent = `${LANG.kills}: ${kills}`;
+            document.getElementById('levelText').textContent = `${LANG.level}: ${player.level}`;
+            document.getElementById('highScoreText').textContent = `${LANG.highScore}: ${highScore}`;
+            
+            const hpPercent = Math.max(0, (player.health / player.maxHealth) * 100);
+            document.getElementById('healthFill').style.width = hpPercent + '%';
+            
+            const xpPercent = Math.min(100, (player.xp / player.xpToNext) * 100);
+            document.getElementById('xpFill').style.width = xpPercent + '%';
+        }
+        
+        // 메인 게임 루프
+        function gameLoop() {
+            if (gameState === GameState.PLAYING) {
+                // 업데이트
+                player.update();
+                
+                // 웨이브 관리
+                gameTime++;
+                enemySpawnTimer++;
+                
+                const spawnRate = Math.max(30, 60 - (wave * 2));
+                if (enemySpawnTimer > spawnRate) {
+                    enemySpawnTimer = 0;
+                    spawnEnemy();
+                    // 웨이브 진행에 따라 추가 스폰
+                    if (wave > 2 && Math.random() < 0.3) spawnEnemy();
+                    if (wave > 4 && Math.random() < 0.2) spawnEnemy();
+                }
+                
+                // 30초마다 웨이브 증가
+                if (gameTime % 1800 === 0) {
+                    wave++;
+                    difficultyMultiplier += 0.2;
+                    // 웨이브 증가 알림 (파티클 효과로 대체)
+                    for (let i = 0; i < 20; i++) {
+                        particles.push(new Particle(
+                            canvas.width/2, 
+                            canvas.height/2, 
+                            '#ffd700', 
+                            3
+                        ));
+                    }
+                }
+                
+                // 적 업데이트
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    enemies[i].update();
+                    if (enemies[i].health <= 0) {
+                        enemies.splice(i, 1);
+                    }
+                }
+                
+                // 투사체 업데이트
+                for (let i = projectiles.length - 1; i >= 0; i--) {
+                    if (!projectiles[i].update()) {
+                        projectiles.splice(i, 1);
+                    }
+                }
+                
+                // 적 투사체 업데이트
+                for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
+                    if (!enemyProjectiles[i].update()) {
+                        enemyProjectiles.splice(i, 1);
+                    }
+                }
+                
+                // 파티클 업데이트
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    if (!particles[i].update()) {
+                        particles.splice(i, 1);
+                    }
+                }
+                
+                // 경험치 업데이트
+                for (let i = experienceOrbs.length - 1; i >= 0; i--) {
+                    if (!experienceOrbs[i].update()) {
+                        experienceOrbs.splice(i, 1);
+                    }
+                }
+                
+                // 회전 방패 충돌
+                if (player.hasOrbital) {
+                    for (const orb of orbitals) {
+                        for (const enemy of enemies) {
+                            if (distance(orb, enemy) < orb.radius + enemy.radius) {
+                                enemy.takeDamage(orb.damage * 0.1); // 지속 데미지
+                            }
+                        }
+                    }
+                }
+                
+                updateUI();
+            }
+            
+            // 렌더링
+            ctx.fillStyle = '#16213e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 그리드 그리기
+            ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+            ctx.lineWidth = 1;
+            const gridSize = 50;
+            for (let x = 0; x < canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // 화면 흔들림 적용
+            ctx.save();
+            if (shakeIntensity > 0) {
+                const dx = (Math.random() - 0.5) * shakeIntensity;
+                const dy = (Math.random() - 0.5) * shakeIntensity;
+                ctx.translate(dx, dy);
+                shakeIntensity *= 0.9;
+                if (shakeIntensity < 0.5) shakeIntensity = 0;
+            }
+            
+            // 게임 오브젝트 그리기
+            for (const orb of experienceOrbs) orb.draw();
+            for (const p of particles) p.draw();
+            for (const proj of enemyProjectiles) proj.draw();
+            for (const proj of projectiles) proj.draw();
+            for (const enemy of enemies) enemy.draw();
+            
+            if (player && gameState !== GameState.GAMEOVER) {
+                player.draw();
+            }
+            
+            ctx.restore();
+            
+            animationId = requestAnimationFrame(gameLoop);
+        }
+        
+        // 이벤트 리스너
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        document.getElementById('startBtn').addEventListener('click', () => {
+            initGame();
+        });
+        
+        document.getElementById('restartBtn').addEventListener('click', () => {
+            initGame();
+        });
+        
+        // 초기 텍스트 설정
+        document.getElementById('titleText').textContent = LANG.title;
+        document.getElementById('startBtn').textContent = LANG.start;
+        document.getElementById('controlsText').innerHTML = LANG.controls;
+        document.getElementById('levelUpText').textContent = LANG.levelUp;
+        document.getElementById('upgradeDescText').textContent = LANG.upgradeDesc;
+        document.getElementById('gameOverText').textContent = LANG.gameOver;
+        document.getElementById('finalScoreText').innerHTML = `${LANG.finalScore}: <span class="stat-value" id="finalScore">0</span>`;
+        document.getElementById('finalWaveText').innerHTML = `${LANG.finalWave}: <span class="stat-value" id="finalWave">1</span>`;
+        document.getElementById('restartBtn').textContent = LANG.restart;
+        
+        // 캔버스 크기 설정
+        function resize() {
+            const container = document.getElementById('gameContainer');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        
+        window.addEventListener('resize', resize);
+        resize();
+        
+        // LocalStorage 로드
+        loadHighScore();
+        document.getElementById('highScoreText').textContent = `${LANG.highScore}: ${highScore}`;
+    </script>
+</body>
+</html>

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Card Battle - Kitty vs Monster</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    background: linear-gradient(135deg, #fce4ec 0%, #e1f5fe 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+  .game {
+    width: 960px;
+    max-width: 100%;
+    background: white;
+    border-radius: 30px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .stat { background: #fff5f7; padding: 8px 16px; border-radius: 20px; font-weight: bold; color: #d81b60; }
+  .btn { background: #ff8fab; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(255,143,171,0.4); }
+
+  .battlefield {
+    background: linear-gradient(#fafafa, #f0f8ff);
+    border-radius: 24px;
+    padding: 20px;
+    height: 280px;
+    position: relative;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .character { text-align: center; position: relative; }
+  .sprite {
+    font-size: 80px;
+    filter: drop-shadow(0 8px 10px rgba(0,0,0,0.1));
+    transition: transform 0.3s;
+  }
+  .sprite.hit { animation: shake 0.4s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+  
+  .hp-box { margin-top: 8px; }
+  .hp-bar { width: 180px; height: 18px; background: #eee; border-radius: 10px; overflow: hidden; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+  .hp-fill { height: 100%; background: linear-gradient(90deg, #66bb6a, #a5d6a7); transition: width 0.5s; }
+  .hp-fill.low { background: linear-gradient(90deg, #ef5350, #ff8a65); }
+  .hp-text { font-size: 13px; margin-top: 4px; font-weight: bold; }
+  .block { display: inline-block; background: #64b5f6; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 6px; }
+  .block:empty { display: none; }
+
+  .log { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 6px 14px; border-radius: 14px; font-size: 13px; opacity: 0; transition: 0.3s; pointer-events: none; }
+  .log.show { opacity: 1; }
+
+  .hand { display: flex; justify-content: center; gap: 14px; min-height: 220px; margin: 20px 0; }
+  .card {
+    width: 150px; height: 200px; background: white; border-radius: 20px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12); cursor: pointer; position: relative;
+    transition: 0.2s; border: 3px solid transparent; user-select: none;
+    display: flex; flex-direction: column; align-items: center; padding: 12px;
+  }
+  .card:hover:not(.disabled) { transform: translateY(-12px) rotate(-2deg); box-shadow: 0 12px 24px rgba(0,0,0,0.18); border-color: #ff8fab; }
+  .card.disabled { opacity: 0.5; filter: grayscale(0.5); cursor: not-allowed; transform: none !important; }
+  .card.playing { animation: playCard 0.6s forwards; z-index: 10; }
+  @keyframes playCard { 0%{transform:scale(1)} 50%{transform:scale(1.1) translateY(-40px)} 100%{transform:scale(0) translateY(-100px); opacity:0} }
+  
+  .cost { position: absolute; top: -10px; left: -10px; width: 36px; height: 36px; background: #ffd54f; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+  .emoji { font-size: 48px; margin: 16px 0 8px; }
+  .name { font-weight: bold; font-size: 16px; }
+  .desc { font-size: 13px; color: #666; margin-top: 6px; text-align: center; }
+  .type-attack { background: linear-gradient(180deg, #fff, #ffebee); }
+  .type-block { background: linear-gradient(180deg, #fff, #e3f2fd); }
+  .type-heal { background: linear-gradient(180deg, #fff, #f1f8e9); }
+  .type-energy { background: linear-gradient(180deg, #fff, #fff3e0); }
+
+  .bottom { display: flex; justify-content: space-between; align-items: center; }
+  .energy { display: flex; gap: 8px; }
+  .energy-dot { width: 34px; height: 34px; border-radius: 50%; background: #eee; border: 3px solid #ddd; transition: 0.3s; }
+  .energy-dot.on { background: #ffd54f; border-color: #ffb300; box-shadow: 0 0 12px #ffd54f; }
+  .end-turn { background: #7e57c2; padding: 14px 28px; font-size: 16px; }
+
+  .damage-popup { position: absolute; font-size: 28px; font-weight: bold; color: #e53935; animation: floatUp 1s forwards; text-shadow: 0 2px 4px white; pointer-events: none; z-index: 20; }
+  .heal-popup { color: #43a047; }
+  .block-popup { color: #1e88e5; }
+  @keyframes floatUp { 0%{transform:translateY(0); opacity:1} 100%{transform:translateY(-60px); opacity:0} }
+
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 100; }
+  .modal.show { display: flex; }
+  .modal-box { background: white; padding: 40px; border-radius: 30px; text-align: center; animation: pop 0.4s; }
+  @keyframes pop { 0%{transform:scale(0.7); opacity:0} 100%{transform:scale(1); opacity:1} }
+  .modal-box h2 { font-size: 36px; margin-bottom: 16px; }
+  .modal-box p { margin-bottom: 24px; color: #666; }
+</style>
+</head>
+<body>
+<div class="game">
+  <div class="top-bar">
+    <div class="stat">Turn <span id="turn">1</span></div>
+    <div class="stat">Score <span id="score">0</span></div>
+    <button class="btn" id="restart">🔄 Restart</button>
+  </div>
+
+  <div class="battlefield">
+    <div class="character">
+      <div class="sprite" id="enemy-sprite">👹</div>
+      <div class="hp-box">
+        <div class="hp-bar"><div class="hp-fill" id="enemy-hp"></div></div>
+        <div class="hp-text"><span id="enemy-name">Slime</span> <span id="enemy-hp-text"></span><span class="block" id="enemy-block"></span></div>
+      </div>
+    </div>
+    <div class="log" id="log"></div>
+    <div class="character">
+      <div class="sprite" id="player-sprite">😺</div>
+      <div class="hp-box">
+        <div class="hp-bar"><div class="hp-fill" id="player-hp"></div></div>
+        <div class="hp-text">Kitty Hero <span id="player-hp-text"></span><span class="block" id="player-block"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hand" id="hand"></div>
+
+  <div class="bottom">
+    <div class="energy" id="energy"></div>
+    <button class="btn end-turn" id="end-turn">End Turn</button>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <h2 id="modal-title">Victory!</h2>
+    <p id="modal-desc">You defeated every monster!</p>
+    <button class="btn" onclick="initGame()">Play Again</button>
+  </div>
+</div>
+
+<script>
+// === 카드 풀 ===
+const CARDS = [
+  {name:'Stab', cost:1, type:'attack', val:6, emoji:'🗡️', desc:'6 damage'},
+  {name:'Heavy Blow', cost:2, type:'attack', val:12, emoji:'🔨', desc:'12 damage'},
+  {name:'Fireball', cost:3, type:'attack', val:20, emoji:'🔥', desc:'20 damage'},
+  {name:'Double Slash', cost:1, type:'attack', val:4, emoji:'⚔️', desc:'4 damage x2'},
+  {name:'Shield', cost:1, type:'block', val:5, emoji:'🛡️', desc:'Block 5'},
+  {name:'Iron Wall', cost:2, type:'block', val:12, emoji:'🧱', desc:'Block 12'},
+  {name:'Heal', cost:1, type:'heal', val:6, emoji:'💖', desc:'Restore 6 HP'},
+  {name:'Big Heal', cost:2, type:'heal', val:13, emoji:'💚', desc:'Restore 13 HP'},
+  {name:'Focus', cost:0, type:'energy', val:1, emoji:'⚡', desc:'Energy +1'},
+];
+
+const ENEMIES = [
+  {name:'Slime', emoji:'🟢', hp:40},
+  {name:'Goblin', emoji:'👺', hp:55},
+  {name:'Golem', emoji:'🪨', hp:70},
+  {name:'Dragon', emoji:'🐉', hp:90},
+];
+
+let state;
+
+function initGame() {
+  state = {
+    player: {hp:80, maxHp:80, block:0, energy:0},
+    enemyIndex: 0,
+    enemy: {...ENEMIES[0], maxHp: ENEMIES[0].hp, block:0},
+    turn: 1,
+    score: 0,
+    hand: [],
+    deck: [...CARDS, ...CARDS, ...CARDS], // 27장
+    isPlayerTurn: true,
+  };
+  document.getElementById('modal').classList.remove('show');
+  startPlayerTurn();
+  renderAll();
+}
+
+function shuffle(arr) { return arr.sort(()=>Math.random()-0.5); }
+
+// === 턴 시작 ===
+function startPlayerTurn() {
+  state.isPlayerTurn = true;
+  state.player.block = 0; // 방어 초기화
+  state.player.energy = 3;
+  state.hand = [];
+  drawCards(3);
+  log(`Turn ${state.turn} - Drew 3 cards!`);
+  renderAll();
+}
+
+// 카드 뽑기
+function drawCards(n) {
+  for(let i=0;i<n;i++) {
+    if(state.deck.length===0) state.deck = shuffle([...CARDS, ...CARDS]);
+    state.hand.push({...state.deck.pop()});
+  }
+}
+
+// === 카드 사용 ===
+function playCard(idx) {
+  if(!state.isPlayerTurn) return;
+  const card = state.hand[idx];
+  if(state.player.energy < card.cost) return;
+
+  state.player.energy -= card.cost;
+  state.hand.splice(idx,1);
+
+  // 애니메이션
+  const cardEl = document.querySelectorAll('.card')[idx];
+  if(cardEl) cardEl.classList.add('playing');
+
+  setTimeout(()=>{
+    if(card.type==='attack') {
+      let total = card.val;
+      if(card.name==='Double Slash') total = card.val*2;
+      dealDamage(state.enemy, total, 'enemy');
+      log(`${card.name}! ${total} damage!`);
+    }
+    if(card.type==='block') {
+      state.player.block += card.val;
+      popup('player', `+${card.val}`, 'block');
+      log(`Gained ${card.val} block!`);
+    }
+    if(card.type==='heal') {
+      state.player.hp = Math.min(state.player.maxHp, state.player.hp + card.val);
+      popup('player', `+${card.val}`, 'heal');
+      log(`Recovered ${card.val} HP!`);
+    }
+    if(card.type==='energy') {
+      state.player.energy += card.val;
+      log(`Energy +${card.val}!`);
+    }
+    checkWin();
+    renderAll();
+  }, 300);
+}
+
+// 데미지 처리
+function dealDamage(target, dmg, who) {
+  let blocked = Math.min(target.block, dmg);
+  target.block -= blocked;
+  dmg -= blocked;
+  if(blocked>0) popup(who, `-${blocked}`, 'block');
+  
+  target.hp -= dmg;
+  if(dmg>0) {
+    popup(who, `-${dmg}`, 'damage');
+    document.getElementById(who+'-sprite').classList.add('hit');
+    setTimeout(()=>document.getElementById(who+'-sprite').classList.remove('hit'), 400);
+  }
+  if(target.hp<0) target.hp=0;
+}
+
+function popup(who, text, type) {
+  const el = document.createElement('div');
+  el.className = 'damage-popup ' + (type==='heal'?'heal-popup':type==='block'?'block-popup':'');
+  el.textContent = text;
+  const spr = document.getElementById(who+'-sprite');
+  const rect = spr.getBoundingClientRect();
+  const gameRect = document.querySelector('.game').getBoundingClientRect();
+  el.style.left = (rect.left - gameRect.left + 40) + 'px';
+  el.style.top = (rect.top - gameRect.top) + 'px';
+  document.querySelector('.game').appendChild(el);
+  setTimeout(()=>el.remove(), 1000);
+}
+
+// === 턴 종료 ===
+document.getElementById('end-turn').onclick = () => {
+  if(!state.isPlayerTurn) return;
+  state.isPlayerTurn = false;
+  state.hand = [];
+  renderAll();
+  setTimeout(enemyTurn, 800);
+};
+
+function enemyTurn() {
+  state.enemy.block = 0; // 적 방어 초기화
+  const actions = ['attack','attack','block','heal'];
+  const act = actions[Math.floor(Math.random()*actions.length)];
+  
+  setTimeout(()=>{
+    if(act==='attack') {
+      let dmg = 7 + Math.floor(Math.random()*8) + state.enemyIndex*2;
+      dealDamage(state.player, dmg, 'player');
+      log(`${state.enemy.name} attacks! ${dmg} damage`);
+    } else if(act==='block') {
+      state.enemy.block = 6 + state.enemyIndex*2;
+      popup('enemy', `+${state.enemy.block}`, 'block');
+      log(`${state.enemy.name} takes a defensive stance!`);
+    } else {
+      const heal = 5 + state.enemyIndex;
+      state.enemy.hp = Math.min(state.enemy.maxHp, state.enemy.hp + heal);
+      popup('enemy', `+${heal}`, 'heal');
+      log(`${state.enemy.name} heals ${heal}`);
+    }
+    checkLose();
+    if(state.player.hp>0) {
+      state.turn++;
+      startPlayerTurn();
+    }
+  }, 600);
+}
+
+function checkWin() {
+  if(state.enemy.hp<=0) {
+    state.score += 100 + state.enemyIndex*50;
+    state.enemyIndex++;
+    if(state.enemyIndex >= ENEMIES.length) {
+      showModal('🏆 Total Victory!', `Final Score: ${state.score}`);
+    } else {
+      state.enemy = {...ENEMIES[state.enemyIndex], maxHp: ENEMIES[state.enemyIndex].hp, block:0};
+      log(`${state.enemy.name} appears!`);
+      renderAll();
+    }
+  }
+}
+function checkLose() {
+  if(state.player.hp<=0) showModal('😿 Defeat...', `Reached Turn: ${state.turn} / Score: ${state.score}`);
+}
+
+function showModal(title, desc) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-desc').textContent = desc;
+  document.getElementById('modal').classList.add('show');
+}
+
+function log(msg) {
+  const l = document.getElementById('log');
+  l.textContent = msg;
+  l.classList.add('show');
+  setTimeout(()=>l.classList.remove('show'), 1800);
+}
+
+// === 렌더링 ===
+function renderAll() {
+  // HP
+  document.getElementById('player-hp').style.width = (state.player.hp/state.player.maxHp*100)+'%';
+  document.getElementById('player-hp').classList.toggle('low', state.player.hp/state.player.maxHp < 0.3);
+  document.getElementById('player-hp-text').textContent = `${state.player.hp}/${state.player.maxHp}`;
+  document.getElementById('player-block').textContent = state.player.block?`🛡️${state.player.block}`:'';
+  
+  document.getElementById('enemy-hp').style.width = (state.enemy.hp/state.enemy.maxHp*100)+'%';
+  document.getElementById('enemy-hp-text').textContent = `${state.enemy.hp}/${state.enemy.maxHp}`;
+  document.getElementById('enemy-name').textContent = state.enemy.name;
+  document.getElementById('enemy-sprite').textContent = state.enemy.emoji;
+  document.getElementById('enemy-block').textContent = state.enemy.block?`🛡️${state.enemy.block}`:'';
+
+  // 에너지
+  const e = document.getElementById('energy');
+  e.innerHTML = '';
+  for(let i=0;i<3;i++) {
+    const d = document.createElement('div');
+    d.className = 'energy-dot' + (i < state.player.energy ? ' on' : '');
+    e.appendChild(d);
+  }
+
+  // 손패
+  const hand = document.getElementById('hand');
+  hand.innerHTML = '';
+  state.hand.forEach((card,i)=>{
+    const div = document.createElement('div');
+    div.className = `card type-${card.type}` + (state.player.energy < card.cost || !state.isPlayerTurn ? ' disabled':'');
+    div.innerHTML = `<div class="cost">${card.cost}</div><div class="emoji">${card.emoji}</div><div class="name">${card.name}</div><div class="desc">${card.desc}</div>`;
+    div.onclick = ()=>playCard(i);
+    hand.appendChild(div);
+  });
+
+  document.getElementById('turn').textContent = state.turn;
+  document.getElementById('score').textContent = state.score;
+  document.getElementById('end-turn').disabled = !state.isPlayerTurn;
+}
+
+document.getElementById('restart').onclick = initGame;
+
+// 시작
+initGame();
+</script>
+</body>
+</html>
