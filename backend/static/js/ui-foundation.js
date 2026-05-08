@@ -339,8 +339,9 @@ function createSidebarGlassRenderer(canvas) {
         textureCanvas.height = height;
 
         const gradient = textureContext.createLinearGradient(0, 0, 0, height);
-        gradient.addColorStop(0, '#a9d3fb');
-        gradient.addColorStop(1, '#c5d0fa');
+        gradient.addColorStop(0, '#afd5f6');
+        gradient.addColorStop(0.52, '#c4d0f5');
+        gradient.addColorStop(1, '#d5c5f0');
         textureContext.fillStyle = gradient;
         textureContext.fillRect(0, 0, width, height);
 
@@ -352,44 +353,16 @@ function createSidebarGlassRenderer(canvas) {
             textureContext.fillRect(0, 0, width, height);
         };
 
-        addGlow(width * 0.18, height * 0.18, width * 0.62, 'rgba(255,255,255,0.34)');
-        addGlow(width * 0.86, height * 0.30, width * 0.58, 'rgba(82,160,255,0.26)');
-        addGlow(width * 0.28, height * 0.74, width * 0.56, 'rgba(180,130,255,0.22)');
-        addGlow(width * 0.72, height * 0.88, width * 0.46, 'rgba(58,195,255,0.14)');
-
-        textureContext.save();
-        textureContext.globalAlpha = 0.15;
-        textureContext.strokeStyle = 'rgba(255,255,255,0.78)';
-        textureContext.lineWidth = Math.max(1, width / 260);
-        for (let y = 24; y < height + 72; y += 72) {
-            textureContext.beginPath();
-            textureContext.moveTo(0, y);
-            textureContext.lineTo(width, y - width * 0.08);
-            textureContext.stroke();
-        }
-        textureContext.globalAlpha = 0.085;
-        textureContext.strokeStyle = 'rgba(38,104,168,0.65)';
-        for (let x = -width; x < width * 2; x += 42) {
-            textureContext.beginPath();
-            textureContext.moveTo(x, 0);
-            textureContext.lineTo(x + height * 0.55, height);
-            textureContext.stroke();
-        }
-        textureContext.globalAlpha = 0.065;
-        textureContext.strokeStyle = 'rgba(255,255,255,0.86)';
-        for (let y = 42; y < height + 96; y += 96) {
-            textureContext.beginPath();
-            textureContext.moveTo(0, y + width * 0.10);
-            textureContext.bezierCurveTo(width * 0.25, y - 18, width * 0.70, y + 26, width, y - width * 0.04);
-            textureContext.stroke();
-        }
-        textureContext.restore();
+        addGlow(width * 0.18, height * 0.18, width * 0.62, 'rgba(255,255,255,0.32)');
+        addGlow(width * 0.86, height * 0.30, width * 0.58, 'rgba(145,185,255,0.26)');
+        addGlow(width * 0.30, height * 0.74, width * 0.56, 'rgba(210,175,255,0.24)');
+        addGlow(width * 0.72, height * 0.88, width * 0.46, 'rgba(100,200,232,0.12)');
 
         const imageData = textureContext.getImageData(0, 0, width, height);
         const data = imageData.data;
         for (let i = 0; i < data.length; i += 4) {
             const n = Math.sin((i * 12.9898) % 78.233) * 43758.5453;
-            const grain = (n - Math.floor(n) - 0.5) * 6;
+            const grain = (n - Math.floor(n) - 0.5) * 4;
             data[i] = Math.max(0, Math.min(255, data[i] + grain));
             data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + grain));
             data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + grain * 1.2));
