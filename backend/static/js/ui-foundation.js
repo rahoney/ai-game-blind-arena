@@ -339,9 +339,9 @@ function createSidebarGlassRenderer(canvas) {
         textureCanvas.height = height;
 
         const gradient = textureContext.createLinearGradient(0, 0, 0, height);
-        gradient.addColorStop(0, '#afd5f6');
-        gradient.addColorStop(0.52, '#c4d0f5');
-        gradient.addColorStop(1, '#d5c5f0');
+        gradient.addColorStop(0, '#afd7f6');
+        gradient.addColorStop(0.62, '#c7d7f5');
+        gradient.addColorStop(1, '#d4d2f0');
         textureContext.fillStyle = gradient;
         textureContext.fillRect(0, 0, width, height);
 
@@ -355,7 +355,7 @@ function createSidebarGlassRenderer(canvas) {
 
         addGlow(width * 0.18, height * 0.18, width * 0.62, 'rgba(255,255,255,0.32)');
         addGlow(width * 0.86, height * 0.30, width * 0.58, 'rgba(145,185,255,0.26)');
-        addGlow(width * 0.30, height * 0.74, width * 0.56, 'rgba(210,175,255,0.24)');
+        addGlow(width * 0.30, height * 0.74, width * 0.56, 'rgba(210,175,255,0.12)');
         addGlow(width * 0.72, height * 0.88, width * 0.46, 'rgba(100,200,232,0.12)');
 
         const imageData = textureContext.getImageData(0, 0, width, height);
