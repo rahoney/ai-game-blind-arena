@@ -2,7 +2,7 @@ let langData = { ko: {}, en: {} };
 
 async function loadLanguageData() {
   try {
-    const response = await fetch(`/static/lang.json?v=20260508-a08`, { cache: 'reload' });
+    const response = await fetch(`/static/lang.json?v=20260508-a09`, { cache: 'reload' });
     if (!response.ok) {
       throw new Error(`lang.json request failed: ${response.status}`);
     }

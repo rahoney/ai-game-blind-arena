@@ -110,7 +110,7 @@ function renderPlayArea() {
                                 <span class="play-eval-label-text">${formatEvaluationLabel(t('eval_' + key))}</span>
                                 <span id="val-${key}" style="color: var(--primary); font-size: 1.3rem; flex-shrink:0;">5</span>
                             </label>
-                            <input type="range" id="score-${key}" min="1" max="10" value="5" oninput="updateScore('${key}')" style="width: 100%; height: 10px; border-radius: 5px;">
+                            <input type="range" id="score-${key}" min="1" max="10" value="5" oninput="updateScore('${key}')" style="--range-progress: 44.44%;">
                         </div>
                     `).join('')}
                 </div>
@@ -191,7 +191,14 @@ function navigateToInquiry() {
 
 function updateScore(key) {
     const valEl = document.getElementById(`val-${key}`);
-    if (valEl) valEl.innerText = document.getElementById(`score-${key}`).value;
+    const slider = document.getElementById(`score-${key}`);
+    if (!slider) return;
+    if (valEl) valEl.innerText = slider.value;
+    const min = Number(slider.min || 1);
+    const max = Number(slider.max || 10);
+    const value = Number(slider.value);
+    const progress = ((value - min) / (max - min)) * 100;
+    slider.style.setProperty('--range-progress', `${progress}%`);
 }
 
 function toggleFullScreen() {
