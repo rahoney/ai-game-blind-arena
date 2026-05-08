@@ -190,7 +190,7 @@ function toggleSidebar() {
     document.body.classList.toggle('sidebar-open', willOpen);
     document.documentElement.classList.toggle('sidebar-open', willOpen);
     if (willOpen) {
-        requestAnimationFrame(updateSidebarGlassTarget);
+        window.setTimeout(updateSidebarGlassTarget, 180);
     }
 }
 
