@@ -94,9 +94,9 @@ function renderPlayArea() {
     el.innerHTML = `
         <div style="width: 100%; max-width: 95vw; display: flex; flex-direction: column; min-height: 90vh; padding-bottom: 50px;">
             <svg class="slider-goo-defs" width="0" height="0" aria-hidden="true" focusable="false">
-                <filter id="slider-goo">
-                    <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
-                    <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -8" result="goo" />
+                <filter id="slider-goo" color-interpolation-filters="sRGB">
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="3.6" result="blur" />
+                    <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 16 -7" result="goo" />
                     <feBlend in="SourceGraphic" in2="goo" />
                 </filter>
             </svg>
@@ -117,7 +117,7 @@ function renderPlayArea() {
                                 <span class="play-eval-label-text">${formatEvaluationLabel(t('eval_' + key))}</span>
                                 <span id="val-${key}" style="color: var(--primary); font-size: 1.3rem; flex-shrink:0;">5</span>
                             </label>
-                            <div class="liquid-range" style="--range-progress: 44.44%;">
+                            <div class="liquid-range" data-progress="44.44" style="--range-progress: 44.44%;">
                                 <input type="range" id="score-${key}" min="1" max="10" value="5" oninput="updateScore('${key}')">
                                 <span class="liquid-range-goo" aria-hidden="true">
                                     <span class="liquid-range-blob liquid-range-main"></span>
@@ -213,14 +213,14 @@ function updateScore(key) {
     const value = Number(slider.value);
     const progress = ((value - min) / (max - min)) * 100;
     const range = slider.closest('.liquid-range');
-    const previous = Number(range?.dataset.progress || progress);
+    const previous = Number(range?.dataset.progress ?? 44.44);
     const delta = progress - previous;
     const direction = delta >= 0 ? 1 : -1;
-    const intensity = Math.min(Math.abs(delta) / 18, 1);
-    const stretch = 1 + intensity * 0.34;
-    const glassStretch = 1 + intensity * 0.15;
-    const tailShift = direction * -1 * (10 + intensity * 18);
-    const tailScale = 0.56 + intensity * 0.34;
+    const intensity = Math.min(Math.abs(delta) / 16, 1);
+    const stretch = 1 + intensity * 0.58;
+    const glassStretch = 1 + intensity * 0.24;
+    const tailShift = direction * -1 * (7 + intensity * 14);
+    const tailScale = 0.44 + intensity * 0.36;
     slider.style.setProperty('--range-progress', `${progress}%`);
     if (!range) return;
     range.dataset.progress = `${progress}`;
@@ -235,9 +235,9 @@ function updateScore(key) {
         range.classList.remove('is-moving');
         range.style.setProperty('--range-stretch', '1');
         range.style.setProperty('--range-glass-stretch', '1');
-        range.style.setProperty('--range-tail-shift', '-12px');
-        range.style.setProperty('--range-tail-scale', '0.72');
-    }, 180)}`;
+        range.style.setProperty('--range-tail-shift', '-8px');
+        range.style.setProperty('--range-tail-scale', '0.52');
+    }, 220)}`;
 }
 
 function toggleFullScreen() {
