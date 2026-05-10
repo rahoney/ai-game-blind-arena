@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>🏰 Dungeon Roguelike</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at center, #1a1410 0%, #06050a 100%);
+    color: #d4c5a0;
+    font-family: 'Courier New', monospace;
+    user-select: none;
+  }
+  .game {
+    text-align: center;
+    padding: 20px 24px;
+    background: #14100c;
+    border: 2px solid #4a3c28;
+    border-radius: 10px;
+    box-shadow: 0 0 40px rgba(180, 140, 60, 0.15), inset 0 0 30px rgba(0,0,0,0.6);
+  }
+  h1 {
+    color: #d4a056;
+    margin: 0 0 4px;
+    letter-spacing: 6px;
+    font-size: 28px;
+    text-shadow: 0 0 12px rgba(212, 160, 86, 0.5);
+  }
+  .sub { color: #6a5638; font-size: 12px; margin-bottom: 12px; letter-spacing: 2px; }
+  .stats {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    margin: 6px 0 10px;
+    font-size: 15px;
+    padding: 8px 12px;
+    background: #0a0805;
+    border: 1px solid #2a221a;
+    border-radius: 4px;
+  }
+  .stats b { color: #d4a056; font-weight: normal; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(8, 46px);
+    grid-template-rows: repeat(8, 46px);
+    gap: 2px;
+    background: #000;
+    padding: 6px;
+    border: 2px solid #4a3c28;
+    margin: 0 auto;
+  }
+  .cell {
+    width: 46px; height: 46px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    background: #000;
+    transition: background 0.15s;
+  }
+  .cell.visible { background: #2a241a; box-shadow: inset 0 0 6px rgba(212,160,86,0.15); }
+  .cell.explored { background: #100c08; opacity: 0.45; filter: grayscale(0.6); }
+  .cell.wall.visible { background: #3a2e1f; }
+  .cell.wall.explored { background: #1a1410; }
+  .log {
+    margin-top: 10px;
+    height: 38px;
+    font-size: 13px;
+    color: #a89678;
+    line-height: 1.4;
+    padding: 4px 8px;
+  }
+  .legend {
+    font-size: 12px;
+    color: #6a5638;
+    margin-top: 4px;
+    letter-spacing: 1px;
+  }
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.88);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 10;
+    backdrop-filter: blur(3px);
+  }
+  .overlay h2 {
+    font-size: 38px; color: #d4a056; margin: 0 0 12px;
+    letter-spacing: 8px;
+    text-shadow: 0 0 20px rgba(212, 160, 86, 0.4);
+  }
+  .overlay p {
+    max-width: 380px; text-align: center;
+    line-height: 1.6; color: #a89678; margin: 6px 0;
+  }
+  button {
+    background: linear-gradient(180deg, #5a4828, #3a2e1f);
+    color: #f0e0b8;
+    border: 1px solid #d4a056;
+    padding: 12px 32px;
+    font-family: inherit; font-size: 15px;
+    cursor: pointer; margin-top: 18px;
+    letter-spacing: 3px;
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+  button:hover {
+    background: linear-gradient(180deg, #7a6238, #4a3c28);
+    box-shadow: 0 0 14px rgba(212, 160, 86, 0.4);
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- 시작 화면 -->
+<div id="startScreen" class="overlay">
+  <h2>DUNGEON</h2>
+  <p>🧙 어둠의 던전에 오신 것을 환영합니다.</p>
+  <p>👹 적을 피하거나 물리치고, 🧪 회복약을 모아 🚪 출구에 도달하세요.</p>
+  <p style="font-size:13px;color:#6a5638;margin-top:14px">방향키 또는 W A S D 로 이동</p>
+  <button id="startBtn">모험 시작</button>
+</div>
+
+<!-- 종료 화면 -->
+<div id="endScreen" class="overlay hidden">
+  <h2 id="endTitle"></h2>
+  <p id="endMsg"></p>
+  <button id="restartBtn">다시 도전</button>
+</div>
+
+<!-- 게임 화면 -->
+<div class="game">
+  <h1>DUNGEON</h1>
+  <div class="sub">~ A SINGLE-FILE ROGUELIKE ~</div>
+  <div class="stats">
+    <div>❤️ HP <b id="hp">10</b>/<b id="maxHp">10</b></div>
+    <div>⚔️ 처치 <b id="kills">0</b></div>
+    <div>🏆 점수 <b id="score">0</b></div>
+  </div>
+  <div id="grid" class="grid"></div>
+  <div class="log" id="log">던전에 입장했습니다...</div>
+  <div class="legend">🧙 당신 · 👹 적 · 🧪 회복 · 🚪 출구 · 🪨 벽</div>
+</div>
+
+<script>
+  /* ===== 게임 상수 ===== */
+  const SIZE = 8;
+  const VIEW_RADIUS = 2;          // Fog of War 시야 범위
+  const PLAYER_MAX_HP = 10;
+  const PLAYER_ATK = 3;
+  const ENEMY_HP = 4;
+  const ENEMY_ATK = 2;
+  const NUM_ENEMIES = 3;
+  const NUM_ITEMS = 2;
+  const HEAL_AMOUNT = 4;
+  const WALL_DENSITY = 0.22;
+  const ENEMY_AGGRO = 4;          // 이 거리 이내에서만 적이 추격
+
+  let state;                       // 모든 게임 상태가 여기 들어감 → 재시작 시 통째로 초기화
+
+  const key = (x, y) => `${x},${y}`;
+  const inBounds = (x, y) => x >= 0 && x < SIZE && y >= 0 && y < SIZE;
+
+  /* ===== 상태 초기화 (재시작 시 모두 새로 만들어짐) ===== */
+  function newState() {
+    return {
+      walls: new Set(),
+      enemies: [],
+      items: [],
+      player: { x: 0, y: 0, hp: PLAYER_MAX_HP, atk: PLAYER_ATK },
+      exit: { x: SIZE - 1, y: SIZE - 1 },
+      explored: new Set(),
+      kills: 0,
+      score: 0,
+      over: false,
+      won: false,
+    };
+  }
+
+  /* ===== BFS: 시작 → 목표 도달 가능 여부 ===== */
+  function reachable(walls, sx, sy, ex, ey) {
+    if (sx === ex && sy === ey) return true;
+    const visited = new Set([key(sx, sy)]);
+    const q = [[sx, sy]];
+    while (q.length) {
+      const [x, y] = q.shift();
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (!inBounds(nx, ny)) continue;
+        const k = key(nx, ny);
+        if (visited.has(k) || walls.has(k)) continue;
+        if (nx === ex && ny === ey) return true;
+        visited.add(k);
+        q.push([nx, ny]);
+      }
+    }
+    return false;
+  }
+
+  /* ===== 도달 가능한 맵 생성 (실패 시 재시도) ===== */
+  function generateMap() {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const walls = new Set();
+      const px = 0, py = 0;
+      const ex = SIZE - 1, ey = SIZE - 1;
+
+      // 랜덤 벽 배치 (시작/출구 칸은 제외)
+      for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+          if ((x === px && y === py) || (x === ex && y === ey)) continue;
+          if (Math.random() < WALL_DENSITY) walls.add(key(x, y));
+        }
+      }
+      // 출구 도달 보장
+      if (!reachable(walls, px, py, ex, ey)) continue;
+
+      const occupied = new Set([key(px, py), key(ex, ey), ...walls]);
+      const placeRandom = (minDist = 0) => {
+        for (let tries = 0; tries < 80; tries++) {
+          const x = Math.floor(Math.random() * SIZE);
+          const y = Math.floor(Math.random() * SIZE);
+          const k = key(x, y);
+          if (occupied.has(k)) continue;
+          if (Math.abs(x - px) + Math.abs(y - py) < minDist) continue;
+          if (!reachable(walls, px, py, x, y)) continue;
+          occupied.add(k);
+          return { x, y };
+        }
+        return null;
+      };
+
+      // 적은 시작점에서 좀 떨어진 곳에
+      const enemies = [];
+      for (let i = 0; i < NUM_ENEMIES; i++) {
+        const p = placeRandom(3);
+        if (p) enemies.push({ x: p.x, y: p.y, hp: ENEMY_HP, atk: ENEMY_ATK, acted: false });
+      }
+      const items = [];
+      for (let i = 0; i < NUM_ITEMS; i++) {
+        const p = placeRandom(2);
+        if (p) items.push(p);
+      }
+
+      return { walls, enemies, items,
+               player: { x: px, y: py, hp: PLAYER_MAX_HP, atk: PLAYER_ATK },
+               exit: { x: ex, y: ey } };
+    }
+    // 안전장치: 빈 맵
+    return { walls: new Set(), enemies: [], items: [],
+             player: { x: 0, y: 0, hp: PLAYER_MAX_HP, atk: PLAYER_ATK },
+             exit: { x: SIZE - 1, y: SIZE - 1 } };
+  }
+
+  /* ===== 게임 시작/재시작 — 상태 완전 초기화 ===== */
+  function startGame() {
+    state = newState();
+    const m = generateMap();
+    Object.assign(state, m);
+    updateExplored();
+    render();
+    setLog("던전에 입장했습니다... 출구를 찾으세요.");
+  }
+
+  /* ===== Fog of War: 현재 시야 + 누적 탐험 ===== */
+  function updateExplored() {
+    for (let dy = -VIEW_RADIUS; dy <= VIEW_RADIUS; dy++) {
+      for (let dx = -VIEW_RADIUS; dx <= VIEW_RADIUS; dx++) {
+        const x = state.player.x + dx;
+        const y = state.player.y + dy;
+        if (!inBounds(x, y)) continue;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) <= VIEW_RADIUS) {
+          state.explored.add(key(x, y));
+        }
+      }
+    }
+  }
+  function isVisible(x, y) {
+    const dx = Math.abs(x - state.player.x);
+    const dy = Math.abs(y - state.player.y);
+    return Math.max(dx, dy) <= VIEW_RADIUS;
+  }
+
+  /* ===== 렌더링 ===== */
+  function render() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        const k = key(x, y);
+        const visible = isVisible(x, y);
+        const explored = state.explored.has(k);
+        const isWall = state.walls.has(k);
+
+        if (visible) {
+          cell.classList.add('visible');
+          if (isWall) { cell.classList.add('wall'); cell.textContent = '🪨'; }
+          else if (state.player.x === x && state.player.y === y) cell.textContent = '🧙';
+          else if (state.enemies.some(e => e.x === x && e.y === y)) cell.textContent = '👹';
+          else if (state.items.some(i => i.x === x && i.y === y)) cell.textContent = '🧪';
+          else if (state.exit.x === x && state.exit.y === y) cell.textContent = '🚪';
+        } else if (explored) {
+          cell.classList.add('explored');
+          // 탐험된 지역은 정적 지형(벽/출구)만 흐리게 보여줌
+          if (isWall) { cell.classList.add('wall'); cell.textContent = '🪨'; }
+          else if (state.exit.x === x && state.exit.y === y) cell.textContent = '🚪';
+        }
+        grid.appendChild(cell);
+      }
+    }
+    document.getElementById('hp').textContent = Math.max(0, state.player.hp);
+    document.getElementById('maxHp').textContent = PLAYER_MAX_HP;
+    document.getElementById('kills').textContent = state.kills;
+    document.getElementById('score').textContent = state.score;
+  }
+  function setLog(msg) { document.getElementById('log').textContent = msg; }
+
+  /* ===== 플레이어 이동 / 전투 / 아이템 / 탈출 ===== */
+  function tryMove(dx, dy) {
+    if (state.over) return;
+    const nx = state.player.x + dx, ny = state.player.y + dy;
+    if (!inBounds(nx, ny)) return;
+    if (state.walls.has(key(nx, ny))) { setLog("🪨 벽이 길을 막고 있다."); return; }
+
+    const messages = [];
+
+    // 1) 적과 충돌 → 서로 피해(턴제 전투)
+    const enemy = state.enemies.find(e => e.x === nx && e.y === ny);
+    if (enemy) {
+      enemy.hp -= state.player.atk;
+      messages.push(`👹에게 ${state.player.atk}의 피해!`);
+      if (enemy.hp <= 0) {
+        state.enemies = state.enemies.filter(e => e !== enemy);
+        state.kills++;
+        state.score += 50;
+        messages.push(`처치 성공 (+50)`);
+      } else {
+        // 살아남은 적은 즉시 반격
+        state.player.hp -= enemy.atk;
+        enemy.acted = true; // 같은 턴에 또 공격하지 못하도록
+        messages.push(`반격으로 ${enemy.atk} 피해.`);
+      }
+    } else {
+      // 2) 아이템 획득
+      const itemIdx = state.items.findIndex(i => i.x === nx && i.y === ny);
+      if (itemIdx >= 0) {
+        const heal = Math.min(HEAL_AMOUNT, PLAYER_MAX_HP - state.player.hp);
+        state.player.hp += heal;
+        state.items.splice(itemIdx, 1);
+        state.score += 20;
+        messages.push(`🧪 회복약 사용! HP +${heal} (+20)`);
+      }
+      // 3) 출구 도달 → 즉시 승리
+      if (nx === state.exit.x && ny === state.exit.y) {
+        state.player.x = nx; state.player.y = ny;
+        state.score += 100 + state.player.hp * 5; // 남은 체력 보너스
+        state.won = true; state.over = true;
+        updateExplored(); render();
+        showEnd(true);
+        return;
+      }
+      // 4) 일반 이동
+      state.player.x = nx;
+      state.player.y = ny;
+      state.score += 1;
+    }
+
+    // 적 턴
+    const dmg = enemiesTurn();
+    if (dmg > 0) messages.push(`적의 공격! -${dmg} HP`);
+
+    if (messages.length === 0) messages.push("...어둠 속을 걷는다.");
+    setLog(messages.join(' '));
+
+    checkEnd();
+    updateExplored();
+    render();
+  }
+
+  /* ===== 적 AI: 가까울 때만 추격, 인접 시 공격 ===== */
+  function enemiesTurn() {
+    let dmgTaken = 0;
+    for (const e of state.enemies) {
+      if (e.acted) continue; // 이번 턴 이미 반격한 적은 패스
+      const dx = state.player.x - e.x;
+      const dy = state.player.y - e.y;
+      const dist = Math.abs(dx) + Math.abs(dy);
+      if (dist > ENEMY_AGGRO) continue;
+      if (dist === 1) {
+        state.player.hp -= e.atk; dmgTaken += e.atk; continue;
+      }
+      // 더 큰 축부터 한 칸 이동 시도
+      const order = Math.abs(dx) >= Math.abs(dy)
+        ? [[Math.sign(dx), 0], [0, Math.sign(dy)]]
+        : [[0, Math.sign(dy)], [Math.sign(dx), 0]];
+      for (const [mx, my] of order) {
+        if (mx === 0 && my === 0) continue;
+        const nx = e.x + mx, ny = e.y + my;
+        if (!inBounds(nx, ny)) continue;
+        if (state.walls.has(key(nx, ny))) continue;
+        if (state.enemies.some(o => o !== e && o.x === nx && o.y === ny)) continue;
+        if (state.player.x === nx && state.player.y === ny) {
+          state.player.hp -= e.atk; dmgTaken += e.atk;
+        } else {
+          e.x = nx; e.y = ny;
+        }
+        break;
+      }
+    }
+    // acted 플래그 리셋(다음 턴엔 다시 행동 가능)
+    state.enemies.forEach(e => e.acted = false);
+    return dmgTaken;
+  }
+
+  /* ===== 패배 판정 ===== */
+  function checkEnd() {
+    if (state.player.hp <= 0) {
+      state.player.hp = 0;
+      state.over = true;
+      state.won = false;
+      showEnd(false);
+    }
+  }
+
+  function showEnd(won) {
+    document.getElementById('endTitle').textContent = won ? '🏆 탈출 성공' : '💀 패배';
+    document.getElementById('endMsg').textContent = won
+      ? `던전에서 살아 돌아왔습니다! 처치: ${state.kills}, 최종 점수: ${state.score}`
+      : `당신은 어둠 속에 잠들었습니다. 처치: ${state.kills}, 최종 점수: ${state.score}`;
+    document.getElementById('endScreen').classList.remove('hidden');
+  }
+
+  /* ===== 입력: 방향키 / WASD ===== */
+  const KEYMAP = {
+    ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0],
+    w: [0,-1], s: [0,1], a: [-1,0], d: [1,0],
+    W: [0,-1], S: [0,1], A: [-1,0], D: [1,0],
+  };
+  document.addEventListener('keydown', (e) => {
+    // 시작/종료 화면이 열려 있으면 입력 차단
+    if (!document.getElementById('startScreen').classList.contains('hidden')) return;
+    if (!document.getElementById('endScreen').classList.contains('hidden')) return;
+    const m = KEYMAP[e.key];
+    if (m) { e.preventDefault(); tryMove(m[0], m[1]); }
+  });
+
+  document.getElementById('startBtn').addEventListener('click', () => {
+    document.getElementById('startScreen').classList.add('hidden');
+    startGame();
+  });
+  document.getElementById('restartBtn').addEventListener('click', () => {
+    document.getElementById('endScreen').classList.add('hidden');
+    startGame(); // 상태를 통째로 새로 만들어 완전 초기화
+  });
+
+  // 처음엔 시작 화면 뒤로 비어 있는 그리드만 그려둠
+  state = newState();
+  render();
+</script>
+</body>
+</html>

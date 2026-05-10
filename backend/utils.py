@@ -50,11 +50,11 @@ def _load_nickname_blocklist():
 RESERVED_NICKNAME_TERMS, BANNED_NICKNAME_TERMS = _load_nickname_blocklist()
 
 BADGE_STAGES = [
-    {"key": "badge_egg", "min": 0, "max": 4, "next": 5},
-    {"key": "badge_junior_owl", "min": 5, "max": 11, "next": 12},
-    {"key": "badge_student_owl", "min": 12, "max": 19, "next": 20},
-    {"key": "badge_apprentice_owl", "min": 20, "max": 29, "next": 30},
-    {"key": "badge_senior_owl", "min": 30, "max": None, "next": None},
+    {"key": "badge_egg", "min": 0, "max": 6, "next": 7},
+    {"key": "badge_junior_owl", "min": 7, "max": 13, "next": 14},
+    {"key": "badge_student_owl", "min": 14, "max": 27, "next": 28},
+    {"key": "badge_apprentice_owl", "min": 28, "max": 41, "next": 42},
+    {"key": "badge_senior_owl", "min": 42, "max": None, "next": None},
 ]
 
 BADGE_DISPLAY_ORDER = [

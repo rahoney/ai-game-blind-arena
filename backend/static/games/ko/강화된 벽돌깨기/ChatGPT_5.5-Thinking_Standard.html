@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>강화된 벽돌깨기 게임</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      font-family: "Pretendard", "Segoe UI", Arial, sans-serif;
+      color: #eef6ff;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(61, 211, 255, 0.22), transparent 28%),
+        radial-gradient(circle at 80% 10%, rgba(191, 96, 255, 0.18), transparent 30%),
+        radial-gradient(circle at 50% 90%, rgba(40, 255, 178, 0.12), transparent 36%),
+        linear-gradient(145deg, #08111f 0%, #0b1020 45%, #111827 100%);
+    }
+
+    .game-shell {
+      width: min(94vw, 940px);
+      padding: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 28px;
+      background: rgba(8, 14, 28, 0.72);
+      box-shadow:
+        0 30px 90px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(16px);
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .title-wrap h1 {
+      font-size: clamp(22px, 3vw, 34px);
+      letter-spacing: -0.04em;
+      line-height: 1.1;
+      background: linear-gradient(90deg, #67e8f9, #a78bfa, #f9a8d4);
+      -webkit-background-clip: text;
+      color: transparent;
+    }
+
+    .title-wrap p {
+      margin-top: 6px;
+      color: rgba(238, 246, 255, 0.62);
+      font-size: 14px;
+    }
+
+    .hud {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .hud-card {
+      min-width: 100px;
+      padding: 10px 13px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      text-align: center;
+    }
+
+    .hud-card span {
+      display: block;
+      font-size: 11px;
+      color: rgba(238, 246, 255, 0.55);
+      margin-bottom: 4px;
+    }
+
+    .hud-card strong {
+      font-size: 18px;
+      color: #ffffff;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    canvas {
+      display: block;
+      width: min(100%, 860px);
+      height: auto;
+      aspect-ratio: 860 / 560;
+      border-radius: 22px;
+      background: #070b16;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow:
+        0 22px 60px rgba(0, 0, 0, 0.45),
+        0 0 60px rgba(34, 211, 238, 0.12);
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      pointer-events: none;
+    }
+
+    .panel {
+      width: min(92%, 520px);
+      padding: 28px;
+      border-radius: 26px;
+      text-align: center;
+      background: rgba(7, 12, 24, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(18px);
+      pointer-events: auto;
+    }
+
+    .panel h2 {
+      font-size: clamp(28px, 5vw, 48px);
+      margin-bottom: 12px;
+      letter-spacing: -0.06em;
+    }
+
+    .panel p {
+      color: rgba(238, 246, 255, 0.72);
+      line-height: 1.65;
+      margin-bottom: 20px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      border-radius: 999px;
+      padding: 13px 20px;
+      font-weight: 800;
+      color: #06111f;
+      background: linear-gradient(135deg, #67e8f9, #a7f3d0);
+      box-shadow: 0 12px 30px rgba(103, 232, 249, 0.24);
+      transition: transform 0.16s ease, filter 0.16s ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.08);
+    }
+
+    button.secondary {
+      color: #eef6ff;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: none;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .tip {
+      margin-top: 14px;
+      font-size: 13px;
+      color: rgba(238, 246, 255, 0.52);
+    }
+
+    .footer-help {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      margin-top: 12px;
+      color: rgba(238, 246, 255, 0.52);
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+
+    kbd {
+      padding: 3px 7px;
+      border-radius: 8px;
+      color: #e9fbff;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <section class="top-bar">
+      <div class="title-wrap">
+        <h1>NEON BREAKER</h1>
+        <p>아이템과 파티클이 터지는 강화형 벽돌깨기</p>
+      </div>
+
+      <div class="hud">
+        <div class="hud-card">
+          <span>점수</span>
+          <strong id="scoreEl">0</strong>
+        </div>
+        <div class="hud-card">
+          <span>체력</span>
+          <strong id="livesEl">3</strong>
+        </div>
+        <div class="hud-card">
+          <span>남은 벽돌</span>
+          <strong id="bricksEl">0</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="canvas-wrap">
+      <canvas id="gameCanvas" width="860" height="560"></canvas>
+
+      <div id="overlay" class="overlay">
+        <div class="panel">
+          <h2 id="overlayTitle">NEON BREAKER</h2>
+          <p id="overlayText">
+            좌우 방향키로 패들을 움직여 모든 벽돌을 깨세요.<br>
+            빛나는 벽돌에서는 아이템이 떨어집니다.
+          </p>
+          <div class="btn-row">
+            <button id="startBtn">게임 시작</button>
+            <button id="restartBtn" class="secondary hidden">다시 시작</button>
+          </div>
+          <div class="tip">조작: <kbd>←</kbd> <kbd>→</kbd> 또는 마우스 이동</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="footer-help">
+      <span>🟦 넓은 패들 · 🟨 추가 체력 · 🟣 멀티볼 · 🟢 감속</span>
+      <span>벽돌을 연속으로 깨면 점수가 빠르게 쌓입니다.</span>
+    </section>
+  </main>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const scoreEl = document.getElementById("scoreEl");
+    const livesEl = document.getElementById("livesEl");
+    const bricksEl = document.getElementById("bricksEl");
+
+    const overlay = document.getElementById("overlay");
+    const overlayTitle = document.getElementById("overlayTitle");
+    const overlayText = document.getElementById("overlayText");
+    const startBtn = document.getElementById("startBtn");
+    const restartBtn = document.getElementById("restartBtn");
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    const GAME_STATE = {
+      READY: "ready",
+      PLAYING: "playing",
+      WON: "won",
+      LOST: "lost",
+    };
+
+    let state;
+    let score;
+    let lives;
+    let combo;
+    let paddle;
+    let balls;
+    let bricks;
+    let particles;
+    let items;
+    let keys;
+    let animationId;
+    let lastTime;
+
+    const COLORS = {
+      cyan: "#67e8f9",
+      blue: "#60a5fa",
+      purple: "#a78bfa",
+      pink: "#f472b6",
+      orange: "#fb923c",
+      green: "#86efac",
+      yellow: "#fde047",
+      red: "#fb7185",
+      white: "#f8fafc",
+    };
+
+    const ITEM_TYPES = [
+      { type: "wide", color: COLORS.cyan, label: "W", chance: 0.34 },
+      { type: "life", color: COLORS.yellow, label: "+", chance: 0.18 },
+      { type: "multi", color: COLORS.purple, label: "M", chance: 0.24 },
+      { type: "slow", color: COLORS.green, label: "S", chance: 0.24 },
+    ];
+
+    function initGame() {
+      cancelAnimationFrame(animationId);
+
+      state = GAME_STATE.READY;
+      score = 0;
+      lives = 3;
+      combo = 0;
+      particles = [];
+      items = [];
+      keys = { left: false, right: false };
+      lastTime = 0;
+
+      paddle = {
+        x: W / 2 - 68,
+        y: H - 46,
+        w: 136,
+        baseW: 136,
+        h: 16,
+        speed: 560,
+        wideTimer: 0,
+      };
+
+      balls = [createBall(W / 2, H - 78, -210, -310)];
+      bricks = createBricks();
+
+      updateHud();
+      showOverlay(
+        "NEON BREAKER",
+        "좌우 방향키로 패들을 움직여 모든 벽돌을 깨세요.<br>빛나는 벽돌에서는 아이템이 떨어집니다.",
+        true
+      );
+
+      draw();
+    }
+
+    function createBall(x, y, vx, vy) {
+      return {
+        x,
+        y,
+        vx,
+        vy,
+        r: 8,
+        speedLimit: 520,
+        trail: [],
+      };
+    }
+
+    function createBricks() {
+      const result = [];
+      const rows = 6;
+      const cols = 10;
+      const gap = 8;
+      const top = 72;
+      const side = 34;
+      const brickW = (W - side * 2 - gap * (cols - 1)) / cols;
+      const brickH = 24;
+      const palette = [COLORS.cyan, COLORS.blue, COLORS.purple, COLORS.pink, COLORS.orange, COLORS.green];
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const hp = r < 2 ? 1 : r < 4 ? 2 : 3;
+          const hasItem = Math.random() < 0.22 || (r === 0 && c % 4 === 0);
+
+          result.push({
+            x: side + c * (brickW + gap),
+            y: top + r * (brickH + gap),
+            w: brickW,
+            h: brickH,
+            hp,
+            maxHp: hp,
+            alive: true,
+            color: palette[(r + c) % palette.length],
+            hasItem,
+            shake: 0,
+          });
+        }
+      }
+
+      return result;
+    }
+
+    function startGame() {
+      if (state === GAME_STATE.PLAYING) return;
+
+      state = GAME_STATE.PLAYING;
+      overlay.classList.add("hidden");
+      lastTime = performance.now();
+      animationId = requestAnimationFrame(loop);
+    }
+
+    function restartGame() {
+      initGame();
+      startGame();
+    }
+
+    function loop(time) {
+      const dt = Math.min((time - lastTime) / 1000, 0.033);
+      lastTime = time;
+
+      update(dt);
+      draw();
+
+      if (state === GAME_STATE.PLAYING) {
+        animationId = requestAnimationFrame(loop);
+      }
+    }
+
+    function update(dt) {
+      updatePaddle(dt);
+      updateBalls(dt);
+      updateItems(dt);
+      updateParticles(dt);
+      updateBrickEffects(dt);
+      checkWinLose();
+      updateHud();
+    }
+
+    function updatePaddle(dt) {
+      if (keys.left) paddle.x -= paddle.speed * dt;
+      if (keys.right) paddle.x += paddle.speed * dt;
+
+      paddle.x = clamp(paddle.x, 10, W - paddle.w - 10);
+
+      if (paddle.wideTimer > 0) {
+        paddle.wideTimer -= dt;
+        if (paddle.wideTimer <= 0) {
+          const center = paddle.x + paddle.w / 2;
+          paddle.w = paddle.baseW;
+          paddle.x = clamp(center - paddle.w / 2, 10, W - paddle.w - 10);
+        }
+      }
+    }
+
+    function updateBalls(dt) {
+      for (const ball of balls) {
+        ball.trail.push({ x: ball.x, y: ball.y, life: 0.22 });
+        if (ball.trail.length > 12) ball.trail.shift();
+
+        for (const t of ball.trail) t.life -= dt;
+
+        ball.x += ball.vx * dt;
+        ball.y += ball.vy * dt;
+
+        // 벽 충돌 처리
+        if (ball.x - ball.r < 0) {
+          ball.x = ball.r;
+          ball.vx *= -1;
+        }
+
+        if (ball.x + ball.r > W) {
+          ball.x = W - ball.r;
+          ball.vx *= -1;
+        }
+
+        if (ball.y - ball.r < 0) {
+          ball.y = ball.r;
+          ball.vy *= -1;
+        }
+
+        // 패들 충돌 처리
+        if (
+          ball.y + ball.r >= paddle.y &&
+          ball.y - ball.r <= paddle.y + paddle.h &&
+          ball.x >= paddle.x &&
+          ball.x <= paddle.x + paddle.w &&
+          ball.vy > 0
+        ) {
+          const hit = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
+          const angle = hit * Math.PI * 0.38;
+          const speed = Math.min(Math.hypot(ball.vx, ball.vy) + 8, ball.speedLimit);
+
+          ball.vx = Math.sin(angle) * speed;
+          ball.vy = -Math.cos(angle) * speed;
+          ball.y = paddle.y - ball.r - 0.5;
+
+          spawnParticles(ball.x, paddle.y, COLORS.cyan, 12, 2.2);
+        }
+
+        checkBrickCollision(ball);
+      }
+
+      // 바닥으로 떨어진 공 제거
+      balls = balls.filter(ball => ball.y - ball.r <= H + 30);
+
+      if (balls.length === 0) {
+        lives -= 1;
+        combo = 0;
+
+        if (lives > 0) {
+          balls.push(createBall(W / 2, H - 78, randomChoice([-210, 210]), -310));
+          paddle.x = W / 2 - paddle.w / 2;
+        }
+      }
+    }
+
+    function checkBrickCollision(ball) {
+      for (const brick of bricks) {
+        if (!brick.alive) continue;
+
+        const closestX = clamp(ball.x, brick.x, brick.x + brick.w);
+        const closestY = clamp(ball.y, brick.y, brick.y + brick.h);
+        const dx = ball.x - closestX;
+        const dy = ball.y - closestY;
+
+        if (dx * dx + dy * dy <= ball.r * ball.r) {
+          brick.hp -= 1;
+          brick.shake = 0.12;
+
+          // 충돌 방향에 따라 공 반사
+          if (Math.abs(dx) > Math.abs(dy)) ball.vx *= -1;
+          else ball.vy *= -1;
+
+          spawnParticles(ball.x, ball.y, brick.color, 18, 3.4);
+
+          if (brick.hp <= 0) {
+            destroyBrick(brick);
+          } else {
+            score += 15;
+          }
+
+          break;
+        }
+      }
+    }
+
+    function destroyBrick(brick) {
+      brick.alive = false;
+      combo += 1;
+      score += 80 + combo * 8;
+
+      spawnParticles(
+        brick.x + brick.w / 2,
+        brick.y + brick.h / 2,
+        brick.color,
+        38,
+        5
+      );
+
+      if (brick.hasItem) {
+        spawnItem(brick.x + brick.w / 2, brick.y + brick.h / 2);
+      }
+    }
+
+    function spawnItem(x, y) {
+      const picked = weightedPick(ITEM_TYPES);
+      items.push({
+        x,
+        y,
+        w: 28,
+        h: 28,
+        vy: 130,
+        type: picked.type,
+        color: picked.color,
+        label: picked.label,
+        spin: 0,
+      });
+    }
+
+    function updateItems(dt) {
+      for (const item of items) {
+        item.y += item.vy * dt;
+        item.spin += dt * 4;
+
+        const caught =
+          item.x + item.w / 2 >= paddle.x &&
+          item.x - item.w / 2 <= paddle.x + paddle.w &&
+          item.y + item.h / 2 >= paddle.y &&
+          item.y - item.h / 2 <= paddle.y + paddle.h;
+
+        if (caught) {
+          applyItem(item);
+          item.collected = true;
+          spawnParticles(item.x, item.y, item.color, 24, 4);
+        }
+      }
+
+      items = items.filter(item => !item.collected && item.y < H + 40);
+    }
+
+    function applyItem(item) {
+      score += 120;
+
+      if (item.type === "wide") {
+        const center = paddle.x + paddle.w / 2;
+        paddle.w = 190;
+        paddle.x = clamp(center - paddle.w / 2, 10, W - paddle.w - 10);
+        paddle.wideTimer = 10;
+      }
+
+      if (item.type === "life") {
+        lives = Math.min(lives + 1, 5);
+      }
+
+      if (item.type === "multi") {
+        const source = balls[0] || createBall(W / 2, H - 78, 210, -310);
+        balls.push(createBall(source.x, source.y, 260, -300));
+        balls.push(createBall(source.x, source.y, -260, -300));
+      }
+
+      if (item.type === "slow") {
+        for (const ball of balls) {
+          ball.vx *= 0.78;
+          ball.vy *= 0.78;
+        }
+      }
+    }
+
+    function spawnParticles(x, y, color, count, power) {
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = rand(45, 90) * power;
+        particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          size: rand(2, 5),
+          life: rand(0.35, 0.85),
+          maxLife: 0.85,
+          color,
+        });
+      }
+    }
+
+    function updateParticles(dt) {
+      for (const p of particles) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.98;
+        p.vy *= 0.98;
+        p.vy += 80 * dt;
+        p.life -= dt;
+      }
+
+      particles = particles.filter(p => p.life > 0);
+    }
+
+    function updateBrickEffects(dt) {
+      for (const brick of bricks) {
+        if (brick.shake > 0) brick.shake -= dt;
+      }
+    }
+
+    function checkWinLose() {
+      const aliveCount = bricks.filter(b => b.alive).length;
+
+      if (aliveCount === 0) {
+        state = GAME_STATE.WON;
+        cancelAnimationFrame(animationId);
+        showOverlay(
+          "승리!",
+          `모든 벽돌을 파괴했습니다.<br>최종 점수: <strong>${score}</strong>`,
+          false
+        );
+      }
+
+      if (lives <= 0) {
+        state = GAME_STATE.LOST;
+        cancelAnimationFrame(animationId);
+        showOverlay(
+          "패배!",
+          `공을 모두 놓쳤습니다.<br>최종 점수: <strong>${score}</strong>`,
+          false
+        );
+      }
+    }
+
+    function draw() {
+      clearCanvas();
+      drawBackgroundGrid();
+      drawBricks();
+      drawItems();
+      drawPaddle();
+      drawBalls();
+      drawParticles();
+      drawBottomGlow();
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, W, H);
+      const bg = ctx.createLinearGradient(0, 0, 0, H);
+      bg.addColorStop(0, "#08111f");
+      bg.addColorStop(0.55, "#080b16");
+      bg.addColorStop(1, "#101827");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    function drawBackgroundGrid() {
+      ctx.save();
+      ctx.globalAlpha = 0.16;
+      ctx.strokeStyle = "#67e8f9";
+      ctx.lineWidth = 1;
+
+      for (let x = 0; x <= W; x += 42) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+        ctx.stroke();
+      }
+
+      for (let y = 0; y <= H; y += 42) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawBricks() {
+      for (const brick of bricks) {
+        if (!brick.alive) continue;
+
+        const shakeX = brick.shake > 0 ? rand(-2.5, 2.5) : 0;
+        const shakeY = brick.shake > 0 ? rand(-2.5, 2.5) : 0;
+        const hpRatio = brick.hp / brick.maxHp;
+
+        ctx.save();
+        ctx.translate(shakeX, shakeY);
+
+        const grad = ctx.createLinearGradient(brick.x, brick.y, brick.x + brick.w, brick.y + brick.h);
+        grad.addColorStop(0, brick.color);
+        grad.addColorStop(1, shadeColor(brick.color, -35));
+
+        ctx.shadowBlur = brick.hasItem ? 20 : 10;
+        ctx.shadowColor = brick.hasItem ? COLORS.yellow : brick.color;
+        roundRect(brick.x, brick.y, brick.w, brick.h, 8, grad);
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        roundRect(brick.x + 5, brick.y + 4, brick.w - 10, 4, 3, "rgba(255,255,255,0.24)");
+
+        if (brick.maxHp > 1) {
+          ctx.fillStyle = "rgba(2, 6, 23, 0.35)";
+          roundRect(brick.x + 8, brick.y + brick.h - 7, brick.w - 16, 3, 2, "rgba(2,6,23,0.35)");
+          roundRect(brick.x + 8, brick.y + brick.h - 7, (brick.w - 16) * hpRatio, 3, 2, COLORS.white);
+        }
+
+        if (brick.hasItem) {
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.beginPath();
+          ctx.arc(brick.x + brick.w - 10, brick.y + 9, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+    }
+
+    function drawPaddle() {
+      const grad = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x + paddle.w, paddle.y);
+      grad.addColorStop(0, COLORS.cyan);
+      grad.addColorStop(0.5, COLORS.white);
+      grad.addColorStop(1, COLORS.purple);
+
+      ctx.save();
+      ctx.shadowBlur = 24;
+      ctx.shadowColor = COLORS.cyan;
+      roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 10, grad);
+
+      ctx.shadowBlur = 0;
+      roundRect(paddle.x + 10, paddle.y + 4, paddle.w - 20, 3, 4, "rgba(255,255,255,0.42)");
+      ctx.restore();
+    }
+
+    function drawBalls() {
+      for (const ball of balls) {
+        for (const t of ball.trail) {
+          const alpha = Math.max(t.life / 0.22, 0);
+          ctx.fillStyle = `rgba(103, 232, 249, ${alpha * 0.18})`;
+          ctx.beginPath();
+          ctx.arc(t.x, t.y, ball.r * alpha * 1.25, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        const grad = ctx.createRadialGradient(ball.x - 3, ball.y - 3, 2, ball.x, ball.y, ball.r + 4);
+        grad.addColorStop(0, "#ffffff");
+        grad.addColorStop(0.45, "#67e8f9");
+        grad.addColorStop(1, "#2563eb");
+
+        ctx.save();
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = COLORS.cyan;
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function drawItems() {
+      for (const item of items) {
+        ctx.save();
+        ctx.translate(item.x, item.y);
+        ctx.rotate(Math.sin(item.spin) * 0.22);
+
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = item.color;
+        roundRect(-item.w / 2, -item.h / 2, item.w, item.h, 8, item.color);
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "#06111f";
+        ctx.font = "900 17px Segoe UI, Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(item.label, 0, 1);
+
+        ctx.restore();
+      }
+    }
+
+    function drawParticles() {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+
+      for (const p of particles) {
+        const alpha = Math.max(p.life / p.maxLife, 0);
+        ctx.fillStyle = hexToRgba(p.color, alpha);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    function drawBottomGlow() {
+      const grad = ctx.createLinearGradient(0, H - 110, 0, H);
+      grad.addColorStop(0, "rgba(103,232,249,0)");
+      grad.addColorStop(1, "rgba(103,232,249,0.11)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, H - 110, W, 110);
+    }
+
+    function updateHud() {
+      scoreEl.textContent = score;
+      livesEl.textContent = lives;
+      bricksEl.textContent = bricks.filter(b => b.alive).length;
+    }
+
+    function showOverlay(title, text, isStart) {
+      overlayTitle.innerHTML = title;
+      overlayText.innerHTML = text;
+      overlay.classList.remove("hidden");
+
+      startBtn.classList.toggle("hidden", !isStart);
+      restartBtn.classList.toggle("hidden", isStart);
+    }
+
+    function roundRect(x, y, w, h, r, fillStyle) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+      ctx.fillStyle = fillStyle;
+      ctx.fill();
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function rand(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function randomChoice(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function weightedPick(items) {
+      const total = items.reduce((sum, item) => sum + item.chance, 0);
+      let roll = Math.random() * total;
+
+      for (const item of items) {
+        roll -= item.chance;
+        if (roll <= 0) return item;
+      }
+
+      return items[0];
+    }
+
+    function hexToRgba(hex, alpha) {
+      const clean = hex.replace("#", "");
+      const r = parseInt(clean.slice(0, 2), 16);
+      const g = parseInt(clean.slice(2, 4), 16);
+      const b = parseInt(clean.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function shadeColor(hex, percent) {
+      const clean = hex.replace("#", "");
+      let r = parseInt(clean.slice(0, 2), 16);
+      let g = parseInt(clean.slice(2, 4), 16);
+      let b = parseInt(clean.slice(4, 6), 16);
+
+      r = clamp(Math.round(r + (percent / 100) * 255), 0, 255);
+      g = clamp(Math.round(g + (percent / 100) * 255), 0, 255);
+      b = clamp(Math.round(b + (percent / 100) * 255), 0, 255);
+
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft") {
+        keys.left = true;
+        e.preventDefault();
+      }
+
+      if (e.key === "ArrowRight") {
+        keys.right = true;
+        e.preventDefault();
+      }
+
+      if (e.key === " " || e.key === "Enter") {
+        if (state === GAME_STATE.READY) startGame();
+        else if (state === GAME_STATE.WON || state === GAME_STATE.LOST) restartGame();
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      if (e.key === "ArrowLeft") keys.left = false;
+      if (e.key === "ArrowRight") keys.right = false;
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+      if (state !== GAME_STATE.PLAYING) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = W / rect.width;
+      const mouseX = (e.clientX - rect.left) * scaleX;
+
+      paddle.x = clamp(mouseX - paddle.w / 2, 10, W - paddle.w - 10);
+    });
+
+    startBtn.addEventListener("click", startGame);
+    restartBtn.addEventListener("click", restartGame);
+
+    initGame();
+  </script>
+</body>
+</html>

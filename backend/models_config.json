@@ -1,6 +1,8 @@
 {
     "ChatGPT_5.4-Thinking_Extended": "ChatGPT 5.4 (Thinking Extended)",
     "ChatGPT_5.4-Thinking_Standard": "ChatGPT 5.4 (Thinking Standard)",
+    "ChatGPT_5.5-Thinking_Standard": "ChatGPT 5.5 (Thinking Standard)",
+    "Claude-Opus_4.7": "Claude 4.7 Opus",
     "Claude-Sonnet_4.6": "Claude 4.6 Sonnet",
     "Copilot-Deep_Thinking": "Copilot Pro (Deep Thinking)",
     "Deepseek-v3.2-Thinking": "DeepSeek v3.2 (Thinking)",
