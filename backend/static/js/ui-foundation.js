@@ -190,7 +190,7 @@ function toggleSidebar() {
     document.body.classList.toggle('sidebar-open', willOpen);
     document.documentElement.classList.toggle('sidebar-open', willOpen);
     if (willOpen) {
-        requestAnimationFrame(updateSidebarGlassTarget);
+        window.setTimeout(updateSidebarGlassTarget, 180);
     }
 }
 
@@ -211,6 +211,7 @@ function createSidebarGlassRenderer(canvas) {
         precision highp float;
         uniform vec2 u_resolution;
         uniform vec4 u_rect;
+        uniform sampler2D u_background;
         uniform float u_opacity;
         uniform float u_time;
 
@@ -223,24 +224,8 @@ function createSidebarGlassRenderer(canvas) {
             return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
         }
 
-        vec3 sidebarBackground(vec2 uv) {
-            uv = clamp(uv, 0.0, 1.0);
-            vec3 top = vec3(0.662, 0.827, 0.984);
-            vec3 bottom = vec3(0.773, 0.816, 0.980);
-            vec3 color = mix(top, bottom, uv.y);
-            float glow1 = 1.0 - smoothstep(0.0, 0.55, distance(uv, vec2(0.24, 0.18)));
-            float glow2 = 1.0 - smoothstep(0.0, 0.48, distance(uv, vec2(0.82, 0.56)));
-            float glow3 = 1.0 - smoothstep(0.0, 0.42, distance(uv, vec2(0.28, 0.86)));
-            float diagonal = 0.5 + 0.5 * sin((uv.x + uv.y) * 22.0);
-            float fine = 0.5 + 0.5 * sin((uv.x * 29.0 + uv.y * 43.0));
-            float softLine = 0.5 + 0.5 * sin((uv.x * 2.4 - uv.y * 3.2) * 13.0);
-            color += glow1 * vec3(0.080, 0.120, 0.180);
-            color += glow2 * vec3(0.030, 0.080, 0.160);
-            color += glow3 * vec3(0.090, 0.060, 0.160);
-            color += diagonal * vec3(1.0) * 0.010;
-            color += fine * vec3(0.008, 0.009, 0.013);
-            color += softLine * vec3(0.030, 0.040, 0.060) * 0.035;
-            return color;
+        vec3 sampleBackground(vec2 uv) {
+            return texture2D(u_background, clamp(uv, 0.0, 1.0)).rgb;
         }
 
         void main() {
@@ -252,24 +237,26 @@ function createSidebarGlassRenderer(canvas) {
             float d = roundedBox(local, halfSize, radius);
 
             float inside = 1.0 - smoothstep(-1.0, 1.0, d);
-            float rim = 1.0 - smoothstep(0.0, 5.0, abs(d));
+            float rim = 1.0 - smoothstep(0.0, 5.5, abs(d));
 
             vec2 uv = (local / max(halfSize, vec2(1.0))) * 0.5 + 0.5;
             vec2 normal = local / max(length(local), 1.0);
-            float refractionBand = smoothstep(-34.0, -4.0, d)
-                * (1.0 - smoothstep(-4.0, 7.0, d));
-            float innerRefraction = inside * (1.0 - smoothstep(0.0, 0.74, length((uv - 0.5) * vec2(1.0, 1.7))));
+            float refractionBand = smoothstep(-36.0, -4.0, d)
+                * (1.0 - smoothstep(-4.0, 7.5, d));
+            float innerRefraction = inside * (1.0 - smoothstep(0.0, 0.78, length((uv - 0.5) * vec2(1.0, 1.66))));
             vec2 wave = vec2(
                 sin((uv.y + u_time * 0.08) * 9.0),
                 cos((uv.x - u_time * 0.06) * 7.0)
-            ) * inside * 0.0012;
+            ) * inside * 0.0016;
             vec2 baseUv = frag / u_resolution;
-            vec2 distortion = normal * refractionBand * 0.064 + normal * innerRefraction * 0.010 + wave;
-            vec3 base = sidebarBackground(baseUv);
+            vec2 centerUv = center / u_resolution;
+            vec2 magnifiedUv = centerUv + (baseUv - centerUv) * (1.0 - inside * 0.19);
+            vec2 distortion = normal * refractionBand * 0.188 + normal * innerRefraction * 0.039 + wave;
+            vec3 base = sampleBackground(baseUv);
             vec3 refracted;
-            refracted.r = sidebarBackground(baseUv + distortion * 1.18).r;
-            refracted.g = sidebarBackground(baseUv + distortion).g;
-            refracted.b = sidebarBackground(baseUv + distortion * 0.84).b;
+            refracted.r = sampleBackground(magnifiedUv + distortion * 1.31).r;
+            refracted.g = sampleBackground(magnifiedUv + distortion).g;
+            refracted.b = sampleBackground(magnifiedUv + distortion * 0.69).b;
             vec3 delta = refracted - base;
 
             vec2 capsulePoint = local / max(u_rect.zw, vec2(1.0));
@@ -284,24 +271,23 @@ function createSidebarGlassRenderer(canvas) {
             float secondaryLight = rim * pow(clamp(dot(vec3(normal, 0.35), secondaryDir), 0.0, 1.0), 2.4);
             float shimmer = (noise(floor((uv + u_time * 0.015) * 42.0)) - 0.5) * inside;
 
-            float refractionMix = clamp(refractionBand * 0.78 + innerRefraction * 0.18, 0.0, 0.82);
-            vec3 glass = mix(base, refracted, refractionMix);
-            vec3 color = (glass - base) * 1.35
-                + delta * 3.0
-                + vec3(1.0) * edgeLight * 0.48
+            float refractionMix = clamp(inside * 0.43 + refractionBand * 0.56 + innerRefraction * 0.28, 0.0, 0.89);
+            vec3 glass = mix(base, refracted, refractionMix * u_opacity);
+            vec3 color = delta * 1.5
+                + vec3(1.0) * edgeLight * 0.52
                 + vec3(0.72, 0.90, 1.0) * secondaryLight * 0.26
                 + vec3(1.0) * highlight * 0.42
-                + vec3(0.55, 0.78, 1.0) * rim * 0.080
+                + vec3(0.55, 0.78, 1.0) * rim * 0.10
                 + vec3(0.85, 0.96, 1.0) * shimmer * 0.01;
 
-            float effect = inside * 0.055
-                + refractionBand * 0.24
+            float effect = inside * 0.062
+                + refractionBand * 0.27
                 + edgeLight * 0.34
                 + secondaryLight * 0.18
                 + highlight * 0.36
                 + rim * 0.12;
             effect = clamp(effect, 0.0, 0.76) * u_opacity;
-            gl_FragColor = vec4(base + color * effect, 1.0);
+            gl_FragColor = vec4(glass + color * effect, 1.0);
         }
     `;
 
@@ -336,12 +322,61 @@ function createSidebarGlassRenderer(canvas) {
     const positionLocation = gl.getAttribLocation(program, 'a_position');
     const resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
     const rectLocation = gl.getUniformLocation(program, 'u_rect');
+    const backgroundLocation = gl.getUniformLocation(program, 'u_background');
     const opacityLocation = gl.getUniformLocation(program, 'u_opacity');
     const timeLocation = gl.getUniformLocation(program, 'u_time');
+    const backgroundTexture = gl.createTexture();
+    const textureCanvas = document.createElement('canvas');
+    const textureContext = textureCanvas.getContext('2d');
 
     const current = { x: 0, y: 0, w: 0, h: 0, opacity: 0 };
     const target = { x: 0, y: 0, w: 0, h: 0, opacity: 0 };
     let frameId = null;
+
+    const uploadBackgroundTexture = (width, height) => {
+        if (!textureContext) return;
+        textureCanvas.width = width;
+        textureCanvas.height = height;
+
+        const gradient = textureContext.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, '#afd7f6');
+        gradient.addColorStop(0.62, '#c7d7f5');
+        gradient.addColorStop(1, '#d4d2f0');
+        textureContext.fillStyle = gradient;
+        textureContext.fillRect(0, 0, width, height);
+
+        const addGlow = (x, y, radius, color) => {
+            const glow = textureContext.createRadialGradient(x, y, 0, x, y, radius);
+            glow.addColorStop(0, color);
+            glow.addColorStop(1, 'rgba(255,255,255,0)');
+            textureContext.fillStyle = glow;
+            textureContext.fillRect(0, 0, width, height);
+        };
+
+        addGlow(width * 0.18, height * 0.18, width * 0.62, 'rgba(255,255,255,0.32)');
+        addGlow(width * 0.86, height * 0.30, width * 0.58, 'rgba(145,185,255,0.26)');
+        addGlow(width * 0.30, height * 0.74, width * 0.56, 'rgba(210,175,255,0.12)');
+        addGlow(width * 0.72, height * 0.88, width * 0.46, 'rgba(100,200,232,0.12)');
+
+        const imageData = textureContext.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            const n = Math.sin((i * 12.9898) % 78.233) * 43758.5453;
+            const grain = (n - Math.floor(n) - 0.5) * 4;
+            data[i] = Math.max(0, Math.min(255, data[i] + grain));
+            data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + grain));
+            data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + grain * 1.2));
+        }
+        textureContext.putImageData(imageData, 0, 0);
+
+        gl.bindTexture(gl.TEXTURE_2D, backgroundTexture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, textureCanvas);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    };
 
     const resize = () => {
         const rect = canvas.getBoundingClientRect();
@@ -351,6 +386,7 @@ function createSidebarGlassRenderer(canvas) {
         if (canvas.width !== width || canvas.height !== height) {
             canvas.width = width;
             canvas.height = height;
+            uploadBackgroundTexture(width, height);
         }
     };
 
@@ -374,6 +410,9 @@ function createSidebarGlassRenderer(canvas) {
         gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
         gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
         gl.uniform4f(rectLocation, current.x * dpr, current.y * dpr, current.w * dpr, current.h * dpr);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, backgroundTexture);
+        gl.uniform1i(backgroundLocation, 0);
         gl.uniform1f(opacityLocation, current.opacity);
         gl.uniform1f(timeLocation, time * 0.001);
         gl.drawArrays(gl.TRIANGLES, 0, 3);

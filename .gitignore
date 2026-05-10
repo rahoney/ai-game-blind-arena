@@ -11,3 +11,25 @@ backend/__pycache__/
 .DS_Store
 Thumbs.db
 .codex
+
+# Local working materials and legacy/reference docs
+temp/
+docs/
+
+# One-off migration/repair scripts and local probes
+fix_*.py
+translate_games.py
+test_script*.js
+patch.diff
+backend/replacer*.py
+backend/test_db.py
+
+# Draft notes and non-runtime reference docs
+LEGACY_SERVICE_SPEC.md
+WORK_CHECKLIST.md
+adsense_guide.md
+google_adsense_guide.md
+
+# Source badge artwork kept outside the runtime static assets
+*.png
+배지 이미지/

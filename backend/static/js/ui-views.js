@@ -82,7 +82,7 @@ function renderGameList() {
                 ${modelsHtml}
             </div>
             <div style="margin-top: 3rem; text-align: center;">
-                <button onclick="navigateTo('results', renderResults)" style="background: var(--primary); width: auto; padding: 1.5rem 3rem; font-size: 1.2rem; border-radius: 12px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.28);">${t('all_results')}</button>
+                <button class="primary-action" onclick="navigateTo('results', renderResults)" style="width: auto; padding: 1.25rem 2.8rem; font-size: 1.2rem;">${t('all_results')}</button>
             </div>
         </div>
     `;
@@ -93,9 +93,9 @@ function renderPlayArea() {
     const game = state.selectedGame;
     el.innerHTML = `
         <div style="width: 100%; max-width: 95vw; display: flex; flex-direction: column; min-height: 90vh; padding-bottom: 50px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; position: sticky; top: 0; z-index: 1000; background: var(--bg-color); padding: 1rem 0;">
-                <button type="button" class="secondary" style="width: auto; background: var(--card-bg); border: 1px solid var(--border-color); box-shadow: 0 4px 12px rgba(0,0,0,0.3);" onclick="navigateTo('list', renderGameList)">← ${state.language === 'ko' ? '모델 목록으로' : 'Back to Models'}</button>
-                <button type="button" class="secondary" style="width: auto; background: var(--primary); border: 1px solid var(--primary); color: var(--bg-color); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);" onclick="toggleFullScreen()">${state.language === 'ko' ? '전체화면 모드' : 'Fullscreen'}</button>
+            <div class="play-toolbar">
+                <button type="button" class="primary-action" style="width: auto; padding: 1.05rem 1.8rem;" onclick="navigateTo('list', renderGameList)">← ${state.language === 'ko' ? '모델 목록으로' : 'Back to Models'}</button>
+                <button type="button" class="primary-action" style="width: auto; padding: 1.05rem 1.8rem;" onclick="toggleFullScreen()">${state.language === 'ko' ? '전체화면 모드' : 'Fullscreen'}</button>
             </div>
             ${renderGameGuideCard(state.selectedCategory, { marginTop: '0', marginBottom: '1.5rem' })}
             <div class="game-container" style="width: 100%; height: 1050px; border: 2px solid var(--border-color); background: #000; border-radius: 20px; overflow: hidden; box-shadow: 0 0 30px rgba(0,0,0,0.5); flex-shrink: 0;">
@@ -110,7 +110,10 @@ function renderPlayArea() {
                                 <span class="play-eval-label-text">${formatEvaluationLabel(t('eval_' + key))}</span>
                                 <span id="val-${key}" style="color: var(--primary); font-size: 1.3rem; flex-shrink:0;">5</span>
                             </label>
-                            <input type="range" id="score-${key}" min="1" max="10" value="5" oninput="updateScore('${key}')" style="width: 100%; height: 10px; border-radius: 5px;">
+                            <div class="liquid-range" data-progress="44.44" style="--range-progress: 44.44%;">
+                                <input type="range" id="score-${key}" min="1" max="10" value="5" oninput="updateScore('${key}')">
+                                <span class="liquid-range-glass" aria-hidden="true"></span>
+                            </div>
                         </div>
                     `).join('')}
                 </div>
@@ -118,7 +121,7 @@ function renderPlayArea() {
                     <label style="display: block; margin-bottom: 1rem; font-size: 1.2rem; font-weight: bold; color: var(--primary);">${state.language === 'ko' ? '코멘트 (150자 이내)' : 'Comment (Max 150 chars)'}</label>
                     <textarea id="comment" rows="4" maxlength="150" placeholder="${t('comment_placeholder')}" style="width: 100%; padding: 1.5rem; font-size: 1.2rem; border-radius: 15px; background: var(--surface-bg); color: var(--text-color); border: 1px solid var(--border-color); transition: border-color 0.3s; line-height: 1.6;"></textarea>
                 </div>
-                <button type="button" id="evaluation-submit-btn" onclick="submitEvaluation()" style="margin-top: 2.5rem; background: var(--success); padding: 1.2rem 3rem; font-size: 1.4rem; border-radius: 15px; box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3); font-weight: 800; width: auto; min-width: 300px;">${t('eval_submit')}</button>
+                <button type="button" id="evaluation-submit-btn" class="primary-action" onclick="submitEvaluation()" style="margin-top: 2.5rem; padding: 1.15rem 3rem; font-size: 1.4rem; font-weight: 800; width: auto; min-width: 300px;">${t('eval_submit')}</button>
             </div>
             <div id="play-comments-container" style="width:100%; margin-top:2rem;">
                 ${renderPlayModelCommentsSection()}
@@ -167,7 +170,7 @@ function renderAbout() {
                 <p>${state.language === 'ko' ? '또한 여러 사람의 평가가 축적될수록, 개별적인 인상에 머물 수 있는 판단을 보다 비교 가능한 평가로 확장해볼 수 있습니다.' : 'As evaluations from more people accumulate, judgments that might otherwise remain subjective impressions can be extended into a more comparable form of evaluation.'}</p>
             </div>
             <div style="margin-top: 4rem; text-align: center;">
-                <button onclick="navigateToInquiry()" style="background: var(--primary); width: auto; padding: 1.5rem 4rem; font-size: 1.4rem; border-radius: 15px; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);">${t('contact')}</button>
+                <button class="primary-action" onclick="navigateToInquiry()" style="width: auto; padding: 1.25rem 3.6rem; font-size: 1.4rem;">${t('contact')}</button>
             </div>
         </div>
     `;
@@ -191,7 +194,33 @@ function navigateToInquiry() {
 
 function updateScore(key) {
     const valEl = document.getElementById(`val-${key}`);
-    if (valEl) valEl.innerText = document.getElementById(`score-${key}`).value;
+    const slider = document.getElementById(`score-${key}`);
+    if (!slider) return;
+    if (valEl) valEl.innerText = slider.value;
+    const min = Number(slider.min || 1);
+    const max = Number(slider.max || 10);
+    const value = Number(slider.value);
+    const progress = ((value - min) / (max - min)) * 100;
+    const range = slider.closest('.liquid-range');
+    const previous = Number(range?.dataset.progress ?? 44.44);
+    const delta = progress - previous;
+    const direction = delta >= 0 ? 1 : -1;
+    const intensity = Math.min(Math.abs(delta) / 16, 1);
+    const glassStretch = 1 + intensity * 0.18;
+    const glassShift = direction * -1 * intensity * 3;
+    slider.style.setProperty('--range-progress', `${progress}%`);
+    if (!range) return;
+    range.dataset.progress = `${progress}`;
+    range.style.setProperty('--range-progress', `${progress}%`);
+    range.style.setProperty('--range-glass-stretch', glassStretch.toFixed(3));
+    range.style.setProperty('--range-glass-shift', `${glassShift.toFixed(1)}px`);
+    range.classList.add('is-moving');
+    window.clearTimeout(Number(range.dataset.resetTimer || 0));
+    range.dataset.resetTimer = `${window.setTimeout(() => {
+        range.classList.remove('is-moving');
+        range.style.setProperty('--range-glass-stretch', '1');
+        range.style.setProperty('--range-glass-shift', '0px');
+    }, 140)}`;
 }
 
 function toggleFullScreen() {
