@@ -237,24 +237,21 @@ function createSidebarGlassRenderer(canvas) {
             float d = roundedBox(local, halfSize, radius);
 
             float inside = 1.0 - smoothstep(-1.0, 1.0, d);
-            float rim = 1.0 - smoothstep(0.0, 7.5, abs(d));
-            if (inside <= 0.001 && rim <= 0.001) {
-                discard;
-            }
+            float rim = 1.0 - smoothstep(0.0, 5.5, abs(d));
 
             vec2 uv = (local / max(halfSize, vec2(1.0))) * 0.5 + 0.5;
             vec2 normal = local / max(length(local), 1.0);
-            float refractionBand = smoothstep(-30.0, -2.0, d)
-                * (1.0 - smoothstep(-2.0, 9.0, d));
-            float innerRefraction = inside * (1.0 - smoothstep(0.0, 0.72, length((uv - 0.5) * vec2(1.0, 1.45))));
+            float refractionBand = smoothstep(-36.0, -4.0, d)
+                * (1.0 - smoothstep(-4.0, 7.5, d));
+            float innerRefraction = inside * (1.0 - smoothstep(0.0, 0.78, length((uv - 0.5) * vec2(1.0, 1.66))));
             vec2 wave = vec2(
                 sin((uv.y + u_time * 0.08) * 9.0),
                 cos((uv.x - u_time * 0.06) * 7.0)
             ) * inside * 0.0016;
             vec2 baseUv = frag / u_resolution;
             vec2 centerUv = center / u_resolution;
-            vec2 magnifiedUv = centerUv + (baseUv - centerUv) * (1.0 - inside * 0.13);
-            vec2 distortion = normal * refractionBand * 0.142 + normal * innerRefraction * 0.024 + wave;
+            vec2 magnifiedUv = centerUv + (baseUv - centerUv) * (1.0 - inside * 0.19);
+            vec2 distortion = normal * refractionBand * 0.188 + normal * innerRefraction * 0.039 + wave;
             vec3 base = sampleBackground(baseUv);
             vec3 refracted;
             refracted.r = sampleBackground(magnifiedUv + distortion * 1.31).r;
@@ -263,10 +260,10 @@ function createSidebarGlassRenderer(canvas) {
             vec3 delta = refracted - base;
 
             vec2 capsulePoint = local / max(u_rect.zw, vec2(1.0));
-            float h1 = 1.0 - smoothstep(0.0, 0.24, distance(capsulePoint, vec2(-0.30, -0.19)));
-            float h2 = 1.0 - smoothstep(0.0, 0.18, distance(capsulePoint, vec2(0.34, 0.18)));
-            float h3 = 1.0 - smoothstep(0.0, 0.30, abs(capsulePoint.y + 0.24)) * smoothstep(0.50, 0.08, abs(capsulePoint.x));
-            float highlight = h1 * 0.24 + h2 * 0.15 + h3 * 0.16;
+            float h1 = 1.0 - smoothstep(0.0, 0.28, distance(capsulePoint, vec2(-0.18, -0.20)));
+            float h2 = 1.0 - smoothstep(0.0, 0.24, distance(capsulePoint, vec2(0.28, 0.10)));
+            float h3 = 1.0 - smoothstep(0.0, 0.18, distance(capsulePoint, vec2(0.02, -0.04)));
+            float highlight = h1 * 0.30 + h2 * 0.18 + h3 * 0.08;
             vec3 lightDir = normalize(vec3(-0.6, -0.8, 0.7));
             float facingLight = clamp(dot(vec3(normal, 0.45), lightDir), 0.0, 1.0);
             float edgeLight = rim * pow(facingLight, 1.8);
@@ -274,27 +271,23 @@ function createSidebarGlassRenderer(canvas) {
             float secondaryLight = rim * pow(clamp(dot(vec3(normal, 0.35), secondaryDir), 0.0, 1.0), 2.4);
             float shimmer = (noise(floor((uv + u_time * 0.015) * 42.0)) - 0.5) * inside;
 
-            vec3 lensDelta = delta * 1.8;
-            vec3 edgeColor = vec3(1.0) * edgeLight * 0.88
-                + vec3(0.58, 0.84, 1.0) * secondaryLight * 0.40
-                + vec3(1.0) * highlight * 0.48
-                + vec3(0.58, 0.86, 1.0) * rim * 0.18
-                + vec3(0.85, 0.96, 1.0) * shimmer * 0.012;
-            vec3 aberration = vec3(
-                sampleBackground(magnifiedUv + distortion * 1.55).r - base.r,
-                0.0,
-                sampleBackground(magnifiedUv + distortion * 0.55).b - base.b
-            ) * rim * 0.92;
+            float refractionMix = clamp(inside * 0.43 + refractionBand * 0.56 + innerRefraction * 0.28, 0.0, 0.89);
+            vec3 glass = mix(base, refracted, refractionMix * u_opacity);
+            vec3 color = delta * 1.5
+                + vec3(1.0) * edgeLight * 0.52
+                + vec3(0.72, 0.90, 1.0) * secondaryLight * 0.26
+                + vec3(1.0) * highlight * 0.42
+                + vec3(0.55, 0.78, 1.0) * rim * 0.10
+                + vec3(0.85, 0.96, 1.0) * shimmer * 0.01;
 
-            float lensAlpha = inside * 0.026
-                + refractionBand * 0.20
+            float effect = inside * 0.062
+                + refractionBand * 0.27
                 + edgeLight * 0.34
                 + secondaryLight * 0.18
-                + highlight * 0.20
-                + rim * 0.15;
-            lensAlpha = clamp(lensAlpha, 0.0, 0.46) * u_opacity;
-            vec3 color = lensDelta + edgeColor + aberration;
-            gl_FragColor = vec4(color, lensAlpha);
+                + highlight * 0.36
+                + rim * 0.12;
+            effect = clamp(effect, 0.0, 0.76) * u_opacity;
+            gl_FragColor = vec4(glass + color * effect, 1.0);
         }
     `;
 
@@ -441,10 +434,10 @@ function createSidebarGlassRenderer(canvas) {
                 start();
                 return;
             }
-            target.x = rect.x;
-            target.y = rect.y;
-            target.w = rect.w;
-            target.h = rect.h;
+            target.x = rect.x - 14;
+            target.y = rect.y - 8;
+            target.w = rect.w + 28;
+            target.h = rect.h + 16;
             target.opacity = 1;
             start();
         },
@@ -467,14 +460,15 @@ function updateSidebarGlassTarget(target) {
     }
 
     const sidebarRect = sidebar.getBoundingClientRect();
-    const targetRect = visibleTarget.getBoundingClientRect();
-    const insetX = visibleTarget.classList.contains('sidebar-language-switch') ? 0 : 6;
-    const insetY = 4;
+    const label = visibleTarget.querySelector('span') || visibleTarget;
+    const targetRect = label.getBoundingClientRect();
+    const paddingX = 14;
+    const paddingY = 8;
     sidebarGlassRenderer?.setTarget({
-        x: targetRect.left - sidebarRect.left + insetX,
-        y: targetRect.top - sidebarRect.top + insetY,
-        w: Math.max(24, targetRect.width - insetX * 2),
-        h: Math.max(24, targetRect.height - insetY * 2),
+        x: targetRect.left - sidebarRect.left - paddingX,
+        y: targetRect.top - sidebarRect.top - paddingY,
+        w: targetRect.width + paddingX * 2,
+        h: targetRect.height + paddingY * 2,
     });
 }
 
