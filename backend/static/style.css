@@ -580,18 +580,10 @@ button.secondary {
     background: transparent;
     box-shadow: none;
 }
-.slider-goo-defs {
-    position: absolute;
-    width: 0;
-    height: 0;
-    overflow: hidden;
-}
 .liquid-range {
     --range-progress: 44.44%;
-    --range-stretch: 1;
     --range-glass-stretch: 1;
-    --range-tail-shift: -8px;
-    --range-tail-scale: 0.52;
+    --range-glass-shift: 0px;
     position: relative;
     width: 100%;
     height: 30px;
@@ -612,55 +604,25 @@ button.secondary {
         inset 0 1px 2px rgba(40,90,140,0.16),
         0 1px 1px rgba(255,255,255,0.28);
 }
-.liquid-range-goo {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    filter: url("#slider-goo");
-}
-.liquid-range-blob,
 .liquid-range-glass {
     position: absolute;
     left: var(--range-progress);
-    top: 6px;
-    width: 32px;
-    height: 18px;
+    top: 5px;
+    width: 30px;
+    height: 20px;
     border-radius: 999px;
-    transform: translateX(-50%);
-    transition: left 150ms cubic-bezier(.2,.9,.2,1), transform 240ms cubic-bezier(.16,1.35,.32,1), opacity 160ms ease;
-}
-.liquid-range-blob {
-    background: rgba(255,255,255,0.035);
-    box-shadow:
-        0 6px 14px rgba(50,120,180,0.045),
-        inset 1px 1px 1px rgba(255,255,255,0.16);
-}
-.liquid-range-main {
-    transform: translateX(-50%) scaleX(var(--range-stretch));
-}
-.liquid-range-tail {
-    width: 21px;
-    opacity: 0.28;
-    transform: translateX(calc(-50% + var(--range-tail-shift))) scaleX(var(--range-tail-scale));
-}
-.liquid-range.is-moving .liquid-range-tail {
-    opacity: 0.46;
+    transform: translateX(calc(-50% + var(--range-glass-shift))) scaleX(var(--range-glass-stretch));
+    transition: left 120ms linear, transform 150ms cubic-bezier(.2,.9,.2,1);
 }
 .liquid-range-glass {
     pointer-events: none;
     overflow: hidden;
-    background:
-        radial-gradient(circle at 18% 30%, rgba(255,255,255,0.30), rgba(255,255,255,0.045) 30%, transparent 58%),
-        radial-gradient(circle at 78% 72%, rgba(111,206,255,0.055), transparent 62%),
-        linear-gradient(135deg, rgba(255,255,255,0.006), rgba(255,255,255,0));
+    background: transparent;
     box-shadow:
-        inset 1px 1px 1px rgba(255,255,255,0.34),
-        inset -1px -1px 1px rgba(45,100,150,0.05),
-        0 0 0 1px rgba(255,255,255,0.11),
-        0 6px 14px rgba(50,120,180,0.06);
-    backdrop-filter: blur(14px) saturate(165%) contrast(1.12) brightness(1.02);
-    -webkit-backdrop-filter: blur(14px) saturate(165%) contrast(1.12) brightness(1.02);
-    transform: translateX(-50%) scaleX(var(--range-glass-stretch));
+        inset 1px 1px 1px rgba(255,255,255,0.40),
+        inset -1px -1px 1px rgba(32,120,190,0.13),
+        inset 0 0 0 1px rgba(182,236,255,0.34),
+        0 4px 12px rgba(40,110,170,0.08);
 }
 .liquid-range-glass::before,
 .liquid-range-glass::after {
@@ -670,16 +632,26 @@ button.secondary {
     border-radius: inherit;
 }
 .liquid-range-glass::before {
-    inset: 1px 3px auto;
-    height: 42%;
-    background: linear-gradient(180deg, rgba(255,255,255,0.42), rgba(255,255,255,0.06) 72%, transparent);
-    filter: blur(1.4px);
+    left: 5px;
+    right: 7px;
+    top: 3px;
+    height: 5px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.46) 38%, rgba(255,255,255,0.16), transparent);
+    filter: blur(1px);
 }
 .liquid-range-glass::after {
-    inset: 0;
+    inset: 2px;
     box-shadow:
-        inset 0 0 0 1px rgba(164,229,255,0.24),
-        inset 0 -1px 2px rgba(44,145,210,0.08);
+        inset 6px 0 7px rgba(255,255,255,0.13),
+        inset -5px 0 7px rgba(54,177,235,0.10),
+        inset 0 -2px 4px rgba(44,145,210,0.08);
+}
+.liquid-range.is-moving .liquid-range-glass {
+    box-shadow:
+        inset 1px 1px 1px rgba(255,255,255,0.42),
+        inset -1px -1px 1px rgba(32,120,190,0.14),
+        inset 0 0 0 1px rgba(182,236,255,0.36),
+        0 5px 13px rgba(40,110,170,0.09);
 }
 .liquid-range input[type="range"] {
     --range-progress: 44.44%;

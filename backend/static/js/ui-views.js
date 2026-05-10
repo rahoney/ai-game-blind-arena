@@ -93,13 +93,6 @@ function renderPlayArea() {
     const game = state.selectedGame;
     el.innerHTML = `
         <div style="width: 100%; max-width: 95vw; display: flex; flex-direction: column; min-height: 90vh; padding-bottom: 50px;">
-            <svg class="slider-goo-defs" width="0" height="0" aria-hidden="true" focusable="false">
-                <filter id="slider-goo" color-interpolation-filters="sRGB">
-                    <feGaussianBlur in="SourceGraphic" stdDeviation="3.6" result="blur" />
-                    <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 16 -7" result="goo" />
-                    <feBlend in="SourceGraphic" in2="goo" />
-                </filter>
-            </svg>
             <div class="play-toolbar">
                 <button type="button" class="primary-action" style="width: auto; padding: 1.05rem 1.8rem;" onclick="navigateTo('list', renderGameList)">← ${state.language === 'ko' ? '모델 목록으로' : 'Back to Models'}</button>
                 <button type="button" class="primary-action" style="width: auto; padding: 1.05rem 1.8rem;" onclick="toggleFullScreen()">${state.language === 'ko' ? '전체화면 모드' : 'Fullscreen'}</button>
@@ -119,10 +112,6 @@ function renderPlayArea() {
                             </label>
                             <div class="liquid-range" data-progress="44.44" style="--range-progress: 44.44%;">
                                 <input type="range" id="score-${key}" min="1" max="10" value="5" oninput="updateScore('${key}')">
-                                <span class="liquid-range-goo" aria-hidden="true">
-                                    <span class="liquid-range-blob liquid-range-main"></span>
-                                    <span class="liquid-range-blob liquid-range-tail"></span>
-                                </span>
                                 <span class="liquid-range-glass" aria-hidden="true"></span>
                             </div>
                         </div>
@@ -217,27 +206,21 @@ function updateScore(key) {
     const delta = progress - previous;
     const direction = delta >= 0 ? 1 : -1;
     const intensity = Math.min(Math.abs(delta) / 16, 1);
-    const stretch = 1 + intensity * 0.58;
-    const glassStretch = 1 + intensity * 0.24;
-    const tailShift = direction * -1 * (7 + intensity * 14);
-    const tailScale = 0.44 + intensity * 0.36;
+    const glassStretch = 1 + intensity * 0.18;
+    const glassShift = direction * -1 * intensity * 3;
     slider.style.setProperty('--range-progress', `${progress}%`);
     if (!range) return;
     range.dataset.progress = `${progress}`;
     range.style.setProperty('--range-progress', `${progress}%`);
-    range.style.setProperty('--range-stretch', stretch.toFixed(3));
     range.style.setProperty('--range-glass-stretch', glassStretch.toFixed(3));
-    range.style.setProperty('--range-tail-shift', `${tailShift.toFixed(1)}px`);
-    range.style.setProperty('--range-tail-scale', tailScale.toFixed(3));
+    range.style.setProperty('--range-glass-shift', `${glassShift.toFixed(1)}px`);
     range.classList.add('is-moving');
     window.clearTimeout(Number(range.dataset.resetTimer || 0));
     range.dataset.resetTimer = `${window.setTimeout(() => {
         range.classList.remove('is-moving');
-        range.style.setProperty('--range-stretch', '1');
         range.style.setProperty('--range-glass-stretch', '1');
-        range.style.setProperty('--range-tail-shift', '-8px');
-        range.style.setProperty('--range-tail-scale', '0.52');
-    }, 220)}`;
+        range.style.setProperty('--range-glass-shift', '0px');
+    }, 140)}`;
 }
 
 function toggleFullScreen() {
