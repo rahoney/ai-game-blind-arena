@@ -212,8 +212,32 @@ function updateScore(key) {
     const max = Number(slider.max || 10);
     const value = Number(slider.value);
     const progress = ((value - min) / (max - min)) * 100;
+    const range = slider.closest('.liquid-range');
+    const previous = Number(range?.dataset.progress || progress);
+    const delta = progress - previous;
+    const direction = delta >= 0 ? 1 : -1;
+    const intensity = Math.min(Math.abs(delta) / 18, 1);
+    const stretch = 1 + intensity * 0.34;
+    const glassStretch = 1 + intensity * 0.15;
+    const tailShift = direction * -1 * (10 + intensity * 18);
+    const tailScale = 0.56 + intensity * 0.34;
     slider.style.setProperty('--range-progress', `${progress}%`);
-    slider.closest('.liquid-range')?.style.setProperty('--range-progress', `${progress}%`);
+    if (!range) return;
+    range.dataset.progress = `${progress}`;
+    range.style.setProperty('--range-progress', `${progress}%`);
+    range.style.setProperty('--range-stretch', stretch.toFixed(3));
+    range.style.setProperty('--range-glass-stretch', glassStretch.toFixed(3));
+    range.style.setProperty('--range-tail-shift', `${tailShift.toFixed(1)}px`);
+    range.style.setProperty('--range-tail-scale', tailScale.toFixed(3));
+    range.classList.add('is-moving');
+    window.clearTimeout(Number(range.dataset.resetTimer || 0));
+    range.dataset.resetTimer = `${window.setTimeout(() => {
+        range.classList.remove('is-moving');
+        range.style.setProperty('--range-stretch', '1');
+        range.style.setProperty('--range-glass-stretch', '1');
+        range.style.setProperty('--range-tail-shift', '-12px');
+        range.style.setProperty('--range-tail-scale', '0.72');
+    }, 180)}`;
 }
 
 function toggleFullScreen() {
