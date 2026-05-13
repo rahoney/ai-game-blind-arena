@@ -251,7 +251,7 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
             const isActive = sortKey === key;
             const arrow = isActive ? ' ↓' : '';
             const color = isActive ? 'var(--primary)' : 'var(--text-color)';
-            return `<th style="padding: 1rem 0.5rem; cursor: pointer; transition: color 0.2s; color: ${color}; border-bottom: 2px solid ${isActive ? 'var(--primary)' : 'var(--border-color)'}; font-size: 0.85rem; min-width: 80px;" onclick="renderResults('${key}')">${label}${arrow}</th>`;
+            return `<th style="padding: 1rem 0.5rem; cursor: pointer; transition: color 0.2s; color: ${color}; background: rgba(239, 249, 255, 0.78); border-bottom: 2px solid ${isActive ? 'var(--primary)' : 'var(--border-color)'}; font-size: 0.85rem; min-width: 80px;" onclick="renderResults('${key}')">${label}${arrow}</th>`;
         };
 
         const rowsHtml = results.map((r, index) => {
@@ -300,12 +300,12 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
                 <p style="text-align: center; color: var(--text-muted); margin-bottom: 3rem; font-size: 1.1rem;">
                     ${state.language === 'ko' ? '테이블 헤더를 클릭하여 각 항목별로 정렬할 수 있습니다.' : 'Click the table headers to sort by specific criteria.'}
                 </p>
-                <div class="card" style="max-width: 100%; padding: 0; overflow-x: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                <div class="card" style="max-width: 100%; padding: 0; overflow-x: auto; box-shadow: 0 18px 42px rgba(80, 120, 180, 0.16);">
                     <table style="width: 100%; border-collapse: collapse;">
                         <thead>
-                            <tr style="background: rgba(0,0,0,0.3);">
-                                <th style="padding: 1rem; color: var(--text-muted); font-size: 0.9rem;">Rank</th>
-                                <th style="padding: 1rem; text-align: left; color: var(--text-muted); font-size: 0.9rem; min-width: 150px;">Model</th>
+                            <tr>
+                                <th style="padding: 1rem; color: var(--text-muted); background: rgba(239, 249, 255, 0.78); font-size: 0.9rem;">Rank</th>
+                                <th style="padding: 1rem; text-align: left; color: var(--text-muted); background: rgba(239, 249, 255, 0.78); font-size: 0.9rem; min-width: 150px;">Model</th>
                                 ${getHeader('avg_total', t('eval_total'))}
                                 ${getHeader('avg_control', t('eval_control'))}
                                 ${getHeader('avg_structure', t('eval_structure'))}
@@ -313,7 +313,7 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
                                 ${getHeader('avg_difficulty', t('eval_difficulty'))}
                                 ${getHeader('avg_fun', t('eval_fun'))}
                                 ${getHeader('avg_overall', t('eval_overall'))}
-                                <th style="padding: 1rem; color: var(--text-muted); font-size: 0.85rem; min-width: 100px;">${state.language === 'ko' ? '평가자 수' : 'Evaluators'}</th>
+                                <th style="padding: 1rem; color: var(--text-muted); background: rgba(239, 249, 255, 0.78); font-size: 0.85rem; min-width: 100px;">${state.language === 'ko' ? '평가자 수' : 'Evaluators'}</th>
                             </tr>
                         </thead>
                         <tbody>
