@@ -387,6 +387,116 @@ html.sidebar-open {
 .game-container { width: 100%; min-height: 50vh; background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
 iframe { width: 100%; height: 100%; border: none; }
 
+.results-header-cell {
+    position: relative;
+    padding: 1rem 0.5rem;
+    min-width: 80px;
+    background: rgba(239, 249, 255, 0.78);
+    border-bottom: 2px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    isolation: isolate;
+    transition: color 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.results-model-header {
+    min-width: 150px;
+    padding: 1rem;
+    text-align: left;
+    font-size: 0.9rem;
+}
+
+.results-evaluator-header {
+    min-width: 100px;
+}
+
+.results-sort-header {
+    cursor: pointer;
+    color: var(--text-color);
+}
+
+.results-sort-header span {
+    position: relative;
+    z-index: 2;
+}
+
+.results-sort-header::before {
+    content: "";
+    position: absolute;
+    inset: 7px 6px;
+    z-index: 1;
+    border-radius: 18px;
+    pointer-events: none;
+    border: 1px solid rgba(255, 255, 255, 0);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(226, 244, 255, 0.18));
+    box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0),
+        0 12px 26px rgba(80, 120, 180, 0);
+    opacity: 0;
+    transform: translateY(1px) scale(0.98);
+    transition: opacity 180ms ease, transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.results-sort-header:hover,
+.results-sort-header:focus-visible,
+.results-sort-header.active {
+    color: var(--primary);
+}
+
+.results-sort-header:hover::before,
+.results-sort-header:focus-visible::before,
+.results-sort-header.active::before {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    border-color: rgba(255, 255, 255, 0.58);
+    box-shadow:
+        inset 0 1px 1px rgba(255, 255, 255, 0.48),
+        inset 0 -10px 22px rgba(130, 190, 230, 0.10),
+        0 12px 26px rgba(80, 120, 180, 0.12);
+}
+
+.results-sort-header.active {
+    border-bottom-color: var(--primary);
+}
+
+.comment-sort-button {
+    width: auto;
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.24), rgba(232,246,255,0.14));
+    color: var(--text-color);
+    box-shadow:
+        inset 0 1px 1px rgba(255,255,255,0.32),
+        0 10px 22px rgba(80, 120, 180, 0.08);
+}
+
+.comment-sort-button.active {
+    background:
+        linear-gradient(180deg, rgba(112,208,236,0.88), rgba(91,190,226,0.72));
+    color: var(--button-text);
+    box-shadow:
+        inset 0 1px 1px rgba(255,255,255,0.52),
+        0 18px 34px rgba(80, 150, 200, 0.18);
+}
+
+.comment-sort-button:hover,
+.comment-sort-button:focus-visible {
+    transform: translateY(-4px);
+    box-shadow:
+        inset 0 1px 1px rgba(255,255,255,0.42),
+        0 18px 34px rgba(80, 120, 180, 0.14);
+}
+
+.comment-sort-button.active:hover,
+.comment-sort-button.active:focus-visible {
+    background:
+        linear-gradient(180deg, rgba(112,208,236,0.88), rgba(91,190,226,0.72));
+    color: var(--button-text);
+    box-shadow:
+        inset 0 1px 1px rgba(255,255,255,0.58),
+        0 22px 40px rgba(80, 150, 200, 0.22);
+}
+
 .play-toolbar {
     display: flex;
     justify-content: space-between;
@@ -561,6 +671,33 @@ button.primary-action:hover {
     background:
         linear-gradient(180deg, rgba(122,214,240,0.92), rgba(95,196,230,0.78));
 }
+.game-guide-card {
+    max-width: 1100px;
+    padding: 1.35rem 1.5rem;
+    border: 1px solid rgba(255,255,255,0.34);
+    border-radius: 18px;
+    text-align: center;
+    background:
+        linear-gradient(180deg, rgba(104,205,234,0.86), rgba(88,190,226,0.70));
+    color: var(--button-text);
+    box-shadow:
+        inset 0 1px 1px rgba(255,255,255,0.48),
+        0 16px 32px rgba(80, 150, 200, 0.16);
+}
+
+.game-guide-lines {
+    display: grid;
+    gap: 0.55rem;
+    line-height: 1.7;
+    font-size: 1.12rem;
+    font-weight: 800;
+}
+
+.game-guide-keyword {
+    color: #1f5f9d;
+    font-weight: 950;
+}
+
 button.secondary {
     background: rgba(255,255,255,0.16);
     border: 0;
