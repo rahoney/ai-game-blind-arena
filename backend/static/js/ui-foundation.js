@@ -171,11 +171,15 @@ function renderGameGuideCard(categoryName, options = {}) {
     const guide = getGameGuideContent(categoryName);
     if (!guide) return '';
     const guideLines = concise ? guide.lines.slice(0, 1) : guide.lines;
+    const renderGuideLine = (line) => escapeHtml(line).replace(
+        /(ESC|WASD|방향키|arrow keys)/g,
+        '<span class="game-guide-keyword">$1</span>'
+    );
 
     return `
-        <div style="background:var(--surface-bg); border:1px solid var(--border-color); border-radius:18px; padding:1.35rem 1.5rem; margin:${marginTop} auto ${marginBottom}; box-shadow:0 10px 24px rgba(0,0,0,0.16); max-width:1100px; text-align:center;">
-            <div style="display:grid; gap:0.55rem; color:var(--text-color); line-height:1.7; font-size:1.12rem; font-weight:700;">
-                ${guideLines.map((line) => `<div>${escapeHtml(line)}</div>`).join('')}
+        <div class="game-guide-card" style="margin:${marginTop} auto ${marginBottom};">
+            <div class="game-guide-lines">
+                ${guideLines.map((line) => `<div>${renderGuideLine(line)}</div>`).join('')}
             </div>
         </div>
     `;
