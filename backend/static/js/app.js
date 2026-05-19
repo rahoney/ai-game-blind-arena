@@ -7,6 +7,7 @@ async function initApp() {
         state.language = detectDefaultLanguage();
     }
     applyDocumentLanguage();
+    await initializeFirebaseAuth();
     try { await apiFetchGames(); } catch (e) { console.error("Game data load failed", e); }
     navigateTo('category', renderCategorySelection);
 }
@@ -63,7 +64,7 @@ function navigateTo(viewId, renderFunction, ...args) {
     if (onboardingViews.includes(viewId)) {
         onboardingLayer.classList.remove('hidden');
         contentLayer.classList.add('hidden');
-        hamburger.classList.add('hidden');
+        hamburger.classList.remove('hidden');
         animateOrApply(header, null, { y: 0, duration: 0.5 });
         const nextIndex = onboardingViews.indexOf(viewId);
         const slideHeight = onboardingLayer ? onboardingLayer.clientHeight : 0;

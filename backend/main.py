@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 try:
     from .database import supabase
+    from .auth import get_public_firebase_config, get_super_admin_uids, require_firebase_user
     from .models import (
         Evaluation,
         PlayEvent,
@@ -40,6 +41,7 @@ try:
     )
 except ImportError:
     from database import supabase
+    from auth import get_public_firebase_config, get_super_admin_uids, require_firebase_user
     from models import (
         Evaluation,
         PlayEvent,
@@ -82,6 +84,7 @@ COMMENT_SUBMISSION_HISTORY = make_rate_limit_store()
 LOCAL_TEST_MODE = not bool(supabase)
 LOCAL_DB = {
     "nicknames": {},
+    "profiles": {},
     "game_stats": {},
     "evaluations": [],
     "nickname_views": [],
@@ -112,6 +115,69 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 def _now_iso():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _profile_payload_from_firebase_user(user: dict, role: str):
+    firebase_info = user.get("firebase", {}) or {}
+    return {
+        "firebase_uid": user.get("uid", ""),
+        "display_name": user.get("name") or user.get("email") or "User",
+        "avatar_url": user.get("picture"),
+        "role": role,
+        "provider": firebase_info.get("sign_in_provider"),
+        "email": user.get("email"),
+        "email_verified": bool(user.get("email_verified")),
+        "last_active_at": _now_iso(),
+    }
+
+
+def _resolve_profile_for_firebase_user(user: dict):
+    uid = user.get("uid", "")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Invalid Firebase user")
+
+    role = "super_admin" if uid in get_super_admin_uids() else "user"
+    payload = _profile_payload_from_firebase_user(user, role)
+
+    if LOCAL_TEST_MODE:
+        existing = LOCAL_DB["profiles"].get(uid)
+        if existing:
+            existing.update(payload)
+            existing["role"] = "super_admin" if role == "super_admin" else existing.get("role", "user")
+            existing["updated_at"] = _now_iso()
+            return existing
+        profile = {
+            "id": str(uuid4()),
+            **payload,
+            "created_at": _now_iso(),
+            "updated_at": _now_iso(),
+        }
+        LOCAL_DB["profiles"][uid] = profile
+        return profile
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    try:
+        existing_res = supabase.table("profiles").select("*").eq("firebase_uid", uid).limit(1).execute()
+        existing = (existing_res.data or [None])[0]
+        if existing:
+            update_payload = dict(payload)
+            if existing.get("role") and role != "super_admin":
+                update_payload["role"] = existing["role"]
+            update_payload["updated_at"] = _now_iso()
+            updated_res = supabase.table("profiles").update(update_payload).eq("firebase_uid", uid).execute()
+            return (updated_res.data or [None])[0] or {**existing, **update_payload}
+
+        insert_payload = {
+            **payload,
+            "created_at": _now_iso(),
+            "updated_at": _now_iso(),
+        }
+        inserted_res = supabase.table("profiles").insert(insert_payload).execute()
+        return (inserted_res.data or [None])[0] or insert_payload
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to resolve auth profile") from exc
 
 
 def _find_actual_model(game_type: str, blind_model_id: str, preferred_lang: str = "ko"):
@@ -258,6 +324,27 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, nick
 async def serve_index():
     with open(STATIC_DIR / "index.html", "r", encoding="utf-8") as f:
         return f.read()
+
+
+@app.get("/api/auth/config")
+async def auth_config():
+    return get_public_firebase_config()
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    return {
+        "uid": user.get("uid", ""),
+        "email": user.get("email"),
+        "email_verified": bool(user.get("email_verified")),
+        "name": user.get("name"),
+        "picture": user.get("picture"),
+        "provider": user.get("firebase", {}).get("sign_in_provider"),
+        "profile": profile,
+        "is_admin": profile.get("role") in ("admin", "super_admin"),
+    }
 
 
 @app.post("/api/nickname/login")

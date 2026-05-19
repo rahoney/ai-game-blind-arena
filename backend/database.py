@@ -1,11 +1,16 @@
 import os
+from pathlib import Path
 from typing import Optional
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 url: str = os.environ.get("SUPABASE_URL", "")
-key: str = os.environ.get("SUPABASE_KEY", "")
+key: str = (
+    os.environ.get("SUPABASE_SECRET_KEY", "")
+    or os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    or os.environ.get("SUPABASE_KEY", "")
+)
 
 supabase: Optional[Client] = create_client(url, key) if url and key else None

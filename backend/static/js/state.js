@@ -2,6 +2,11 @@ const API_BASE = '/api';
 
 let state = {
     nickname: '',
+    authUser: null,
+    account: null,
+    authConfigured: false,
+    authReady: false,
+    authMode: 'login',
     games: {},
     categories: [],
     selectedCategory: null,

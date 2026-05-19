@@ -9,6 +9,8 @@ import hmac
 import json
 import os
 
+from dotenv import load_dotenv
+
 ENGLISH_NICKNAME_RE = re.compile(r"^[A-Za-z]{6,14}$")
 KOREAN_NICKNAME_RE = re.compile(r"^[가-힣]{3,8}$")
 JAMO_RE = re.compile(r"[\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uD7B0-\uD7FF]")
@@ -24,8 +26,20 @@ DEFAULT_BANNED_NICKNAME_TERMS = (
 )
 
 BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
 BLOCKLIST_CSV_PATH = BASE_DIR / "data" / "nickname_blocklist.csv"
 ADMIN_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 12
+
+
+def has_supabase_config():
+    return bool(
+        os.environ.get("SUPABASE_URL")
+        and (
+            os.environ.get("SUPABASE_SECRET_KEY")
+            or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+            or os.environ.get("SUPABASE_KEY")
+        )
+    )
 
 
 def _load_nickname_blocklist():
@@ -459,7 +473,7 @@ def resolve_comment_reaction(existing_reaction: str | None, requested_reaction: 
 
 def get_admin_nicknames():
     raw = os.environ.get("ADMIN_NICKNAMES", "")
-    if not raw and not os.environ.get("SUPABASE_URL") and not os.environ.get("SUPABASE_KEY"):
+    if not raw and not has_supabase_config():
         raw = "winamp"
     return tuple(nickname.strip() for nickname in raw.split(",") if nickname.strip())
 
@@ -471,7 +485,7 @@ def is_admin_nickname(nickname: str):
 
 def get_admin_password():
     password = os.environ.get("ADMIN_PASSWORD", "")
-    if not password and not os.environ.get("SUPABASE_URL") and not os.environ.get("SUPABASE_KEY"):
+    if not password and not has_supabase_config():
         return "pppp"
     return password
 
