@@ -50,7 +50,12 @@ async function selectCategory(category) {
     navigateTo('list', renderGameList);
 }
 
-function handleLogout() {
+async function handleLogout() {
+    try {
+        await signOutAccount();
+    } catch (e) {
+        console.error('Sign out failed', e);
+    }
     state.nickname = '';
     state.selectedCategory = null;
     state.selectedGame = null;

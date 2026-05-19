@@ -6,6 +6,24 @@ async function apiFetchGames() {
     state.categories = data.categories || [];
 }
 
+async function apiFetchAuthConfig() {
+    const res = await fetch(`${API_BASE}/auth/config`, { cache: 'no-store' });
+    return await res.json();
+}
+
+async function apiFetchAuthMe(idToken) {
+    const res = await fetch(`${API_BASE}/auth/me`, {
+        headers: {
+            'Authorization': `Bearer ${idToken}`
+        }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'auth_failed');
+    }
+    return data;
+}
+
 async function apiFetchUserEvals() {
     if (!state.nickname) return;
     const res = await fetch(`${API_BASE}/user_evals/${state.nickname}`);

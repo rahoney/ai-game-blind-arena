@@ -1,14 +1,37 @@
 function renderLogin() {
     const el = document.getElementById('view-login');
+    const disabled = !state.authConfigured;
+    const mode = state.authMode === 'signup' ? 'signup' : 'login';
+    const isSignup = mode === 'signup';
     el.innerHTML = `
-        <div class="card" style="text-align: center; border: 2px solid var(--primary); box-shadow: 0 0 40px rgba(0, 0, 0, 0.22);">
+        <div class="card auth-card">
             <h2 style="margin-bottom: 2rem; font-size: 2.2rem; color: var(--text-color); line-height: 1.3; font-weight: 800; letter-spacing: -0.5px;">${t('subtitle')}</h2>
-            <p style="color: var(--text-muted); margin-bottom: 3rem; font-size: 1.4rem; line-height: 1.8; font-weight: 700; max-width: 600px; margin-left: auto; margin-right: auto; padding: 1.5rem; background: var(--surface-bg); border-radius: 12px;">${t('description')}</p>
-            <div class="input-group" style="margin-bottom: 3rem; max-width: 500px; margin-left: auto; margin-right: auto;">
-                <label for="nickname" style="font-weight: 900; font-size: 1.6rem; color: var(--text-color); display: block; margin-bottom: 1.2rem; text-transform: uppercase; letter-spacing: 2px;">${t('nickname_label')}</label>
-                <input type="text" id="nickname" class="login-nickname-input" placeholder="${t('nickname_placeholder')}" onfocus="handleNicknameFocus(this)" onblur="handleNicknameBlur(this)" onkeypress="if(event.keyCode==13) handleLogin()" style="text-align: center; border-width: 3px; font-weight: 700; font-size: 1.8rem; padding: 1.5rem; border-radius: 18px; background: var(--surface-bg);" />
+            <p class="auth-description">${t('auth_description')}</p>
+            ${disabled ? `<p class="auth-status">${t('auth_not_configured')}</p>` : ''}
+            <div class="auth-form">
+                <div class="auth-mode-tabs" role="tablist">
+                    <button type="button" class="${!isSignup ? 'active' : ''}" onclick="setAuthMode('login')">${t('auth_login')}</button>
+                    <button type="button" class="${isSignup ? 'active' : ''}" onclick="setAuthMode('signup')">${t('auth_signup')}</button>
+                </div>
+                <label for="auth-email">${t('auth_email_label')}</label>
+                <input type="email" id="auth-email" autocomplete="email" placeholder="${t('auth_email_placeholder')}" ${disabled ? 'disabled' : ''}>
+                <label for="auth-password">${t('auth_password_label')}</label>
+                <input type="password" id="auth-password" autocomplete="${isSignup ? 'new-password' : 'current-password'}" placeholder="${t('auth_password_placeholder')}" onkeypress="if(event.keyCode==13) handleEmailAuth('${mode}')" ${disabled ? 'disabled' : ''}>
+                ${isSignup ? `
+                    <label for="auth-password-confirm">${t('auth_password_confirm_label')}</label>
+                    <input type="password" id="auth-password-confirm" autocomplete="new-password" placeholder="${t('auth_password_confirm_placeholder')}" onkeypress="if(event.keyCode==13) handleEmailAuth('signup')" ${disabled ? 'disabled' : ''}>
+                ` : ''}
+                <div class="auth-actions">
+                    <button id="login-submit-btn" onclick="handleEmailAuth('${mode}')" ${disabled ? 'disabled' : ''}>${isSignup ? t('auth_signup') : t('auth_login')}</button>
+                </div>
+                ${!isSignup ? `
+                    <div class="auth-help-actions">
+                        <button type="button" onclick="handlePasswordReset()" ${disabled ? 'disabled' : ''}>${t('auth_find_password')}</button>
+                        <button type="button" onclick="showAppMessage(t('auth_find_id_desc'))">${t('auth_find_id')}</button>
+                    </div>
+                ` : ''}
+                <button class="auth-google-button" onclick="handleGoogleLogin()" ${disabled ? 'disabled' : ''}>${t('auth_google_login')}</button>
             </div>
-            <button id="login-submit-btn" onclick="handleLogin()" style="padding: 1.5rem; font-size: 1.5rem; max-width: 450px; margin-left: auto; margin-right: auto; text-transform: uppercase; letter-spacing: 1px;">${t('btn_set')}</button>
         </div>
     `;
 }

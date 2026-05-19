@@ -464,15 +464,12 @@ function updateSidebarGlassTarget(target) {
     }
 
     const sidebarRect = sidebar.getBoundingClientRect();
-    const label = visibleTarget.querySelector('span') || visibleTarget;
-    const targetRect = label.getBoundingClientRect();
-    const paddingX = 14;
-    const paddingY = 8;
+    const targetRect = visibleTarget.getBoundingClientRect();
     sidebarGlassRenderer?.setTarget({
-        x: targetRect.left - sidebarRect.left - paddingX,
-        y: targetRect.top - sidebarRect.top - paddingY,
-        w: targetRect.width + paddingX * 2,
-        h: targetRect.height + paddingY * 2,
+        x: targetRect.left - sidebarRect.left,
+        y: targetRect.top - sidebarRect.top,
+        w: targetRect.width,
+        h: targetRect.height,
     });
 }
 
@@ -485,7 +482,7 @@ function bindSidebarGlassTarget() {
     const sidebarBody = sidebar?.querySelector('.sidebar-body');
     if (!sidebar || !sidebarBody) return;
 
-    const targets = sidebar.querySelectorAll('.sidebar-menu-item, .sidebar-about-button, .sidebar-language-switch button');
+    const targets = sidebar.querySelectorAll('.sidebar-menu-item, .sidebar-about-button, .sidebar-language-switch button, .sidebar-footer-item');
     targets.forEach((target) => {
         target.addEventListener('mouseenter', () => updateSidebarGlassTarget(target));
         target.addEventListener('focus', () => updateSidebarGlassTarget(target));
@@ -557,12 +554,17 @@ function renderSidebar() {
                     </div>
                 </div>
                 <ul style="list-style: none;">
-                    ${state.nickname ? `<li onclick="sidebarSelectMyPage()" style="padding: 12px 15px; text-align: center; cursor: pointer; border-radius: 6px; margin-bottom: 8px;">
-                        <strong>${t('menu_mypage')}</strong>
+                    ${state.account ? `<li style="padding: 10px 12px; text-align: center; margin-bottom: 8px; color: var(--text-muted); font-weight: 800; word-break: break-word;">
+                        ${escapeHtml(getAccountDisplayName())}
                     </li>
-                    <li onclick="sidebarLogout()" style="padding: 12px 15px; text-align: center; cursor: pointer; border-radius: 6px; color: #fca5a5;">
-                        <strong>${t('menu_logout')}</strong>
-                    </li>` : ''}
+                    <li class="sidebar-footer-item" onclick="sidebarSelectMyPage()">
+                        <span><strong>${t('menu_mypage')}</strong></span>
+                    </li>
+                    <li class="sidebar-footer-item sidebar-logout-item" onclick="sidebarLogout()">
+                        <span><strong>${t('menu_logout')}</strong></span>
+                    </li>` : `<li class="sidebar-footer-item" onclick="sidebarSelectLogin()">
+                        <span><strong>${t('menu_login')}</strong></span>
+                    </li>`}
                 </ul>
             </div>
         </div>
@@ -574,6 +576,7 @@ function renderSidebar() {
 
 function sidebarSelectCategory(category) { toggleSidebar(); selectCategory(category); }
 function sidebarSelectAbout() { toggleSidebar(); navigateTo('about', renderAbout); }
+function sidebarSelectLogin() { toggleSidebar(); navigateTo('login', renderLogin); }
 function sidebarSelectMyPage() { toggleSidebar(); openMyPage(); }
 function sidebarLogout() { toggleSidebar(); handleLogout(); }
 async function sidebarChangeLanguage(lang) {
