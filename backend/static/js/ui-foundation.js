@@ -560,6 +560,9 @@ function renderSidebar() {
                     <li class="sidebar-footer-item" onclick="sidebarSelectMyPage()">
                         <span><strong>${t('menu_mypage')}</strong></span>
                     </li>
+                    ${!hasLinkedProvider('google.com') ? `<li class="sidebar-footer-item" onclick="sidebarLinkGoogle()">
+                        <span><strong>${t('auth_link_google')}</strong></span>
+                    </li>` : ''}
                     <li class="sidebar-footer-item sidebar-logout-item" onclick="sidebarLogout()">
                         <span><strong>${t('menu_logout')}</strong></span>
                     </li>` : `<li class="sidebar-footer-item" onclick="sidebarSelectLogin()">
@@ -578,6 +581,7 @@ function sidebarSelectCategory(category) { toggleSidebar(); selectCategory(categ
 function sidebarSelectAbout() { toggleSidebar(); navigateTo('about', renderAbout); }
 function sidebarSelectLogin() { toggleSidebar(); navigateTo('login', renderLogin); }
 function sidebarSelectMyPage() { toggleSidebar(); openMyPage(); }
+function sidebarLinkGoogle() { toggleSidebar(); handleLinkGoogleProvider(); }
 function sidebarLogout() { toggleSidebar(); handleLogout(); }
 async function sidebarChangeLanguage(lang) {
     await changeLanguage(lang);
