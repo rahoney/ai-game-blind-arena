@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import List, Optional
 
 class NicknameLogin(BaseModel):
     nickname: str = Field(min_length=1, max_length=20)
@@ -8,6 +8,61 @@ class NicknameLogin(BaseModel):
     @classmethod
     def strip_nickname(cls, value: str):
         return value.strip()
+
+
+class ProfileDisplayNameUpdate(BaseModel):
+    display_name: str = Field(min_length=1, max_length=20)
+
+    @field_validator("display_name")
+    @classmethod
+    def strip_display_name(cls, value: str):
+        return value.strip()
+
+
+class ProfileIdentityUpdate(BaseModel):
+    login_id: str = Field(min_length=4, max_length=30)
+    real_name: str = Field(min_length=1, max_length=50)
+    display_name: str = Field(min_length=1, max_length=20)
+
+    @field_validator("login_id", "real_name", "display_name", mode="before")
+    @classmethod
+    def strip_identity_fields(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class FindLoginIdRequest(BaseModel):
+    real_name: str = Field(min_length=1, max_length=50)
+    display_name: str = Field(min_length=1, max_length=20)
+    email: str = Field(min_length=3, max_length=254)
+
+    @field_validator("real_name", "display_name", "email", mode="before")
+    @classmethod
+    def strip_find_id_fields(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class PasswordResetRequest(BaseModel):
+    real_name: str = Field(min_length=1, max_length=50)
+    login_id: str = Field(min_length=4, max_length=30)
+    email: str = Field(min_length=3, max_length=254)
+
+    @field_validator("real_name", "login_id", "email", mode="before")
+    @classmethod
+    def strip_password_reset_fields(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class SendLoginIdEmailRequest(FindLoginIdRequest):
+    pass
+
+
+class SocialProvidersUpdate(BaseModel):
+    providers: List[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("providers")
+    @classmethod
+    def clean_providers(cls, value):
+        return sorted({str(provider).strip() for provider in value if str(provider).strip()})
 
 class Evaluation(BaseModel):
     nickname: str = Field(min_length=1, max_length=20)

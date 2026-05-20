@@ -3,7 +3,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
+import json
 import os
+import hashlib
+import re
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 from datetime import datetime, timezone
 from uuid import uuid4
 try:
@@ -13,6 +18,12 @@ try:
         Evaluation,
         PlayEvent,
         NicknameLogin,
+        ProfileDisplayNameUpdate,
+        ProfileIdentityUpdate,
+        FindLoginIdRequest,
+        PasswordResetRequest,
+        SendLoginIdEmailRequest,
+        SocialProvidersUpdate,
         CommentReactionToggle,
         CommentReplyCreate,
         AdminAuthRequest,
@@ -46,6 +57,12 @@ except ImportError:
         Evaluation,
         PlayEvent,
         NicknameLogin,
+        ProfileDisplayNameUpdate,
+        ProfileIdentityUpdate,
+        FindLoginIdRequest,
+        PasswordResetRequest,
+        SendLoginIdEmailRequest,
+        SocialProvidersUpdate,
         CommentReactionToggle,
         CommentReplyCreate,
         AdminAuthRequest,
@@ -81,6 +98,7 @@ COMMENT_REACTION_RATE_LIMITS = make_rate_limit_store()
 COMMENT_REPLY_RATE_LIMITS = make_rate_limit_store()
 ADMIN_AUTH_RATE_LIMITS = make_rate_limit_store()
 COMMENT_SUBMISSION_HISTORY = make_rate_limit_store()
+RECOVERY_RATE_LIMITS = make_rate_limit_store()
 LOCAL_TEST_MODE = not bool(supabase)
 LOCAL_DB = {
     "nicknames": {},
@@ -90,6 +108,7 @@ LOCAL_DB = {
     "nickname_views": [],
     "comment_reactions": [],
     "comment_replies": [],
+    "account_recovery_attempts": [],
 }
 
 # Enable CORS for local development
@@ -117,16 +136,120 @@ def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
+EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+LOGIN_ID_RE = re.compile(r"^[A-Za-z0-9_]{4,30}$")
+
+
+def _get_client_ip(request: Request):
+    forwarded = request.headers.get("X-Forwarded-For")
+    return forwarded.split(",")[0].strip() if forwarded else request.client.host
+
+
+def _invalid_recovery_input():
+    raise HTTPException(status_code=400, detail="invalid_recovery_input")
+
+
+def _normalize_email(email: str):
+    return email.strip().casefold()
+
+
+def _hash_recovery_identifier(*parts: str):
+    secret = os.environ.get("ADMIN_TOKEN_SECRET") or os.environ.get("FIREBASE_PROJECT_ID") or "local"
+    raw = "|".join(part.strip().casefold() for part in parts)
+    return hashlib.sha256(f"{secret}:{raw}".encode("utf-8")).hexdigest()
+
+
+def _mask_login_id(login_id: str):
+    prefix = login_id[:2] if len(login_id) >= 2 else login_id
+    return (prefix + "*" * 15)[:15]
+
+
+def _record_recovery_attempt(recovery_type: str, identifier_hash: str, request: Request, success: bool):
+    row = {
+        "recovery_type": recovery_type,
+        "identifier_hash": identifier_hash,
+        "ip_address": _get_client_ip(request),
+        "user_agent": request.headers.get("User-Agent", ""),
+        "success": success,
+        "created_at": _now_iso(),
+    }
+    if LOCAL_TEST_MODE:
+        LOCAL_DB["account_recovery_attempts"].append(row)
+        return
+    if supabase:
+        try:
+            supabase.table("account_recovery_attempts").insert(row).execute()
+        except Exception:
+            # Recovery audit failures should not reveal account state or block the user flow.
+            return
+
+
+def _check_recovery_rate_limit(recovery_type: str, identifier_hash: str, request: Request):
+    ip = _get_client_ip(request)
+    key = f"{recovery_type}:{identifier_hash}:{ip}"
+    allowed, wait_time = check_memory_rate_limit(RECOVERY_RATE_LIMITS, key, 600, 5)
+    if not allowed:
+        raise HTTPException(status_code=429, detail=f"recovery_rate_limited:{wait_time}")
+
+
+def _send_login_id_email(email: str, login_id: str):
+    api_key = os.environ.get("BREVO_API_KEY")
+    sender_email = os.environ.get("MAIL_FROM_EMAIL")
+    sender_name = os.environ.get("MAIL_FROM_NAME") or "AI Game Blind Arena"
+    if not api_key or not sender_email:
+        raise HTTPException(status_code=503, detail="mail_service_not_configured")
+
+    body = {
+        "sender": {"name": sender_name, "email": sender_email},
+        "to": [{"email": email}],
+        "subject": "AI Game Blind Arena 아이디 안내",
+        "textContent": f"요청하신 AI Game Blind Arena 아이디는 {login_id} 입니다.",
+    }
+    req = urllib_request.Request(
+        "https://api.brevo.com/v3/smtp/email",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "accept": "application/json",
+            "api-key": api_key,
+            "content-type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=10):
+            return
+    except urllib_error.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="mail_send_failed") from exc
+    except urllib_error.URLError as exc:
+        raise HTTPException(status_code=502, detail="mail_send_failed") from exc
+
+
+def _validate_identity_fields(login_id: str, real_name: str, display_name: str):
+    if not LOGIN_ID_RE.fullmatch(login_id):
+        raise HTTPException(status_code=400, detail="login_id_format")
+    if not real_name.strip():
+        raise HTTPException(status_code=400, detail="real_name_required")
+    is_valid, error_key = validate_nickname(display_name)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_key)
+
+
 def _profile_payload_from_firebase_user(user: dict, role: str):
     firebase_info = user.get("firebase", {}) or {}
+    provider = firebase_info.get("sign_in_provider")
+    uid = user.get("uid", "")
     return {
-        "firebase_uid": user.get("uid", ""),
-        "display_name": user.get("name") or user.get("email") or "User",
+        "firebase_uid": uid,
+        "display_name": f"user_{uid[:8]}" if uid else "user",
+        "display_name_set": False,
         "avatar_url": user.get("picture"),
         "role": role,
-        "provider": firebase_info.get("sign_in_provider"),
+        "provider": provider,
         "email": user.get("email"),
         "email_verified": bool(user.get("email_verified")),
+        "email_verification_required": not bool(user.get("email_verified")),
+        "account_status": "active" if bool(user.get("email_verified")) else "email_unverified",
+        "last_login_at": _now_iso(),
         "last_active_at": _now_iso(),
     }
 
@@ -142,7 +265,10 @@ def _resolve_profile_for_firebase_user(user: dict):
     if LOCAL_TEST_MODE:
         existing = LOCAL_DB["profiles"].get(uid)
         if existing:
-            existing.update(payload)
+            update_payload = dict(payload)
+            update_payload.pop("display_name", None)
+            update_payload.pop("display_name_set", None)
+            existing.update(update_payload)
             existing["role"] = "super_admin" if role == "super_admin" else existing.get("role", "user")
             existing["updated_at"] = _now_iso()
             return existing
@@ -163,6 +289,8 @@ def _resolve_profile_for_firebase_user(user: dict):
         existing = (existing_res.data or [None])[0]
         if existing:
             update_payload = dict(payload)
+            update_payload.pop("display_name", None)
+            update_payload.pop("display_name_set", None)
             if existing.get("role") and role != "super_admin":
                 update_payload["role"] = existing["role"]
             update_payload["updated_at"] = _now_iso()
@@ -178,6 +306,196 @@ def _resolve_profile_for_firebase_user(user: dict):
         return (inserted_res.data or [None])[0] or insert_payload
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Failed to resolve auth profile") from exc
+
+
+def _update_profile_display_name(profile: dict, display_name: str):
+    is_valid, error_key = validate_nickname(display_name)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_key)
+
+    uid = profile.get("firebase_uid")
+    if LOCAL_TEST_MODE:
+        for existing_uid, existing in LOCAL_DB["profiles"].items():
+            if existing_uid != uid and existing.get("display_name", "").casefold() == display_name.casefold():
+                raise HTTPException(status_code=409, detail="display_name_taken")
+        profile.update({
+            "display_name": display_name,
+            "display_name_set": True,
+            "updated_at": _now_iso(),
+        })
+        return profile
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    try:
+        duplicate_res = (
+            supabase.table("profiles")
+            .select("id, firebase_uid")
+            .ilike("display_name", display_name)
+            .limit(1)
+            .execute()
+        )
+        duplicate = (duplicate_res.data or [None])[0]
+        if duplicate and duplicate.get("firebase_uid") != uid:
+            raise HTTPException(status_code=409, detail="display_name_taken")
+
+        update_payload = {
+            "display_name": display_name,
+            "display_name_set": True,
+            "updated_at": _now_iso(),
+        }
+        updated_res = supabase.table("profiles").update(update_payload).eq("firebase_uid", uid).execute()
+        return (updated_res.data or [None])[0] or {**profile, **update_payload}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to update display name") from exc
+
+
+def _update_profile_identity(profile: dict, payload: ProfileIdentityUpdate):
+    _validate_identity_fields(payload.login_id, payload.real_name, payload.display_name)
+    uid = profile.get("firebase_uid")
+
+    if LOCAL_TEST_MODE:
+        for existing_uid, existing in LOCAL_DB["profiles"].items():
+            if existing_uid == uid:
+                continue
+            if existing.get("login_id", "").casefold() == payload.login_id.casefold():
+                raise HTTPException(status_code=409, detail="login_id_taken")
+            if existing.get("display_name", "").casefold() == payload.display_name.casefold():
+                raise HTTPException(status_code=409, detail="display_name_taken")
+        profile.update({
+            "login_id": payload.login_id,
+            "real_name": payload.real_name,
+            "display_name": payload.display_name,
+            "display_name_set": True,
+            "email_verification_required": True,
+            "account_status": "email_unverified" if not profile.get("email_verified") else "active",
+            "updated_at": _now_iso(),
+        })
+        return profile
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    try:
+        login_duplicate_res = (
+            supabase.table("profiles")
+            .select("id, firebase_uid")
+            .ilike("login_id", payload.login_id)
+            .limit(1)
+            .execute()
+        )
+        login_duplicate = (login_duplicate_res.data or [None])[0]
+        if login_duplicate and login_duplicate.get("firebase_uid") != uid:
+            raise HTTPException(status_code=409, detail="login_id_taken")
+
+        display_duplicate_res = (
+            supabase.table("profiles")
+            .select("id, firebase_uid")
+            .ilike("display_name", payload.display_name)
+            .limit(1)
+            .execute()
+        )
+        display_duplicate = (display_duplicate_res.data or [None])[0]
+        if display_duplicate and display_duplicate.get("firebase_uid") != uid:
+            raise HTTPException(status_code=409, detail="display_name_taken")
+
+        update_payload = {
+            "login_id": payload.login_id,
+            "real_name": payload.real_name,
+            "display_name": payload.display_name,
+            "display_name_set": True,
+            "email_verification_required": True,
+            "account_status": "email_unverified" if not profile.get("email_verified") else "active",
+            "updated_at": _now_iso(),
+        }
+        updated_res = supabase.table("profiles").update(update_payload).eq("firebase_uid", uid).execute()
+        return (updated_res.data or [None])[0] or {**profile, **update_payload}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to update profile identity") from exc
+
+
+def _find_profile_for_login_id_recovery(payload: FindLoginIdRequest):
+    if not payload.real_name.strip() or not payload.display_name.strip() or not EMAIL_RE.fullmatch(payload.email):
+        return None
+    email = _normalize_email(payload.email)
+    if LOCAL_TEST_MODE:
+        return next(
+            (
+                profile for profile in LOCAL_DB["profiles"].values()
+                if profile.get("real_name") == payload.real_name
+                and profile.get("display_name", "").casefold() == payload.display_name.casefold()
+                and _normalize_email(profile.get("email", "")) == email
+                and profile.get("login_id")
+            ),
+            None,
+        )
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    res = (
+        supabase.table("profiles")
+        .select("id, login_id, email, real_name, display_name")
+        .eq("email", email)
+        .eq("real_name", payload.real_name)
+        .ilike("display_name", payload.display_name)
+        .limit(1)
+        .execute()
+    )
+    return (res.data or [None])[0]
+
+
+def _find_profile_for_password_reset(payload: PasswordResetRequest):
+    if not payload.real_name.strip() or not LOGIN_ID_RE.fullmatch(payload.login_id) or not EMAIL_RE.fullmatch(payload.email):
+        return None
+    email = _normalize_email(payload.email)
+    if LOCAL_TEST_MODE:
+        return next(
+            (
+                profile for profile in LOCAL_DB["profiles"].values()
+                if profile.get("real_name") == payload.real_name
+                and profile.get("login_id", "").casefold() == payload.login_id.casefold()
+                and _normalize_email(profile.get("email", "")) == email
+            ),
+            None,
+        )
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    res = (
+        supabase.table("profiles")
+        .select("id, login_id, email, real_name")
+        .eq("email", email)
+        .eq("real_name", payload.real_name)
+        .ilike("login_id", payload.login_id)
+        .limit(1)
+        .execute()
+    )
+    return (res.data or [None])[0]
+
+
+def _update_profile_social_providers(profile: dict, providers: list[str]):
+    cleaned = sorted({provider for provider in providers if provider})
+    uid = profile.get("firebase_uid")
+    if LOCAL_TEST_MODE:
+        profile.update({
+            "social_providers": cleaned,
+            "updated_at": _now_iso(),
+        })
+        return profile
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    try:
+        update_payload = {
+            "social_providers": cleaned,
+            "updated_at": _now_iso(),
+        }
+        updated_res = supabase.table("profiles").update(update_payload).eq("firebase_uid", uid).execute()
+        return (updated_res.data or [None])[0] or {**profile, **update_payload}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to update social providers") from exc
 
 
 def _find_actual_model(game_type: str, blind_model_id: str, preferred_lang: str = "ko"):
@@ -344,6 +662,82 @@ async def auth_me(request: Request):
         "provider": user.get("firebase", {}).get("sign_in_provider"),
         "profile": profile,
         "is_admin": profile.get("role") in ("admin", "super_admin"),
+    }
+
+
+@app.patch("/api/profile/display-name")
+async def update_profile_display_name(payload: ProfileDisplayNameUpdate, request: Request):
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    updated_profile = _update_profile_display_name(profile, payload.display_name)
+    return {
+        "profile": updated_profile,
+        "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
+    }
+
+
+@app.patch("/api/profile/identity")
+async def update_profile_identity(payload: ProfileIdentityUpdate, request: Request):
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    updated_profile = _update_profile_identity(profile, payload)
+    return {
+        "profile": updated_profile,
+        "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
+    }
+
+
+@app.post("/api/auth/recovery/find-login-id")
+async def recover_login_id(payload: FindLoginIdRequest, request: Request):
+    identifier_hash = _hash_recovery_identifier("find_login_id", payload.real_name, payload.display_name, payload.email)
+    _check_recovery_rate_limit("find_login_id", identifier_hash, request)
+    profile = _find_profile_for_login_id_recovery(payload)
+    if not profile:
+        _record_recovery_attempt("find_login_id", identifier_hash, request, False)
+        _invalid_recovery_input()
+
+    _record_recovery_attempt("find_login_id", identifier_hash, request, True)
+    return {
+        "masked_login_id": _mask_login_id(profile.get("login_id", "")),
+        "email_send_available": bool(os.environ.get("BREVO_API_KEY")),
+    }
+
+
+@app.post("/api/auth/recovery/send-login-id-email")
+async def send_login_id_email(payload: SendLoginIdEmailRequest, request: Request):
+    identifier_hash = _hash_recovery_identifier("send_login_id_email", payload.real_name, payload.display_name, payload.email)
+    _check_recovery_rate_limit("send_login_id_email", identifier_hash, request)
+    profile = _find_profile_for_login_id_recovery(payload)
+    if not profile:
+        _record_recovery_attempt("find_login_id", identifier_hash, request, False)
+        _invalid_recovery_input()
+
+    _send_login_id_email(_normalize_email(profile.get("email", payload.email)), profile.get("login_id", ""))
+    _record_recovery_attempt("find_login_id", identifier_hash, request, True)
+    return {"sent": True}
+
+
+@app.post("/api/auth/recovery/password-reset")
+async def recover_password(payload: PasswordResetRequest, request: Request):
+    identifier_hash = _hash_recovery_identifier("reset_password", payload.real_name, payload.login_id, payload.email)
+    _check_recovery_rate_limit("reset_password", identifier_hash, request)
+    profile = _find_profile_for_password_reset(payload)
+    if not profile:
+        _record_recovery_attempt("reset_password", identifier_hash, request, False)
+        _invalid_recovery_input()
+
+    _record_recovery_attempt("reset_password", identifier_hash, request, True)
+    return {"email": _normalize_email(profile.get("email", payload.email))}
+
+
+@app.patch("/api/profile/social-providers")
+async def update_profile_social_providers(payload: SocialProvidersUpdate, request: Request):
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    updated_profile = _update_profile_social_providers(profile, payload.providers)
+    return {
+        "profile": updated_profile,
+        "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
     }
 
 

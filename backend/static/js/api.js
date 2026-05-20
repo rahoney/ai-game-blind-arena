@@ -24,6 +24,93 @@ async function apiFetchAuthMe(idToken) {
     return data;
 }
 
+async function apiUpdateProfileDisplayName(idToken, displayName) {
+    const res = await fetch(`${API_BASE}/profile/display-name`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ display_name: displayName })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'profile_display_name_error');
+    }
+    return data;
+}
+
+async function apiUpdateProfileIdentity(idToken, payload) {
+    const res = await fetch(`${API_BASE}/profile/identity`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'profile_identity_error');
+    }
+    return data;
+}
+
+async function apiRecoverLoginId(payload) {
+    const res = await fetch(`${API_BASE}/auth/recovery/find-login-id`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'invalid_recovery_input');
+    }
+    return data;
+}
+
+async function apiRecoverPassword(payload) {
+    const res = await fetch(`${API_BASE}/auth/recovery/password-reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'invalid_recovery_input');
+    }
+    return data;
+}
+
+async function apiSendLoginIdEmail(payload) {
+    const res = await fetch(`${API_BASE}/auth/recovery/send-login-id-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'mail_send_failed');
+    }
+    return data;
+}
+
+async function apiUpdateSocialProviders(idToken, providers) {
+    const res = await fetch(`${API_BASE}/profile/social-providers`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ providers })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'social_provider_update_error');
+    }
+    return data;
+}
+
 async function apiFetchUserEvals() {
     if (!state.nickname) return;
     const res = await fetch(`${API_BASE}/user_evals/${state.nickname}`);
