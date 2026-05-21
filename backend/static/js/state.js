@@ -13,6 +13,7 @@ let state = {
         expiresAt: 0,
         token: '',
     },
+    signupEmailTimerId: null,
     games: {},
     categories: [],
     selectedCategory: null,

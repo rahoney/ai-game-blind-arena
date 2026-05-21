@@ -273,13 +273,23 @@ def _send_login_id_email(email: str, login_id: str):
         with urllib_request.urlopen(req, timeout=10):
             return
     except urllib_error.HTTPError as exc:
+        _log_brevo_error("login_id_email", exc)
         raise HTTPException(status_code=502, detail="mail_send_failed") from exc
     except urllib_error.URLError as exc:
+        print(f"Brevo login_id_email network error: {exc}", flush=True)
         raise HTTPException(status_code=502, detail="mail_send_failed") from exc
 
 
 def _is_mail_service_configured():
     return bool(os.environ.get("BREVO_API_KEY") and os.environ.get("MAIL_FROM_EMAIL"))
+
+
+def _log_brevo_error(context: str, exc: urllib_error.HTTPError):
+    try:
+        body = exc.read().decode("utf-8", errors="replace")
+    except Exception:
+        body = ""
+    print(f"Brevo {context} error: status={exc.code} body={body}", flush=True)
 
 
 def _send_signup_verification_email(email: str, code: str):
@@ -309,8 +319,10 @@ def _send_signup_verification_email(email: str, code: str):
         with urllib_request.urlopen(req, timeout=10):
             return
     except urllib_error.HTTPError as exc:
+        _log_brevo_error("signup_verification", exc)
         raise HTTPException(status_code=502, detail="mail_send_failed") from exc
     except urllib_error.URLError as exc:
+        print(f"Brevo signup_verification network error: {exc}", flush=True)
         raise HTTPException(status_code=502, detail="mail_send_failed") from exc
 
 

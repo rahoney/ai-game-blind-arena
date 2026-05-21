@@ -25,6 +25,9 @@ function setSignedOutState() {
 
 function setAuthMode(mode) {
     state.authMode = ['signup', 'display_name', 'verify_email', 'help', 'find_id', 'reset_password'].includes(mode) ? mode : 'login';
+    if (state.authMode !== 'signup') {
+        stopSignupEmailCountdown();
+    }
     renderLogin();
 }
 
@@ -141,6 +144,42 @@ function updateSignupSubmitState() {
     const button = document.getElementById('login-submit-btn');
     if (!button || state.authMode !== 'signup') return;
     button.disabled = !state.authConfigured || state.isLoginSubmitting || !isValidSignupForm();
+}
+
+function updateSignupEmailCodeState() {
+    const button = document.getElementById('auth-email-code-confirm-btn');
+    const countdown = document.getElementById('auth-email-code-countdown');
+    const code = document.getElementById('auth-email-code')?.value.trim() || '';
+    const expiresAt = Number(state.signupEmailVerification?.expiresAt || 0);
+    const isExpired = expiresAt > 0 && Date.now() >= expiresAt;
+    if (countdown) {
+        countdown.textContent = t('auth_signup_code_countdown', { time: getSignupCodeCountdownText() });
+    }
+    if (button) {
+        button.disabled = !state.authConfigured || state.isLoginSubmitting || isExpired || !/^\d{6}$/.test(code);
+    }
+}
+
+function stopSignupEmailCountdown() {
+    if (state.signupEmailTimerId) {
+        window.clearInterval(state.signupEmailTimerId);
+        state.signupEmailTimerId = null;
+    }
+}
+
+function startSignupEmailCountdown() {
+    stopSignupEmailCountdown();
+    if (state.authMode !== 'signup' || !state.signupEmailVerification?.codeSent || state.signupEmailVerification?.token) {
+        return;
+    }
+    updateSignupEmailCodeState();
+    state.signupEmailTimerId = window.setInterval(() => {
+        updateSignupEmailCodeState();
+        const expiresAt = Number(state.signupEmailVerification?.expiresAt || 0);
+        if (expiresAt && Date.now() >= expiresAt) {
+            stopSignupEmailCountdown();
+        }
+    }, 1000);
 }
 
 async function initializeFirebaseAuth() {
@@ -319,6 +358,7 @@ async function handleSignupEmailCodeConfirm() {
             ...state.signupEmailVerification,
             token: data.email_verification_token || '',
         };
+        stopSignupEmailCountdown();
         renderLogin();
         showAppMessage(t('auth_signup_email_verified'), { tone: 'success' });
     } catch (e) {

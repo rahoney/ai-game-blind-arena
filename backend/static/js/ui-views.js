@@ -74,9 +74,9 @@ function renderLogin() {
                         <input type="email" id="auth-email" autocomplete="email" value="${escapeHtml(state.signupEmailVerification?.email || '')}" placeholder="${t('auth_email_placeholder')}" ${disabled || state.signupEmailVerification?.codeSent ? 'disabled' : ''}>
                         ${state.signupEmailVerification?.codeSent ? `
                             <label for="auth-email-code">${t('auth_signup_code_label')}</label>
-                            <input type="text" id="auth-email-code" inputmode="numeric" maxlength="6" placeholder="${t('auth_signup_code_placeholder')}" ${disabled ? 'disabled' : ''}>
-                            <p class="auth-inline-status">${t('auth_signup_code_countdown', { time: getSignupCodeCountdownText() })}</p>
-                            <button type="button" onclick="handleSignupEmailCodeConfirm()" ${disabled || state.isLoginSubmitting ? 'disabled' : ''}>${t('auth_signup_code_confirm')}</button>
+                            <input type="text" id="auth-email-code" inputmode="numeric" maxlength="6" placeholder="${t('auth_signup_code_placeholder')}" oninput="updateSignupEmailCodeState()" ${disabled ? 'disabled' : ''}>
+                            <p id="auth-email-code-countdown" class="auth-inline-status">${t('auth_signup_code_countdown', { time: getSignupCodeCountdownText() })}</p>
+                            <button id="auth-email-code-confirm-btn" type="button" onclick="handleSignupEmailCodeConfirm()" disabled>${t('auth_signup_code_confirm')}</button>
                             <button type="button" class="secondary" onclick="handleSignupEmailCodeRequest()" ${disabled || state.isLoginSubmitting ? 'disabled' : ''}>${t('auth_signup_code_resend')}</button>
                         ` : `
                             <button type="button" onclick="handleSignupEmailCodeRequest()" ${disabled || state.isLoginSubmitting ? 'disabled' : ''}>${t('auth_signup_code_send')}</button>
@@ -105,7 +105,12 @@ function renderLogin() {
             </div>
         </div>
     `;
-    if (isSignup) updateSignupSubmitState();
+    if (isSignup) {
+        updateSignupSubmitState();
+        startSignupEmailCountdown();
+    } else {
+        stopSignupEmailCountdown();
+    }
 }
 
 function renderCategorySelection() {
