@@ -56,6 +56,32 @@ async function apiUpdateProfileIdentity(idToken, payload) {
     return data;
 }
 
+async function apiRequestSignupEmailCode(email) {
+    const res = await fetch(`${API_BASE}/auth/signup/email-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'mail_send_failed');
+    }
+    return data;
+}
+
+async function apiConfirmSignupEmailCode(email, code) {
+    const res = await fetch(`${API_BASE}/auth/signup/confirm-email-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'invalid_verification_code');
+    }
+    return data;
+}
+
 async function apiRecoverLoginId(payload) {
     const res = await fetch(`${API_BASE}/auth/recovery/find-login-id`, {
         method: 'POST',

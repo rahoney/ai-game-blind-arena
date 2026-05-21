@@ -24,7 +24,7 @@ function setSignedOutState() {
 }
 
 function setAuthMode(mode) {
-    state.authMode = ['signup', 'display_name', 'help', 'find_id', 'reset_password'].includes(mode) ? mode : 'login';
+    state.authMode = ['signup', 'display_name', 'verify_email', 'help', 'find_id', 'reset_password'].includes(mode) ? mode : 'login';
     renderLogin();
 }
 
@@ -92,7 +92,52 @@ function getIdentityFormValues() {
         login_id: document.getElementById('auth-login-id')?.value.trim() || '',
         real_name: document.getElementById('auth-real-name')?.value.trim() || '',
         display_name: document.getElementById('auth-display-name')?.value.trim() || '',
+        email_verification_token: state.signupEmailVerification?.token || '',
     };
+}
+
+function isEmailPasswordUser(user = firebaseAuth?.currentUser) {
+    return !!user?.providerData?.some((provider) => provider.providerId === 'password');
+}
+
+function needsEmailVerification(user = firebaseAuth?.currentUser) {
+    return !!(user?.email && isEmailPasswordUser(user) && !user.emailVerified);
+}
+
+function isValidEmailInput(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '');
+}
+
+function isValidSignupForm() {
+    const password = document.getElementById('auth-password')?.value || '';
+    const passwordConfirm = document.getElementById('auth-password-confirm')?.value || '';
+    const identity = getIdentityFormValues();
+    return (
+        !!state.signupEmailVerification?.token
+        && /^[A-Za-z0-9_]{4,30}$/.test(identity.login_id)
+        && isValidRealName(identity.real_name)
+        && !!identity.display_name
+        && password.length >= 6
+        && password === passwordConfirm
+    );
+}
+
+function isValidRealName(realName) {
+    const value = (realName || '').trim();
+    if (!value) return false;
+    if (/[^A-Za-z가-힣\s]/.test(value)) return false;
+    if (/[ㄱ-ㅎㅏ-ㅣ]/.test(value)) return false;
+    const hasKorean = /[가-힣]/.test(value);
+    const hasEnglish = /[A-Za-z]/.test(value);
+    if (hasKorean && (hasEnglish || /\s/.test(value))) return false;
+    if (hasEnglish && /([A-Za-z])\1\1/i.test(value)) return false;
+    return true;
+}
+
+function updateSignupSubmitState() {
+    const button = document.getElementById('login-submit-btn');
+    if (!button || state.authMode !== 'signup') return;
+    button.disabled = !state.authConfigured || state.isLoginSubmitting || !isValidSignupForm();
 }
 
 async function initializeFirebaseAuth() {
@@ -137,6 +182,9 @@ async function initializeFirebaseAuth() {
                         const token = await user.getIdToken();
                         state.account = await apiFetchAuthMe(token);
                         state.isAdmin = !!state.account?.is_admin;
+                        if (needsEmailVerification(user)) {
+                            state.authMode = 'verify_email';
+                        }
                     }
                 } catch (e) {
                     console.error('Auth state sync failed', e);
@@ -167,12 +215,19 @@ async function refreshAccountFromFirebaseUser() {
 
 async function handleEmailAuth(mode) {
     if (!firebaseAuth || state.isLoginSubmitting) return;
-    const email = document.getElementById('auth-email')?.value.trim();
+    const email = mode === 'signup'
+        ? state.signupEmailVerification?.email
+        : document.getElementById('auth-email')?.value.trim();
     const password = document.getElementById('auth-password')?.value;
     const passwordConfirm = document.getElementById('auth-password-confirm')?.value;
     const identity = getIdentityFormValues();
     if (!email || !password) {
         showAppMessage(t('auth_email_password_required'), { tone: 'error' });
+        return;
+    }
+    if (mode === 'signup' && !isValidSignupForm()) {
+        showAppMessage(t('auth_signup_required_fields'), { tone: 'error' });
+        updateSignupSubmitState();
         return;
     }
     if (mode === 'signup') {
@@ -192,12 +247,18 @@ async function handleEmailAuth(mode) {
             await firebaseAuth.createUserWithEmailAndPassword(email, password);
             await firebaseAuth.currentUser.updateProfile({ displayName: identity.display_name });
             await saveProfileIdentity(identity);
-            await firebaseAuth.currentUser.sendEmailVerification();
-            showAppMessage(t('auth_email_verification_sent'), { tone: 'success' });
+            state.signupEmailVerification = { email: '', codeSent: false, expiresAt: 0, token: '' };
+            showAppMessage(t('auth_signup_complete'), { tone: 'success' });
         } else {
             await firebaseAuth.signInWithEmailAndPassword(email, password);
         }
         await refreshAccountFromFirebaseUser();
+        if (needsEmailVerification()) {
+            state.authMode = 'verify_email';
+            renderLogin();
+            showAppMessage(t('auth_email_verification_required'), { tone: 'error' });
+            return;
+        }
         if (state.account?.profile && !state.account.profile.display_name_set) {
             state.authMode = 'display_name';
             renderLogin();
@@ -210,6 +271,102 @@ async function handleEmailAuth(mode) {
             state.authMode = 'display_name';
             renderLogin();
         }
+    } finally {
+        state.isLoginSubmitting = false;
+    }
+}
+
+async function handleSignupEmailCodeRequest() {
+    if (state.isLoginSubmitting) return;
+    const email = document.getElementById('auth-email')?.value.trim() || state.signupEmailVerification?.email || '';
+    if (!isValidEmailInput(email)) {
+        showAppMessage(getFriendlyAuthError({ code: 'auth/invalid-email' }, 'signup'), { tone: 'error' });
+        return;
+    }
+    try {
+        state.isLoginSubmitting = true;
+        const data = await apiRequestSignupEmailCode(email);
+        state.signupEmailVerification = {
+            email,
+            codeSent: true,
+            expiresAt: Date.now() + (Number(data.expires_in_seconds || 600) * 1000),
+            token: '',
+        };
+        renderLogin();
+        showAppMessage(t('auth_signup_code_sent'), { tone: 'success' });
+    } catch (e) {
+        showAppMessage(getFriendlyAuthError({ code: e?.message || 'mail_send_failed' }, 'signup'), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+    }
+}
+
+async function handleSignupEmailCodeConfirm() {
+    if (state.isLoginSubmitting) return;
+    const code = document.getElementById('auth-email-code')?.value.trim() || '';
+    const email = state.signupEmailVerification?.email || '';
+    if (!/^\d{6}$/.test(code) || !email) {
+        showAppMessage(t('auth_signup_code_invalid'), { tone: 'error' });
+        return;
+    }
+    try {
+        state.isLoginSubmitting = true;
+        const data = await apiConfirmSignupEmailCode(email, code);
+        state.signupEmailVerification = {
+            ...state.signupEmailVerification,
+            token: data.email_verification_token || '',
+        };
+        renderLogin();
+        showAppMessage(t('auth_signup_email_verified'), { tone: 'success' });
+    } catch (e) {
+        showAppMessage(t('auth_signup_code_invalid'), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+    }
+}
+
+function getSignupCodeCountdownText() {
+    const expiresAt = Number(state.signupEmailVerification?.expiresAt || 0);
+    const remaining = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+    const minutes = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const seconds = String(remaining % 60).padStart(2, '0');
+    return `${minutes}:${seconds}`;
+}
+
+async function handleResendVerificationEmail() {
+    if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    try {
+        state.isLoginSubmitting = true;
+        await firebaseAuth.currentUser.sendEmailVerification();
+        showAppMessage(t('auth_email_verification_resent'), { tone: 'success' });
+    } catch (e) {
+        showAppMessage(getFriendlyAuthError(e, 'login'), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+        renderLogin();
+    }
+}
+
+async function handleVerifyEmailRefresh() {
+    if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    try {
+        state.isLoginSubmitting = true;
+        await firebaseAuth.currentUser.reload();
+        state.authUser = firebaseAuth.currentUser;
+        if (needsEmailVerification()) {
+            showAppMessage(t('auth_email_verification_not_complete'), { tone: 'error' });
+            return;
+        }
+        await refreshAccountFromFirebaseUser();
+        state.authMode = 'login';
+        if (state.account?.profile && !state.account.profile.display_name_set) {
+            state.authMode = 'display_name';
+            renderLogin();
+            return;
+        }
+        navigateTo('category', renderCategorySelection);
+    } catch (e) {
+        showAppMessage(getFriendlyAuthError(e, 'login'), { tone: 'error' });
     } finally {
         state.isLoginSubmitting = false;
     }

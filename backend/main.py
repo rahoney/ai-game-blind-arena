@@ -6,20 +6,25 @@ from pathlib import Path
 import json
 import os
 import hashlib
+import hmac
+import base64
+import secrets
 import re
 from urllib import error as urllib_error
 from urllib import request as urllib_request
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from uuid import uuid4
 try:
     from .database import supabase
-    from .auth import get_public_firebase_config, get_super_admin_uids, require_firebase_user
+    from .auth import get_firebase_app, get_public_firebase_config, get_super_admin_uids, require_firebase_user
     from .models import (
         Evaluation,
         PlayEvent,
         NicknameLogin,
         ProfileDisplayNameUpdate,
         ProfileIdentityUpdate,
+        SignupEmailVerificationRequest,
+        SignupEmailVerificationConfirm,
         FindLoginIdRequest,
         PasswordResetRequest,
         SendLoginIdEmailRequest,
@@ -52,13 +57,15 @@ try:
     )
 except ImportError:
     from database import supabase
-    from auth import get_public_firebase_config, get_super_admin_uids, require_firebase_user
+    from auth import get_firebase_app, get_public_firebase_config, get_super_admin_uids, require_firebase_user
     from models import (
         Evaluation,
         PlayEvent,
         NicknameLogin,
         ProfileDisplayNameUpdate,
         ProfileIdentityUpdate,
+        SignupEmailVerificationRequest,
+        SignupEmailVerificationConfirm,
         FindLoginIdRequest,
         PasswordResetRequest,
         SendLoginIdEmailRequest,
@@ -109,6 +116,7 @@ LOCAL_DB = {
     "comment_reactions": [],
     "comment_replies": [],
     "account_recovery_attempts": [],
+    "signup_email_verifications": [],
 }
 
 # Enable CORS for local development
@@ -157,6 +165,51 @@ def _hash_recovery_identifier(*parts: str):
     secret = os.environ.get("ADMIN_TOKEN_SECRET") or os.environ.get("FIREBASE_PROJECT_ID") or "local"
     raw = "|".join(part.strip().casefold() for part in parts)
     return hashlib.sha256(f"{secret}:{raw}".encode("utf-8")).hexdigest()
+
+
+def _hash_signup_verification_code(email: str, code: str):
+    secret = os.environ.get("ADMIN_TOKEN_SECRET") or os.environ.get("FIREBASE_PROJECT_ID") or "local"
+    raw = f"{_normalize_email(email)}:{code.strip()}"
+    return hashlib.sha256(f"{secret}:{raw}".encode("utf-8")).hexdigest()
+
+
+def _token_secret():
+    return (os.environ.get("ADMIN_TOKEN_SECRET") or os.environ.get("FIREBASE_PROJECT_ID") or "local").encode("utf-8")
+
+
+def _b64url_encode(data: bytes):
+    return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+
+def _b64url_decode(data: str):
+    padded = data + "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode(padded.encode("ascii"))
+
+
+def _issue_signup_email_token(email: str):
+    payload = {
+        "email": _normalize_email(email),
+        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp()),
+    }
+    payload_raw = _b64url_encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    signature = hmac.new(_token_secret(), payload_raw.encode("ascii"), hashlib.sha256).digest()
+    return f"{payload_raw}.{_b64url_encode(signature)}"
+
+
+def _verify_signup_email_token(token: str | None, email: str):
+    if not token or "." not in token:
+        return False
+    payload_raw, signature_raw = token.split(".", 1)
+    expected = _b64url_encode(hmac.new(_token_secret(), payload_raw.encode("ascii"), hashlib.sha256).digest())
+    if not hmac.compare_digest(signature_raw, expected):
+        return False
+    try:
+        payload = json.loads(_b64url_decode(payload_raw))
+    except Exception:
+        return False
+    if payload.get("email") != _normalize_email(email):
+        return False
+    return int(payload.get("exp", 0)) >= int(datetime.now(timezone.utc).timestamp())
 
 
 def _mask_login_id(login_id: str):
@@ -224,14 +277,128 @@ def _send_login_id_email(email: str, login_id: str):
         raise HTTPException(status_code=502, detail="mail_send_failed") from exc
 
 
+def _is_mail_service_configured():
+    return bool(os.environ.get("BREVO_API_KEY") and os.environ.get("MAIL_FROM_EMAIL"))
+
+
+def _send_signup_verification_email(email: str, code: str):
+    api_key = os.environ.get("BREVO_API_KEY")
+    sender_email = os.environ.get("MAIL_FROM_EMAIL")
+    sender_name = os.environ.get("MAIL_FROM_NAME") or "AI Game Blind Arena"
+    if not api_key or not sender_email:
+        raise HTTPException(status_code=503, detail="mail_service_not_configured")
+
+    body = {
+        "sender": {"name": sender_name, "email": sender_email},
+        "to": [{"email": email}],
+        "subject": "AI Game Blind Arena 이메일 인증 코드",
+        "textContent": f"AI Game Blind Arena 회원가입 인증 코드는 {code} 입니다. 10분 안에 입력해 주세요.",
+    }
+    req = urllib_request.Request(
+        "https://api.brevo.com/v3/smtp/email",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "accept": "application/json",
+            "api-key": api_key,
+            "content-type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=10):
+            return
+    except urllib_error.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="mail_send_failed") from exc
+    except urllib_error.URLError as exc:
+        raise HTTPException(status_code=502, detail="mail_send_failed") from exc
+
+
+def _create_signup_email_verification(email: str, request: Request):
+    normalized_email = _normalize_email(email)
+    if not EMAIL_RE.fullmatch(normalized_email):
+        _invalid_recovery_input()
+    code = f"{secrets.randbelow(1000000):06d}"
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+    row = {
+        "email": normalized_email,
+        "code_hash": _hash_signup_verification_code(normalized_email, code),
+        "ip_address": _get_client_ip(request),
+        "user_agent": request.headers.get("User-Agent", ""),
+        "expires_at": expires_at.isoformat(),
+        "consumed_at": None,
+        "created_at": _now_iso(),
+    }
+    if LOCAL_TEST_MODE:
+        LOCAL_DB["signup_email_verifications"].append(row)
+    elif supabase:
+        supabase.table("signup_email_verifications").insert(row).execute()
+    else:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    _send_signup_verification_email(normalized_email, code)
+    return {"sent": True, "expires_in_seconds": 600}
+
+
+def _confirm_signup_email_verification(email: str, code: str):
+    normalized_email = _normalize_email(email)
+    code_hash = _hash_signup_verification_code(normalized_email, code)
+    now = datetime.now(timezone.utc)
+    if LOCAL_TEST_MODE:
+        rows = [
+            row for row in LOCAL_DB["signup_email_verifications"]
+            if row["email"] == normalized_email and row["code_hash"] == code_hash and not row.get("consumed_at")
+        ]
+        rows.sort(key=lambda row: row.get("created_at", ""), reverse=True)
+        row = rows[0] if rows else None
+        if not row or datetime.fromisoformat(row["expires_at"]) < now:
+            raise HTTPException(status_code=400, detail="invalid_verification_code")
+        row["consumed_at"] = _now_iso()
+        return {"verified": True, "email_verification_token": _issue_signup_email_token(normalized_email)}
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    res = (
+        supabase.table("signup_email_verifications")
+        .select("*")
+        .eq("email", normalized_email)
+        .eq("code_hash", code_hash)
+        .is_("consumed_at", "null")
+        .gte("expires_at", now.isoformat())
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    row = (res.data or [None])[0]
+    if not row:
+        raise HTTPException(status_code=400, detail="invalid_verification_code")
+    supabase.table("signup_email_verifications").update({"consumed_at": _now_iso()}).eq("id", row["id"]).execute()
+    return {"verified": True, "email_verification_token": _issue_signup_email_token(normalized_email)}
+
+
 def _validate_identity_fields(login_id: str, real_name: str, display_name: str):
     if not LOGIN_ID_RE.fullmatch(login_id):
         raise HTTPException(status_code=400, detail="login_id_format")
-    if not real_name.strip():
-        raise HTTPException(status_code=400, detail="real_name_required")
+    if not _is_valid_real_name(real_name):
+        raise HTTPException(status_code=400, detail="real_name_format")
     is_valid, error_key = validate_nickname(display_name)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_key)
+
+
+def _is_valid_real_name(real_name: str):
+    name = real_name.strip()
+    if not name:
+        return False
+    if re.search(r"[^A-Za-z가-힣\s]", name):
+        return False
+    if re.search(r"[ㄱ-ㅎㅏ-ㅣ]", name):
+        return False
+    has_korean = bool(re.search(r"[가-힣]", name))
+    has_english = bool(re.search(r"[A-Za-z]", name))
+    if has_korean and (has_english or re.search(r"\s", name)):
+        return False
+    if has_english and re.search(r"([A-Za-z])\1\1", name, re.IGNORECASE):
+        return False
+    return True
 
 
 def _profile_payload_from_firebase_user(user: dict, role: str):
@@ -665,6 +832,22 @@ async def auth_me(request: Request):
     }
 
 
+@app.post("/api/auth/signup/email-code")
+async def request_signup_email_code(payload: SignupEmailVerificationRequest, request: Request):
+    identifier_hash = _hash_recovery_identifier("signup_email_code", payload.email)
+    _check_recovery_rate_limit("signup_email_code", identifier_hash, request)
+    return _create_signup_email_verification(payload.email, request)
+
+
+@app.post("/api/auth/signup/confirm-email-code")
+async def confirm_signup_email_code(payload: SignupEmailVerificationConfirm, request: Request):
+    identifier_hash = _hash_recovery_identifier("signup_email_confirm", payload.email)
+    _check_recovery_rate_limit("signup_email_confirm", identifier_hash, request)
+    if not re.fullmatch(r"\d{6}", payload.code):
+        raise HTTPException(status_code=400, detail="invalid_verification_code")
+    return _confirm_signup_email_verification(payload.email, payload.code)
+
+
 @app.patch("/api/profile/display-name")
 async def update_profile_display_name(payload: ProfileDisplayNameUpdate, request: Request):
     user = require_firebase_user(request)
@@ -679,6 +862,17 @@ async def update_profile_display_name(payload: ProfileDisplayNameUpdate, request
 @app.patch("/api/profile/identity")
 async def update_profile_identity(payload: ProfileIdentityUpdate, request: Request):
     user = require_firebase_user(request)
+    if user.get("email") and not user.get("email_verified"):
+        if not _verify_signup_email_token(payload.email_verification_token, user.get("email", "")):
+            raise HTTPException(status_code=403, detail="email_verification_required")
+        try:
+            from firebase_admin import auth as firebase_auth
+
+            get_firebase_app()
+            firebase_auth.update_user(user.get("uid"), email_verified=True)
+            user["email_verified"] = True
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail="Failed to update Firebase email verification") from exc
     profile = _resolve_profile_for_firebase_user(user)
     updated_profile = _update_profile_identity(profile, payload)
     return {
@@ -699,7 +893,7 @@ async def recover_login_id(payload: FindLoginIdRequest, request: Request):
     _record_recovery_attempt("find_login_id", identifier_hash, request, True)
     return {
         "masked_login_id": _mask_login_id(profile.get("login_id", "")),
-        "email_send_available": bool(os.environ.get("BREVO_API_KEY")),
+        "email_send_available": _is_mail_service_configured(),
     }
 
 
@@ -709,11 +903,11 @@ async def send_login_id_email(payload: SendLoginIdEmailRequest, request: Request
     _check_recovery_rate_limit("send_login_id_email", identifier_hash, request)
     profile = _find_profile_for_login_id_recovery(payload)
     if not profile:
-        _record_recovery_attempt("find_login_id", identifier_hash, request, False)
+        _record_recovery_attempt("send_login_id_email", identifier_hash, request, False)
         _invalid_recovery_input()
 
     _send_login_id_email(_normalize_email(profile.get("email", payload.email)), profile.get("login_id", ""))
-    _record_recovery_attempt("find_login_id", identifier_hash, request, True)
+    _record_recovery_attempt("send_login_id_email", identifier_hash, request, True)
     return {"sent": True}
 
 

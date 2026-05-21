@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_profiles_account_status ON profiles (account_stat
 
 CREATE TABLE IF NOT EXISTS account_recovery_attempts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    recovery_type TEXT NOT NULL CHECK (recovery_type IN ('find_login_id', 'reset_password')),
+    recovery_type TEXT NOT NULL CHECK (recovery_type IN ('find_login_id', 'send_login_id_email', 'reset_password')),
     identifier_hash TEXT NOT NULL,
     ip_address TEXT NOT NULL,
     user_agent TEXT,

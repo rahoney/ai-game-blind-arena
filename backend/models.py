@@ -23,10 +23,30 @@ class ProfileIdentityUpdate(BaseModel):
     login_id: str = Field(min_length=4, max_length=30)
     real_name: str = Field(min_length=1, max_length=50)
     display_name: str = Field(min_length=1, max_length=20)
+    email_verification_token: Optional[str] = Field(default=None, max_length=500)
 
-    @field_validator("login_id", "real_name", "display_name", mode="before")
+    @field_validator("login_id", "real_name", "display_name", "email_verification_token", mode="before")
     @classmethod
     def strip_identity_fields(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class SignupEmailVerificationRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def strip_email(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class SignupEmailVerificationConfirm(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    code: str = Field(min_length=6, max_length=6)
+
+    @field_validator("email", "code", mode="before")
+    @classmethod
+    def strip_confirm_fields(cls, value):
         return value.strip() if isinstance(value, str) else value
 
 

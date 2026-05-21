@@ -7,6 +7,12 @@ let state = {
     authConfigured: false,
     authReady: false,
     authMode: 'login',
+    signupEmailVerification: {
+        email: '',
+        codeSent: false,
+        expiresAt: 0,
+        token: '',
+    },
     games: {},
     categories: [],
     selectedCategory: null,
