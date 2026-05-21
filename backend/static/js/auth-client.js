@@ -45,6 +45,7 @@ function getFriendlyAuthError(error, mode = 'login') {
             recoveryRateLimited: '입력 오류가 너무 많습니다. 잠시 후 다시 시도하세요.',
             mailServiceNotConfigured: '메일 발송 기능이 아직 설정되지 않았습니다.',
             mailSendFailed: '메일 발송 중 문제가 발생했습니다.',
+            signupEmailVerificationNotConfigured: '회원가입 이메일 인증 테이블이 아직 설정되지 않았습니다.',
             generic: mode === 'signup' ? '회원가입 처리 중 문제가 발생했습니다.' : '로그인 처리 중 문제가 발생했습니다.',
         },
         en: {
@@ -61,6 +62,7 @@ function getFriendlyAuthError(error, mode = 'login') {
             recoveryRateLimited: 'Too many failed attempts. Try again later.',
             mailServiceNotConfigured: 'Email delivery is not configured yet.',
             mailSendFailed: 'Failed to send email.',
+            signupEmailVerificationNotConfigured: 'The sign-up email verification table is not configured yet.',
             generic: mode === 'signup' ? 'Sign-up failed.' : 'Login failed.',
         },
     };
@@ -79,6 +81,7 @@ function getFriendlyAuthError(error, mode = 'login') {
     if (String(code).startsWith('recovery_rate_limited')) return bucket.recoveryRateLimited;
     if (code === 'mail_service_not_configured') return bucket.mailServiceNotConfigured;
     if (code === 'mail_send_failed') return bucket.mailSendFailed;
+    if (code === 'signup_email_verification_not_configured') return bucket.signupEmailVerificationNotConfigured;
     return bucket.generic;
 }
 

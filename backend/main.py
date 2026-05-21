@@ -14,6 +14,7 @@ from urllib import error as urllib_error
 from urllib import request as urllib_request
 from datetime import datetime, timezone, timedelta
 from uuid import uuid4
+from postgrest.exceptions import APIError
 try:
     from .database import supabase
     from .auth import get_firebase_app, get_public_firebase_config, get_super_admin_uids, require_firebase_user
@@ -331,7 +332,12 @@ def _create_signup_email_verification(email: str, request: Request):
     if LOCAL_TEST_MODE:
         LOCAL_DB["signup_email_verifications"].append(row)
     elif supabase:
-        supabase.table("signup_email_verifications").insert(row).execute()
+        try:
+            supabase.table("signup_email_verifications").insert(row).execute()
+        except APIError as exc:
+            if getattr(exc, "code", "") == "PGRST205" or "signup_email_verifications" in str(exc):
+                raise HTTPException(status_code=503, detail="signup_email_verification_not_configured") from exc
+            raise
     else:
         raise HTTPException(status_code=503, detail="Supabase is not configured")
     _send_signup_verification_email(normalized_email, code)
@@ -356,17 +362,22 @@ def _confirm_signup_email_verification(email: str, code: str):
 
     if not supabase:
         raise HTTPException(status_code=503, detail="Supabase is not configured")
-    res = (
-        supabase.table("signup_email_verifications")
-        .select("*")
-        .eq("email", normalized_email)
-        .eq("code_hash", code_hash)
-        .is_("consumed_at", "null")
-        .gte("expires_at", now.isoformat())
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
+    try:
+        res = (
+            supabase.table("signup_email_verifications")
+            .select("*")
+            .eq("email", normalized_email)
+            .eq("code_hash", code_hash)
+            .is_("consumed_at", "null")
+            .gte("expires_at", now.isoformat())
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+    except APIError as exc:
+        if getattr(exc, "code", "") == "PGRST205" or "signup_email_verifications" in str(exc):
+            raise HTTPException(status_code=503, detail="signup_email_verification_not_configured") from exc
+        raise
     row = (res.data or [None])[0]
     if not row:
         raise HTTPException(status_code=400, detail="invalid_verification_code")
