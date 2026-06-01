@@ -6,6 +6,17 @@ function getAccountDisplayName() {
     return profile.display_name || state.authUser?.displayName || state.authUser?.email || '';
 }
 
+function getCurrentProfileDisplayName() {
+    return (state.account?.profile?.display_name || state.nickname || '').trim();
+}
+
+function syncNicknameFromAccount() {
+    const displayName = state.account?.profile?.display_name;
+    if (displayName) {
+        state.nickname = displayName;
+    }
+}
+
 function getLinkedProviderIds() {
     return (firebaseAuth?.currentUser?.providerData || [])
         .map((provider) => provider.providerId)
@@ -49,6 +60,8 @@ function getFriendlyAuthError(error, mode = 'login') {
             mailServiceNotConfigured: '메일 발송 기능이 아직 설정되지 않았습니다.',
             mailSendFailed: '메일 발송 중 문제가 발생했습니다.',
             signupEmailVerificationNotConfigured: '이메일 인증 기능을 준비 중입니다. 잠시 후 다시 시도해 주세요.',
+            loginIdTaken: '중복된 아이디입니다.',
+            loginIdFormat: '아이디는 영문과 숫자 4~30자만 사용할 수 있습니다.',
             generic: mode === 'signup' ? '회원가입 처리 중 문제가 발생했습니다.' : '로그인 처리 중 문제가 발생했습니다.',
         },
         en: {
@@ -66,6 +79,8 @@ function getFriendlyAuthError(error, mode = 'login') {
             mailServiceNotConfigured: 'Email delivery is not configured yet.',
             mailSendFailed: 'Failed to send email.',
             signupEmailVerificationNotConfigured: 'Email verification is being prepared. Please try again shortly.',
+            loginIdTaken: 'This ID is already taken.',
+            loginIdFormat: 'Use only 4-30 letters or numbers.',
             generic: mode === 'signup' ? 'Sign-up failed.' : 'Login failed.',
         },
     };
@@ -85,12 +100,15 @@ function getFriendlyAuthError(error, mode = 'login') {
     if (code === 'mail_service_not_configured') return bucket.mailServiceNotConfigured;
     if (code === 'mail_send_failed') return bucket.mailSendFailed;
     if (code === 'signup_email_verification_not_configured') return bucket.signupEmailVerificationNotConfigured;
+    if (code === 'login_id_taken') return bucket.loginIdTaken;
+    if (code === 'login_id_format') return bucket.loginIdFormat;
     return bucket.generic;
 }
 
 function getDisplayNameValidationError(displayName) {
     if (!displayName) return t('auth_display_name_required');
-    return '';
+    const validationError = validateNicknameInput(displayName);
+    return validationError ? getNicknameErrorMessage(validationError) : '';
 }
 
 function getIdentityFormValues() {
@@ -100,6 +118,14 @@ function getIdentityFormValues() {
         display_name: document.getElementById('auth-display-name')?.value.trim() || '',
         email_verification_token: state.signupEmailVerification?.token || '',
     };
+}
+
+function isValidLoginId(loginId) {
+    return /^[A-Za-z0-9]{4,30}$/.test(loginId || '');
+}
+
+function isValidSignupPassword(password) {
+    return /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,}$/.test(password || '');
 }
 
 function isEmailPasswordUser(user = firebaseAuth?.currentUser) {
@@ -120,10 +146,12 @@ function isValidSignupForm() {
     const identity = getIdentityFormValues();
     return (
         !!state.signupEmailVerification?.token
-        && /^[A-Za-z0-9_]{4,30}$/.test(identity.login_id)
+        && isValidLoginId(identity.login_id)
+        && state.loginIdAvailability?.value === identity.login_id
+        && state.loginIdAvailability?.status === 'available'
         && isValidRealName(identity.real_name)
-        && !!identity.display_name
-        && password.length >= 6
+        && !validateNicknameInput(identity.display_name)
+        && isValidSignupPassword(password)
         && password === passwordConfirm
     );
 }
@@ -141,9 +169,90 @@ function isValidRealName(realName) {
 }
 
 function updateSignupSubmitState() {
+    updateSignupFieldStatuses();
     const button = document.getElementById('login-submit-btn');
     if (!button || state.authMode !== 'signup') return;
     button.disabled = !state.authConfigured || state.isLoginSubmitting || !isValidSignupForm();
+}
+
+function getFieldVisualState(isTouched, isValid) {
+    if (!isTouched) return 'idle';
+    return isValid ? 'valid' : 'invalid';
+}
+
+function setAuthFieldStatus(fieldId, status) {
+    const el = document.getElementById(`auth-${fieldId}-status`);
+    if (!el) return;
+    el.className = `auth-field-status ${status}`;
+    el.textContent = status === 'valid' ? '✓' : status === 'invalid' ? '!' : '•';
+}
+
+function updateSignupFieldStatuses() {
+    if (state.authMode !== 'signup' || !state.signupEmailVerification?.token) return;
+    const identity = getIdentityFormValues();
+    const password = document.getElementById('auth-password')?.value || '';
+    const passwordConfirm = document.getElementById('auth-password-confirm')?.value || '';
+    const loginStatus = state.loginIdAvailability?.value === identity.login_id && state.loginIdAvailability?.status === 'available'
+        ? 'valid'
+        : getFieldVisualState(!!identity.login_id, false);
+    setAuthFieldStatus('login-id', loginStatus);
+    setAuthFieldStatus('real-name', getFieldVisualState(!!identity.real_name, isValidRealName(identity.real_name)));
+    setAuthFieldStatus('display-name', getFieldVisualState(!!identity.display_name, !validateNicknameInput(identity.display_name)));
+    setAuthFieldStatus('password', getFieldVisualState(!!password, isValidSignupPassword(password)));
+    setAuthFieldStatus('password-confirm', getFieldVisualState(!!passwordConfirm, !!passwordConfirm && password === passwordConfirm && isValidSignupPassword(password)));
+}
+
+function handleSignupLoginIdInput() {
+    const loginId = document.getElementById('auth-login-id')?.value.trim() || '';
+    if (state.loginIdAvailability?.value !== loginId) {
+        state.loginIdAvailability = { value: loginId, status: 'idle', message: '' };
+    }
+    const message = document.getElementById('auth-login-id-availability');
+    if (message) {
+        message.textContent = loginId ? t('auth_login_id_check_required') : '';
+        message.className = 'auth-field-message';
+    }
+    updateSignupSubmitState();
+}
+
+async function handleLoginIdAvailabilityCheck() {
+    const loginId = document.getElementById('auth-login-id')?.value.trim() || '';
+    const message = document.getElementById('auth-login-id-availability');
+    if (!isValidLoginId(loginId)) {
+        state.loginIdAvailability = { value: loginId, status: 'invalid', message: 'login_id_format' };
+        if (message) {
+            message.textContent = t('auth_login_id_format_error');
+            message.className = 'auth-field-message invalid';
+        }
+        updateSignupSubmitState();
+        return;
+    }
+    try {
+        state.loginIdAvailability = { value: loginId, status: 'checking', message: '' };
+        if (message) {
+            message.textContent = t('auth_login_id_checking');
+            message.className = 'auth-field-message';
+        }
+        updateSignupSubmitState();
+        const data = await apiCheckLoginIdAvailability(loginId);
+        state.loginIdAvailability = {
+            value: loginId,
+            status: data.available ? 'available' : 'taken',
+            message: data.available ? 'available' : 'taken',
+        };
+        if (message) {
+            message.textContent = data.available ? t('auth_login_id_available') : t('auth_login_id_taken');
+            message.className = `auth-field-message ${data.available ? 'valid' : 'invalid'}`;
+        }
+    } catch (e) {
+        state.loginIdAvailability = { value: loginId, status: 'error', message: e?.message || 'login_id_check_failed' };
+        if (message) {
+            message.textContent = t('auth_login_id_check_failed');
+            message.className = 'auth-field-message invalid';
+        }
+    } finally {
+        updateSignupSubmitState();
+    }
 }
 
 function updateSignupEmailCodeState() {
@@ -224,6 +333,7 @@ async function initializeFirebaseAuth() {
                         const token = await user.getIdToken();
                         state.account = await apiFetchAuthMe(token);
                         state.isAdmin = !!state.account?.is_admin;
+                        syncNicknameFromAccount();
                         if (needsEmailVerification(user)) {
                             state.authMode = 'verify_email';
                         }
@@ -251,6 +361,7 @@ async function refreshAccountFromFirebaseUser() {
     const token = await firebaseAuth.currentUser.getIdToken(true);
     state.account = await apiFetchAuthMe(token);
     state.isAdmin = !!state.account?.is_admin;
+    syncNicknameFromAccount();
     renderSidebar();
     return state.account;
 }
@@ -259,12 +370,12 @@ async function handleEmailAuth(mode) {
     if (!firebaseAuth || state.isLoginSubmitting) return;
     const email = mode === 'signup'
         ? state.signupEmailVerification?.email
-        : document.getElementById('auth-email')?.value.trim();
+        : document.getElementById('auth-login-id')?.value.trim();
     const password = document.getElementById('auth-password')?.value;
     const passwordConfirm = document.getElementById('auth-password-confirm')?.value;
     const identity = getIdentityFormValues();
     if (!email || !password) {
-        showAppMessage(t('auth_email_password_required'), { tone: 'error' });
+        showAppMessage(t('auth_login_password_required'), { tone: 'error' });
         return;
     }
     if (mode === 'signup' && !isValidSignupForm()) {
@@ -290,9 +401,11 @@ async function handleEmailAuth(mode) {
             await firebaseAuth.currentUser.updateProfile({ displayName: identity.display_name });
             await saveProfileIdentity(identity);
             state.signupEmailVerification = { email: '', codeSent: false, expiresAt: 0, token: '' };
+            state.loginIdAvailability = { value: '', status: 'idle', message: '' };
             showAppMessage(t('auth_signup_complete'), { tone: 'success' });
         } else {
-            await firebaseAuth.signInWithEmailAndPassword(email, password);
+            const data = await apiResolveLoginIdEmail(email);
+            await firebaseAuth.signInWithEmailAndPassword(data.email, password);
         }
         await refreshAccountFromFirebaseUser();
         if (needsEmailVerification()) {
@@ -452,11 +565,36 @@ async function handlePasswordReset() {
     }
 
     try {
-        const data = await apiRecoverPassword(payload);
-        await firebaseAuth.sendPasswordResetEmail(data.email);
+        await apiRecoverPassword(payload);
         showAppMessage(getFriendlyAuthError({ code: 'auth/reset-sent' }, 'login'), { tone: 'success' });
     } catch (e) {
         showAppMessage(getFriendlyAuthError({ code: e?.message || 'invalid_recovery_input' }, 'login'), { tone: 'error' });
+    }
+}
+
+async function handleCurrentUserPasswordReset() {
+    if (state.isLoginSubmitting) return;
+    try {
+        state.isLoginSubmitting = true;
+        const profile = state.account?.profile || {};
+        if (profile.real_name && profile.login_id && profile.email) {
+            await apiRecoverPassword({
+                real_name: profile.real_name,
+                login_id: profile.login_id,
+                email: profile.email,
+            });
+        } else if (firebaseAuth?.currentUser) {
+            const token = await firebaseAuth.currentUser.getIdToken(true);
+            await apiSendCurrentUserPasswordReset(token);
+        } else {
+            throw new Error('invalid_recovery_input');
+        }
+        showAppMessage(getFriendlyAuthError({ code: 'auth/reset-sent' }, 'login'), { tone: 'success' });
+    } catch (e) {
+        showAppMessage(getFriendlyAuthError({ code: e?.message || 'mail_send_failed' }, 'login'), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+        renderMyPage();
     }
 }
 

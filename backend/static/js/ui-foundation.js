@@ -193,9 +193,6 @@ function toggleSidebar() {
     overlay.classList.toggle('open', willOpen);
     document.body.classList.toggle('sidebar-open', willOpen);
     document.documentElement.classList.toggle('sidebar-open', willOpen);
-    if (willOpen) {
-        window.setTimeout(updateSidebarGlassTarget, 180);
-    }
 }
 
 let sidebarGlassRenderer = null;
@@ -450,27 +447,7 @@ function createSidebarGlassRenderer(canvas) {
 }
 
 function updateSidebarGlassTarget(target) {
-    const sidebar = document.getElementById('sidebar');
-    const canvas = document.querySelector('#sidebar .sidebar-glass-canvas');
-    const visibleTarget = target || document.querySelector('#sidebar .sidebar-menu-item.active');
-
-    if (!sidebar || !canvas || !visibleTarget) {
-        sidebarGlassRenderer?.setTarget(null);
-        return;
-    }
-
-    if (!sidebarGlassRenderer) {
-        sidebarGlassRenderer = createSidebarGlassRenderer(canvas);
-    }
-
-    const sidebarRect = sidebar.getBoundingClientRect();
-    const targetRect = visibleTarget.getBoundingClientRect();
-    sidebarGlassRenderer?.setTarget({
-        x: targetRect.left - sidebarRect.left,
-        y: targetRect.top - sidebarRect.top,
-        w: targetRect.width,
-        h: targetRect.height,
-    });
+    sidebarGlassRenderer?.setTarget(null);
 }
 
 function hideSidebarGlassTarget() {
@@ -478,33 +455,11 @@ function hideSidebarGlassTarget() {
 }
 
 function bindSidebarGlassTarget() {
-    const sidebar = document.getElementById('sidebar');
-    const sidebarBody = sidebar?.querySelector('.sidebar-body');
-    if (!sidebar || !sidebarBody) return;
-
-    const targets = sidebar.querySelectorAll('.sidebar-menu-item, .sidebar-about-button, .sidebar-language-switch button, .sidebar-footer-item');
-    targets.forEach((target) => {
-        target.addEventListener('mouseenter', () => updateSidebarGlassTarget(target));
-        target.addEventListener('focus', () => updateSidebarGlassTarget(target));
-    });
-
-    sidebarBody.addEventListener('mouseleave', () => {
-        const activeTarget = sidebar.querySelector('.sidebar-menu-item.active, .sidebar-language-switch button.active');
-        if (activeTarget) {
-            updateSidebarGlassTarget(activeTarget);
-        } else {
-            hideSidebarGlassTarget();
-        }
-    });
-    sidebar.addEventListener('scroll', () => updateSidebarGlassTarget());
     if (sidebarGlassResizeHandler) {
         window.removeEventListener('resize', sidebarGlassResizeHandler);
+        sidebarGlassResizeHandler = null;
     }
-    sidebarGlassResizeHandler = () => {
-        sidebarGlassRenderer?.resize();
-        updateSidebarGlassTarget();
-    };
-    window.addEventListener('resize', sidebarGlassResizeHandler);
+    hideSidebarGlassTarget();
 }
 
 function renderSidebar() {
@@ -525,7 +480,6 @@ function renderSidebar() {
     };
 
     sidebar.innerHTML = `
-        <canvas class="sidebar-glass-canvas" aria-hidden="true"></canvas>
         <div class="sidebar-body">
             <div class="sidebar-main">
                 <h2 class="sidebar-title">${t('menu_title')}</h2>
@@ -554,17 +508,13 @@ function renderSidebar() {
                     </div>
                 </div>
                 <ul style="list-style: none;">
-                    ${state.account ? `<li style="padding: 10px 12px; text-align: center; margin-bottom: 8px; color: var(--text-muted); font-weight: 800; word-break: break-word;">
-                        ${escapeHtml(getAccountDisplayName())}
-                    </li>
-                    <li class="sidebar-footer-item" onclick="sidebarSelectMyPage()">
-                        <span><strong>${t('menu_mypage')}</strong></span>
-                    </li>
-                    ${!hasLinkedProvider('google.com') ? `<li class="sidebar-footer-item" onclick="sidebarLinkGoogle()">
-                        <span><strong>${t('auth_link_google')}</strong></span>
-                    </li>` : ''}
-                    <li class="sidebar-footer-item sidebar-logout-item" onclick="sidebarLogout()">
-                        <span><strong>${t('menu_logout')}</strong></span>
+                    ${state.account ? `<li class="sidebar-account-actions">
+                        <button type="button" class="sidebar-footer-item" onclick="sidebarSelectMyPage()">
+                            <span><strong>${t('menu_mypage')}</strong></span>
+                        </button>
+                        <button type="button" class="sidebar-footer-item sidebar-logout-item" onclick="sidebarLogout()">
+                            <span><strong>${t('menu_logout')}</strong></span>
+                        </button>
                     </li>` : `<li class="sidebar-footer-item" onclick="sidebarSelectLogin()">
                         <span><strong>${t('menu_login')}</strong></span>
                     </li>`}
@@ -574,7 +524,6 @@ function renderSidebar() {
     `;
     sidebarGlassRenderer = null;
     bindSidebarGlassTarget();
-    requestAnimationFrame(updateSidebarGlassTarget);
 }
 
 function sidebarSelectCategory(category) { toggleSidebar(); selectCategory(category); }

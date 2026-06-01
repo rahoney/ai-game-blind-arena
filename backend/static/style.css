@@ -70,7 +70,7 @@ html.sidebar-open {
 .sidebar {
     position: fixed; top: 0; left: 0; width: 280px; height: 100dvh; max-height: 100dvh;
     background:
-        linear-gradient(180deg, rgba(245,252,255,0.34), rgba(225,241,255,0.18));
+        linear-gradient(180deg, rgba(232,246,255,0.78), rgba(205,227,252,0.78));
     border-right: 1px solid rgba(255,255,255,0.22); z-index: 1000;
     transform: translate3d(-100%, 0, 0);
     transition: transform 0.28s cubic-bezier(.2,.8,.2,1); padding: 40px 20px 18px; overflow-y: auto;
@@ -98,6 +98,7 @@ html.sidebar-open {
     z-index: 3;
 }
 .sidebar-glass-canvas {
+    display: none;
     position: absolute;
     inset: 0;
     z-index: 1;
@@ -164,6 +165,70 @@ html.sidebar-open {
 .auth-form label {
     font-weight: 900;
     color: var(--text-color);
+}
+
+.auth-field-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.auth-field-status {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    background: rgba(148, 163, 184, 0.26);
+    color: rgba(100, 116, 139, 0.9);
+    font-size: 0.85rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.auth-field-status.valid {
+    background: rgba(34, 197, 94, 0.18);
+    color: #16a34a;
+}
+
+.auth-field-status.invalid {
+    background: rgba(239, 68, 68, 0.16);
+    color: #dc2626;
+}
+
+.auth-inline-control {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.55rem;
+    align-items: stretch;
+}
+
+.auth-inline-control button {
+    width: auto;
+    min-height: 0;
+    padding: 0 0.95rem;
+    white-space: nowrap;
+}
+
+.auth-field-message {
+    min-height: 1.2rem;
+    margin: -0.35rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 800;
+    line-height: 1.35;
+    text-align: left;
+}
+
+.auth-field-message.valid {
+    color: #16a34a;
+}
+
+.auth-field-message.invalid {
+    color: #dc2626;
 }
 
 .auth-form input {
@@ -265,6 +330,14 @@ html.sidebar-open {
     .auth-actions {
         grid-template-columns: 1fr;
     }
+
+    .auth-inline-control {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-inline-control button {
+        min-height: 42px;
+    }
 }
 
 .sidebar-main {
@@ -324,8 +397,8 @@ html.sidebar-open {
 .sidebar-language-switch button:focus-visible {
     transform: translateY(-1px);
     color: rgba(18, 62, 96, 0.98);
-    background: transparent;
-    box-shadow: none;
+    background: rgba(255, 255, 255, 0.24);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.26);
 }
 .sidebar-menu-item:active,
 .sidebar-about-button:active,
@@ -336,6 +409,7 @@ html.sidebar-open {
     position: relative;
     z-index: 3;
     overflow: visible;
+    width: 100%;
     min-height: 48px;
     padding: 0 0.9rem;
     text-align: center;
@@ -351,10 +425,23 @@ html.sidebar-open {
     isolation: isolate;
     transition: transform 180ms ease, color 180ms ease;
 }
+.sidebar-account-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+    list-style: none;
+}
+.sidebar-account-actions .sidebar-footer-item {
+    min-height: 44px;
+    margin-bottom: 0;
+    border: none;
+    font-size: 0.85rem;
+}
 .sidebar-footer-item:hover,
 .sidebar-footer-item:focus-visible {
     transform: translateY(-1px);
     color: rgba(18, 62, 96, 0.98);
+    background: rgba(255, 255, 255, 0.24);
 }
 .sidebar-logout-item {
     color: #f2768f;
@@ -362,7 +449,7 @@ html.sidebar-open {
 .sidebar-menu-item.active {
     color: var(--primary);
     font-weight: 900;
-    background: transparent;
+    background: rgba(255, 255, 255, 0.26);
 }
 .sidebar-about-button {
     position: relative;
@@ -417,7 +504,7 @@ html.sidebar-open {
 }
 .sidebar-language-switch button.active {
     color: var(--text-color);
-    background: transparent;
+    background: rgba(255, 255, 255, 0.26);
 }
 
 .header {

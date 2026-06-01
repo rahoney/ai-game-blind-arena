@@ -24,6 +24,15 @@ async function apiFetchAuthMe(idToken) {
     return data;
 }
 
+async function getCurrentAuthHeaders(includeJson = false) {
+    const headers = includeJson ? { 'Content-Type': 'application/json' } : {};
+    if (firebaseAuth?.currentUser) {
+        const token = await firebaseAuth.currentUser.getIdToken();
+        headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+}
+
 async function apiUpdateProfileDisplayName(idToken, displayName) {
     const res = await fetch(`${API_BASE}/profile/display-name`, {
         method: 'PATCH',
@@ -82,6 +91,30 @@ async function apiConfirmSignupEmailCode(email, code) {
     return data;
 }
 
+async function apiCheckLoginIdAvailability(loginId) {
+    const res = await fetch(`${API_BASE}/profile/login-id-availability?login_id=${encodeURIComponent(loginId)}`, {
+        cache: 'no-store'
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'login_id_check_failed');
+    }
+    return data;
+}
+
+async function apiResolveLoginIdEmail(loginId) {
+    const res = await fetch(`${API_BASE}/auth/login-id-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login_id: loginId })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'invalid_recovery_input');
+    }
+    return data;
+}
+
 async function apiRecoverLoginId(payload) {
     const res = await fetch(`${API_BASE}/auth/recovery/find-login-id`, {
         method: 'POST',
@@ -99,11 +132,26 @@ async function apiRecoverPassword(payload) {
     const res = await fetch(`${API_BASE}/auth/recovery/password-reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, language: state.language || 'ko' })
     });
     const data = await res.json();
     if (!res.ok) {
         throw new Error(data?.detail || 'invalid_recovery_input');
+    }
+    return data;
+}
+
+async function apiSendCurrentUserPasswordReset(idToken) {
+    const res = await fetch(`${API_BASE}/auth/me/password-reset?lang=${encodeURIComponent(state.language || 'ko')}`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'X-Client-Language': state.language || 'ko'
+        }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'mail_send_failed');
     }
     return data;
 }
@@ -138,8 +186,11 @@ async function apiUpdateSocialProviders(idToken, providers) {
 }
 
 async function apiFetchUserEvals() {
-    if (!state.nickname) return;
-    const res = await fetch(`${API_BASE}/user_evals/${state.nickname}`);
+    const headers = await getCurrentAuthHeaders();
+    const nickname = getCurrentProfileDisplayName();
+    const url = headers.Authorization ? `${API_BASE}/user_evals` : `${API_BASE}/user_evals/${encodeURIComponent(nickname)}`;
+    if (!headers.Authorization && !nickname) return;
+    const res = await fetch(url, { headers });
     const data = await res.json();
     state.userEvals = data.evals;
 }
@@ -153,68 +204,75 @@ async function apiNicknameLogin(nickname) {
 }
 
 async function apiRecordPlay(gameType, blindId) {
+    const headers = await getCurrentAuthHeaders(true);
     await fetch(`${API_BASE}/play`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ game_type: gameType, blind_model_id: blindId, nickname: state.nickname || null })
+        headers,
+        body: JSON.stringify({ game_type: gameType, blind_model_id: blindId })
     });
     // Refresh game list behind the scenes to update play count
     await apiFetchGames();
 }
 
 async function apiSubmitEvaluation(payload) {
+    const headers = await getCurrentAuthHeaders(true);
     return await fetch(`${API_BASE}/evaluate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload)
     });
 }
 
 async function apiFetchResults(gameType) {
-    const nicknameQuery = state.nickname ? `?nickname=${encodeURIComponent(state.nickname)}` : '';
-    const headers = state.adminToken ? { 'X-Admin-Token': state.adminToken } : {};
+    const nickname = getCurrentProfileDisplayName();
+    const headers = await getCurrentAuthHeaders();
+    if (!headers.Authorization && state.adminToken) headers['X-Admin-Token'] = state.adminToken;
+    const nicknameQuery = !headers.Authorization && nickname ? `?nickname=${encodeURIComponent(nickname)}` : '';
     const res = await fetch(`${API_BASE}/results/${gameType}${nicknameQuery}`, { headers });
     return await res.json();
 }
 
 async function apiFetchMyPage() {
-    if (!state.nickname) return null;
-    const res = await fetch(`${API_BASE}/mypage/${encodeURIComponent(state.nickname)}`);
+    const nickname = getCurrentProfileDisplayName();
+    const headers = await getCurrentAuthHeaders();
+    const url = headers.Authorization ? `${API_BASE}/mypage` : `${API_BASE}/mypage/${encodeURIComponent(nickname)}`;
+    if (!headers.Authorization && !nickname) return null;
+    const res = await fetch(url, { headers });
     const data = await res.json();
     state.myPageData = data;
     return data;
 }
 
 async function apiUpdateProfileBadge(badgeKey) {
+    const headers = await getCurrentAuthHeaders(true);
     return await fetch(`${API_BASE}/mypage/profile-badge`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
-            nickname: state.nickname,
             badge_key: badgeKey
         })
     });
 }
 
 async function apiToggleCommentReaction(evaluationId, reactionType) {
+    const headers = await getCurrentAuthHeaders(true);
     return await fetch(`${API_BASE}/comment-reaction`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
             evaluation_id: evaluationId,
-            nickname: state.nickname,
             reaction_type: reactionType
         })
     });
 }
 
 async function apiSubmitCommentReply(evaluationId, reply) {
+    const headers = await getCurrentAuthHeaders(true);
     return await fetch(`${API_BASE}/comment-reply`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
             evaluation_id: evaluationId,
-            nickname: state.nickname,
             reply
         })
     });
@@ -229,12 +287,11 @@ async function apiAdminAuth(nickname, password) {
 }
 
 async function apiAdminToggleBlind(targetType, targetId, isBlinded) {
+    const headers = await getCurrentAuthHeaders(true);
+    if (!headers.Authorization) headers['X-Admin-Token'] = state.adminToken;
     return await fetch(`${API_BASE}/admin/blind`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Admin-Token': state.adminToken
-        },
+        headers,
         body: JSON.stringify({
             target_type: targetType,
             target_id: targetId,

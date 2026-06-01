@@ -50,6 +50,15 @@ class SignupEmailVerificationConfirm(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
+class LoginIdEmailRequest(BaseModel):
+    login_id: str = Field(min_length=4, max_length=30)
+
+    @field_validator("login_id", mode="before")
+    @classmethod
+    def strip_login_id(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
 class FindLoginIdRequest(BaseModel):
     real_name: str = Field(min_length=1, max_length=50)
     display_name: str = Field(min_length=1, max_length=20)
@@ -65,8 +74,9 @@ class PasswordResetRequest(BaseModel):
     real_name: str = Field(min_length=1, max_length=50)
     login_id: str = Field(min_length=4, max_length=30)
     email: str = Field(min_length=3, max_length=254)
+    language: Optional[str] = Field(default="ko", max_length=5)
 
-    @field_validator("real_name", "login_id", "email", mode="before")
+    @field_validator("real_name", "login_id", "email", "language", mode="before")
     @classmethod
     def strip_password_reset_fields(cls, value):
         return value.strip() if isinstance(value, str) else value
@@ -85,7 +95,7 @@ class SocialProvidersUpdate(BaseModel):
         return sorted({str(provider).strip() for provider in value if str(provider).strip()})
 
 class Evaluation(BaseModel):
-    nickname: str = Field(min_length=1, max_length=20)
+    nickname: Optional[str] = Field(default=None, max_length=20)
     game_type: str = Field(min_length=1, max_length=100)
     blind_model_id: str = Field(min_length=1, max_length=10)
     score_control: int = Field(ge=1, le=10)
@@ -119,7 +129,7 @@ class PlayEvent(BaseModel):
 
 class CommentReactionToggle(BaseModel):
     evaluation_id: str = Field(min_length=1, max_length=100)
-    nickname: str = Field(min_length=1, max_length=20)
+    nickname: Optional[str] = Field(default=None, max_length=20)
     reaction_type: str = Field(min_length=1, max_length=10)
 
     @field_validator("evaluation_id", "nickname", "reaction_type", mode="before")
@@ -130,7 +140,7 @@ class CommentReactionToggle(BaseModel):
 
 class CommentReplyCreate(BaseModel):
     evaluation_id: str = Field(min_length=1, max_length=100)
-    nickname: str = Field(min_length=1, max_length=20)
+    nickname: Optional[str] = Field(default=None, max_length=20)
     reply: str = Field(min_length=1, max_length=150)
 
     @field_validator("evaluation_id", "nickname", "reply", mode="before")
@@ -161,7 +171,7 @@ class AdminBlindToggle(BaseModel):
 
 
 class ProfileBadgeUpdate(BaseModel):
-    nickname: str = Field(min_length=1, max_length=20)
+    nickname: Optional[str] = Field(default=None, max_length=20)
     badge_key: str = Field(min_length=1, max_length=100)
 
     @field_validator("nickname", "badge_key", mode="before")

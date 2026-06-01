@@ -159,7 +159,7 @@ async function playGame(blindId) {
     state.playModelCommentsResult = null;
     state.playCommentsLoading = true;
     await apiRecordPlay(state.selectedCategory, blindId);
-    if (state.nickname) {
+    if (getCurrentProfileDisplayName()) {
         try {
             const myPageData = await apiFetchMyPage();
             notifyNewUnlockedBadges(myPageData, { shouldNotify: true });
@@ -204,7 +204,6 @@ async function submitEvaluation() {
     }
 
     const payload = {
-        nickname: state.nickname,
         game_type: state.selectedCategory,
         blind_model_id: state.selectedGame.blind_id,
         score_control: parseInt(document.getElementById('score-control').value),

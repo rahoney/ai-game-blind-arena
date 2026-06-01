@@ -13,6 +13,11 @@ let state = {
         expiresAt: 0,
         token: '',
     },
+    loginIdAvailability: {
+        value: '',
+        status: 'idle',
+        message: '',
+    },
     signupEmailTimerId: null,
     games: {},
     categories: [],

@@ -26,6 +26,7 @@ try:
         ProfileIdentityUpdate,
         SignupEmailVerificationRequest,
         SignupEmailVerificationConfirm,
+        LoginIdEmailRequest,
         FindLoginIdRequest,
         PasswordResetRequest,
         SendLoginIdEmailRequest,
@@ -67,6 +68,7 @@ except ImportError:
         ProfileIdentityUpdate,
         SignupEmailVerificationRequest,
         SignupEmailVerificationConfirm,
+        LoginIdEmailRequest,
         FindLoginIdRequest,
         PasswordResetRequest,
         SendLoginIdEmailRequest,
@@ -114,6 +116,7 @@ LOCAL_DB = {
     "game_stats": {},
     "evaluations": [],
     "nickname_views": [],
+    "user_views": [],
     "comment_reactions": [],
     "comment_replies": [],
     "account_recovery_attempts": [],
@@ -146,7 +149,9 @@ def _now_iso():
 
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
-LOGIN_ID_RE = re.compile(r"^[A-Za-z0-9_]{4,30}$")
+LOGIN_ID_RE = re.compile(r"^[A-Za-z0-9]{4,30}$")
+SERVICE_BRAND_NAME = "VeilPlays"
+SERVICE_CONTEXT_NAME = "AI Game Blind Arena"
 
 
 def _get_client_ip(request: Request):
@@ -249,15 +254,18 @@ def _check_recovery_rate_limit(recovery_type: str, identifier_hash: str, request
 def _send_login_id_email(email: str, login_id: str):
     api_key = os.environ.get("BREVO_API_KEY")
     sender_email = os.environ.get("MAIL_FROM_EMAIL")
-    sender_name = os.environ.get("MAIL_FROM_NAME") or "AI Game Blind Arena"
+    sender_name = os.environ.get("MAIL_FROM_NAME") or SERVICE_BRAND_NAME
     if not api_key or not sender_email:
         raise HTTPException(status_code=503, detail="mail_service_not_configured")
 
     body = {
         "sender": {"name": sender_name, "email": sender_email},
         "to": [{"email": email}],
-        "subject": "AI Game Blind Arena 아이디 안내",
-        "textContent": f"요청하신 AI Game Blind Arena 아이디는 {login_id} 입니다.",
+        "subject": f"{SERVICE_BRAND_NAME} 아이디 안내",
+        "textContent": (
+            f"요청하신 {SERVICE_BRAND_NAME} 아이디는 {login_id} 입니다.\n\n"
+            f"{SERVICE_CONTEXT_NAME} 계정 안내 메일입니다."
+        ),
     }
     req = urllib_request.Request(
         "https://api.brevo.com/v3/smtp/email",
@@ -295,15 +303,18 @@ def _log_brevo_error(context: str, exc: urllib_error.HTTPError):
 def _send_signup_verification_email(email: str, code: str):
     api_key = os.environ.get("BREVO_API_KEY")
     sender_email = os.environ.get("MAIL_FROM_EMAIL")
-    sender_name = os.environ.get("MAIL_FROM_NAME") or "AI Game Blind Arena"
+    sender_name = os.environ.get("MAIL_FROM_NAME") or SERVICE_BRAND_NAME
     if not api_key or not sender_email:
         raise HTTPException(status_code=503, detail="mail_service_not_configured")
 
     body = {
         "sender": {"name": sender_name, "email": sender_email},
         "to": [{"email": email}],
-        "subject": "AI Game Blind Arena 이메일 인증 코드",
-        "textContent": f"AI Game Blind Arena 회원가입 인증 코드는 {code} 입니다. 10분 안에 입력해 주세요.",
+        "subject": f"{SERVICE_BRAND_NAME} 이메일 인증 코드",
+        "textContent": (
+            f"{SERVICE_BRAND_NAME} 회원가입 인증 코드는 {code} 입니다. 10분 안에 입력해 주세요.\n\n"
+            f"{SERVICE_CONTEXT_NAME} 계정 인증 메일입니다."
+        ),
     }
     req = urllib_request.Request(
         "https://api.brevo.com/v3/smtp/email",
@@ -323,6 +334,70 @@ def _send_signup_verification_email(email: str, code: str):
         raise HTTPException(status_code=502, detail="mail_send_failed") from exc
     except urllib_error.URLError as exc:
         print(f"Brevo signup_verification network error: {exc}", flush=True)
+        raise HTTPException(status_code=502, detail="mail_send_failed") from exc
+
+
+def _normalize_language(language: str | None):
+    return "en" if (language or "").lower().startswith("en") else "ko"
+
+
+def _send_password_reset_email(email: str, language: str | None = "ko"):
+    api_key = os.environ.get("BREVO_API_KEY")
+    sender_email = os.environ.get("MAIL_FROM_EMAIL")
+    sender_name = os.environ.get("MAIL_FROM_NAME") or SERVICE_BRAND_NAME
+    if not api_key or not sender_email:
+        raise HTTPException(status_code=503, detail="mail_service_not_configured")
+
+    try:
+        from firebase_admin import auth as firebase_auth
+
+        get_firebase_app()
+        reset_link = firebase_auth.generate_password_reset_link(email)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="password_reset_link_failed") from exc
+
+    lang = _normalize_language(language)
+    if lang == "en":
+        subject = f"{SERVICE_BRAND_NAME} Password Reset"
+        text_content = (
+            f"You requested a password reset for your {SERVICE_BRAND_NAME} account.\n\n"
+            f"Open the link below to set a new password.\n{reset_link}\n\n"
+            f"If you did not request this, you can ignore this email.\n\n"
+            f"This is an account email for {SERVICE_CONTEXT_NAME}."
+        )
+    else:
+        subject = f"{SERVICE_BRAND_NAME} 비밀번호 재설정"
+        text_content = (
+            f"{SERVICE_BRAND_NAME} 비밀번호 재설정을 요청하셨습니다.\n\n"
+            f"아래 링크를 열어 새 비밀번호를 설정해 주세요.\n{reset_link}\n\n"
+            f"본인이 요청하지 않았다면 이 메일을 무시하셔도 됩니다.\n\n"
+            f"{SERVICE_CONTEXT_NAME} 계정 안내 메일입니다."
+        )
+
+    body = {
+        "sender": {"name": sender_name, "email": sender_email},
+        "to": [{"email": email}],
+        "subject": subject,
+        "textContent": text_content,
+    }
+    req = urllib_request.Request(
+        "https://api.brevo.com/v3/smtp/email",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "accept": "application/json",
+            "api-key": api_key,
+            "content-type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(req, timeout=10):
+            return
+    except urllib_error.HTTPError as exc:
+        _log_brevo_error("password_reset", exc)
+        raise HTTPException(status_code=502, detail="mail_send_failed") from exc
+    except urllib_error.URLError as exc:
+        print(f"Brevo password_reset network error: {exc}", flush=True)
         raise HTTPException(status_code=502, detail="mail_send_failed") from exc
 
 
@@ -405,6 +480,57 @@ def _validate_identity_fields(login_id: str, real_name: str, display_name: str):
     is_valid, error_key = validate_nickname(display_name)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_key)
+
+
+def _is_login_id_taken(login_id: str, current_uid: str | None = None):
+    if not LOGIN_ID_RE.fullmatch(login_id):
+        raise HTTPException(status_code=400, detail="login_id_format")
+
+    if LOCAL_TEST_MODE:
+        for existing_uid, existing in LOCAL_DB["profiles"].items():
+            if current_uid and existing_uid == current_uid:
+                continue
+            if existing.get("login_id", "").casefold() == login_id.casefold():
+                return True
+        return False
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    duplicate_res = (
+        supabase.table("profiles")
+        .select("id, firebase_uid")
+        .ilike("login_id", login_id)
+        .limit(1)
+        .execute()
+    )
+    duplicate = (duplicate_res.data or [None])[0]
+    if not duplicate:
+        return False
+    return not current_uid or duplicate.get("firebase_uid") != current_uid
+
+
+def _find_profile_by_login_id(login_id: str):
+    if not LOGIN_ID_RE.fullmatch(login_id):
+        _invalid_recovery_input()
+
+    if LOCAL_TEST_MODE:
+        return next((
+            profile for profile in LOCAL_DB["profiles"].values()
+            if profile.get("login_id", "").casefold() == login_id.casefold()
+        ), None)
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    res = (
+        supabase.table("profiles")
+        .select("id, firebase_uid, login_id, email")
+        .ilike("login_id", login_id)
+        .limit(1)
+        .execute()
+    )
+    return (res.data or [None])[0]
 
 
 def _is_valid_real_name(real_name: str):
@@ -498,6 +624,65 @@ def _resolve_profile_for_firebase_user(user: dict):
         raise HTTPException(status_code=500, detail="Failed to resolve auth profile") from exc
 
 
+def _get_request_profile(request: Request, required: bool = True):
+    authorization = request.headers.get("Authorization", "")
+    if not authorization.strip():
+        if required:
+            raise HTTPException(status_code=401, detail="Missing Firebase ID token")
+        return None, None
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    return user, profile
+
+
+def _get_profile_display_name(profile: dict | None):
+    return (profile or {}).get("display_name", "").strip()
+
+
+def _get_profile_id(profile: dict | None):
+    return (profile or {}).get("id")
+
+
+def _get_actor_from_request(request: Request, fallback_nickname: str | None = None, required: bool = True, allow_legacy_nickname: bool = False):
+    user, profile = _get_request_profile(request, required=required)
+    if profile:
+        display_name = _get_profile_display_name(profile)
+        profile_id = _get_profile_id(profile)
+        if not profile_id:
+            raise HTTPException(status_code=500, detail="profile_id_missing")
+        is_valid, error_key = validate_nickname(display_name)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error_key)
+        return {
+            "user": user,
+            "profile": profile,
+            "user_id": profile_id,
+            "display_name": display_name,
+            "is_admin": profile.get("role") in ("admin", "super_admin"),
+        }
+
+    if not allow_legacy_nickname:
+        if required:
+            raise HTTPException(status_code=401, detail="auth_required")
+        return None
+
+    nickname = (fallback_nickname or "").strip()
+    if not nickname:
+        if required:
+            raise HTTPException(status_code=401, detail="auth_required")
+        return None
+    is_valid, error_key = validate_nickname(nickname)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_key)
+    return {
+        "user": None,
+        "profile": None,
+        "user_id": None,
+        "display_name": nickname,
+        "is_admin": False,
+    }
+
+
 def _update_profile_display_name(profile: dict, display_name: str):
     is_valid, error_key = validate_nickname(display_name)
     if not is_valid:
@@ -570,15 +755,7 @@ def _update_profile_identity(profile: dict, payload: ProfileIdentityUpdate):
         raise HTTPException(status_code=503, detail="Supabase is not configured")
 
     try:
-        login_duplicate_res = (
-            supabase.table("profiles")
-            .select("id, firebase_uid")
-            .ilike("login_id", payload.login_id)
-            .limit(1)
-            .execute()
-        )
-        login_duplicate = (login_duplicate_res.data or [None])[0]
-        if login_duplicate and login_duplicate.get("firebase_uid") != uid:
+        if _is_login_id_taken(payload.login_id, uid):
             raise HTTPException(status_code=409, detail="login_id_taken")
 
         display_duplicate_res = (
@@ -732,7 +909,59 @@ def _local_get_view_rows_for_nickname(nickname: str):
     ]
 
 
-def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, nickname: str | None, is_admin: bool, user_eval_rows, user_view_rows, saved_profile_badges):
+def _local_get_eval_rows_for_profile(profile: dict):
+    profile_id = _get_profile_id(profile)
+    display_name = _get_profile_display_name(profile)
+    return [
+        {"game_type": row["game_type"], "actual_model_name": row["actual_model_name"]}
+        for row in LOCAL_DB["evaluations"]
+        if (profile_id and row.get("user_id") == profile_id) or row.get("nickname") == display_name
+    ]
+
+
+def _local_get_view_rows_for_profile(profile: dict):
+    profile_id = _get_profile_id(profile)
+    display_name = _get_profile_display_name(profile)
+    rows = [
+        {"game_type": row["game_type"], "actual_model_name": row["actual_model_name"]}
+        for row in LOCAL_DB["user_views"]
+        if profile_id and row.get("user_id") == profile_id
+    ]
+    rows.extend(
+        {"game_type": row["game_type"], "actual_model_name": row["actual_model_name"]}
+        for row in LOCAL_DB["nickname_views"]
+        if row.get("nickname") == display_name
+    )
+    return rows
+
+
+def _summarize_mypage_for_profile(profile: dict, eval_rows, view_rows):
+    return {
+        **summarize_mypage_data(
+            _get_profile_display_name(profile),
+            eval_rows,
+            view_rows,
+            GAMES_DATA,
+            profile.get("profile_badge_key"),
+        ),
+        "user_id": _get_profile_id(profile),
+        "login_id": profile.get("login_id"),
+        "email": profile.get("email"),
+    }
+
+
+def _strip_postgrest_missing_column_fields(row: dict, exc: Exception):
+    message = str(exc)
+    missing_fields = []
+    for field in row:
+        if f"'{field}' column" in message or f'"{field}" column' in message or f"column {field}" in message:
+            missing_fields.append(field)
+    if not missing_fields:
+        return None
+    return {key: value for key, value in row.items() if key not in missing_fields}
+
+
+def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, nickname: str | None, is_admin: bool, user_eval_rows, user_view_rows, saved_profile_badges, current_user_id: str | None = None):
     stats = {}
     blind_mapping = {}
     for lang_dict in GAMES_DATA.values():
@@ -750,13 +979,17 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, nick
             reaction_map[key] = {
                 "like_count": 0,
                 "dislike_count": 0,
-                "user_reactions": {}
+                "user_reactions": {},
+                "user_reactions_by_id": {},
             }
         if reaction['reaction_type'] == 'like':
             reaction_map[key]["like_count"] += 1
         elif reaction['reaction_type'] == 'dislike':
             reaction_map[key]["dislike_count"] += 1
-        reaction_map[key]["user_reactions"][reaction['nickname']] = reaction['reaction_type']
+        if reaction.get('nickname'):
+            reaction_map[key]["user_reactions"][reaction['nickname']] = reaction['reaction_type']
+        if reaction.get('user_id'):
+            reaction_map[key]["user_reactions_by_id"][reaction['user_id']] = reaction['reaction_type']
 
     reply_map = {}
     for reply in reply_rows:
@@ -792,7 +1025,7 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, nick
         stats[m_name]['scores']['total'] += row['total_score']
 
         if row.get('comment'):
-            reaction_info = reaction_map.get(row['id'], {"like_count": 0, "dislike_count": 0, "user_reactions": {}})
+            reaction_info = reaction_map.get(row['id'], {"like_count": 0, "dislike_count": 0, "user_reactions": {}, "user_reactions_by_id": {}})
             is_blinded = bool(row.get('is_blinded'))
             stats[m_name]['comments'].append({
                 "id": row['id'],
@@ -802,7 +1035,11 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, nick
                 "created_at": row.get('created_at'),
                 "like_count": reaction_info["like_count"],
                 "dislike_count": reaction_info["dislike_count"],
-                "user_reaction": reaction_info["user_reactions"].get(nickname) if nickname else None,
+                "user_reaction": (
+                    reaction_info["user_reactions_by_id"].get(current_user_id)
+                    if current_user_id
+                    else reaction_info["user_reactions"].get(nickname) if nickname else None
+                ),
                 "badge": {
                     "stage_key": badge_lookup.get(row['nickname'], {}).get('profile_badge_key', 'badge_egg')
                 },
@@ -869,6 +1106,35 @@ async def confirm_signup_email_code(payload: SignupEmailVerificationConfirm, req
     if not re.fullmatch(r"\d{6}", payload.code):
         raise HTTPException(status_code=400, detail="invalid_verification_code")
     return _confirm_signup_email_verification(payload.email, payload.code)
+
+
+@app.get("/api/profile/login-id-availability")
+async def check_login_id_availability(login_id: str):
+    normalized_login_id = (login_id or "").strip()
+    if not LOGIN_ID_RE.fullmatch(normalized_login_id):
+        raise HTTPException(status_code=400, detail="login_id_format")
+    try:
+        return {
+            "login_id": normalized_login_id,
+            "available": not _is_login_id_taken(normalized_login_id),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="login_id_check_failed") from exc
+
+
+@app.post("/api/auth/login-id-email")
+async def resolve_login_id_email(payload: LoginIdEmailRequest, request: Request):
+    login_id = payload.login_id.strip()
+    identifier_hash = _hash_recovery_identifier("login_id_email", login_id)
+    _check_recovery_rate_limit("login_id_email", identifier_hash, request)
+    profile = _find_profile_by_login_id(login_id)
+    if not profile or not profile.get("email"):
+        _record_recovery_attempt("find_login_id", identifier_hash, request, False)
+        _invalid_recovery_input()
+    _record_recovery_attempt("find_login_id", identifier_hash, request, True)
+    return {"email": _normalize_email(profile["email"])}
 
 
 @app.patch("/api/profile/display-name")
@@ -943,8 +1209,21 @@ async def recover_password(payload: PasswordResetRequest, request: Request):
         _record_recovery_attempt("reset_password", identifier_hash, request, False)
         _invalid_recovery_input()
 
+    _send_password_reset_email(_normalize_email(profile.get("email", payload.email)), payload.language)
     _record_recovery_attempt("reset_password", identifier_hash, request, True)
-    return {"email": _normalize_email(profile.get("email", payload.email))}
+    return {"sent": True}
+
+
+@app.post("/api/auth/me/password-reset")
+async def send_current_user_password_reset(request: Request):
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    email = _normalize_email(profile.get("email") or user.get("email") or "")
+    if not EMAIL_RE.fullmatch(email):
+        raise HTTPException(status_code=400, detail="invalid_recovery_input")
+    language = request.query_params.get("lang") or request.headers.get("X-Client-Language") or "ko"
+    _send_password_reset_email(email, language)
+    return {"sent": True}
 
 
 @app.patch("/api/profile/social-providers")
@@ -1063,7 +1342,7 @@ async def get_games(lang: str = 'ko'):
             key = f"{row['game_type']}_{row['actual_model_name']}"
             if key not in eval_counts:
                 eval_counts[key] = set()
-            eval_counts[key].add(row['nickname'])
+            eval_counts[key].add(row.get('user_id') or row['nickname'])
     elif supabase:
         try:
             # Fetch play counts
@@ -1072,13 +1351,17 @@ async def get_games(lang: str = 'ko'):
                 key = f"{row['game_type']}_{row['actual_model_name']}"
                 play_counts[key] = row['plays']
                 
-            # Fetch unique evaluator counts by nickname
-            res_evals = supabase.table('evaluations').select('game_type, actual_model_name, nickname').execute()
+            # Fetch unique evaluator counts by account id when available, otherwise by legacy nickname.
+            try:
+                res_evals = supabase.table('evaluations').select('game_type, actual_model_name, nickname, user_id').execute()
+            except Exception as exc:
+                print(f"Evaluation account count fallback: {exc}", flush=True)
+                res_evals = supabase.table('evaluations').select('game_type, actual_model_name, nickname').execute()
             for row in res_evals.data:
                 key = f"{row['game_type']}_{row['actual_model_name']}"
                 if key not in eval_counts:
                     eval_counts[key] = set()
-                eval_counts[key].add(row['nickname'])
+                eval_counts[key].add(row.get('user_id') or row['nickname'])
         except Exception as e:
             print("DB Fetch Error:", e)
             
@@ -1099,8 +1382,9 @@ async def get_games(lang: str = 'ko'):
     return {"games": response, "categories": category_meta}
 
 @app.post("/api/play")
-async def record_play(data: PlayEvent):
+async def record_play(data: PlayEvent, request: Request):
     actual_model = _find_actual_model(data.game_type, data.blind_model_id)
+    actor = _get_actor_from_request(request, required=False)
             
     if actual_model:
         if LOCAL_TEST_MODE:
@@ -1111,13 +1395,12 @@ async def record_play(data: PlayEvent):
                 "plays": LOCAL_DB["game_stats"].get(key, {}).get("plays", 0) + 1,
             }
 
-            if data.nickname:
-                is_valid, _ = validate_nickname(data.nickname)
-                if is_valid:
-                    _local_upsert_nickname(data.nickname.strip())
-                    LOCAL_DB["nickname_views"].append({
+            if actor:
+                if actor.get("user_id"):
+                    LOCAL_DB["user_views"].append({
                         "id": str(uuid4()),
-                        "nickname": data.nickname.strip(),
+                        "user_id": actor["user_id"],
+                        "display_name": actor["display_name"],
                         "game_type": data.game_type,
                         "actual_model_name": actual_model,
                         "viewed_at": _now_iso(),
@@ -1131,14 +1414,15 @@ async def record_play(data: PlayEvent):
                 else:
                     supabase.table('game_stats').insert({"game_type": data.game_type, "actual_model_name": actual_model, "plays": 1}).execute()
 
-                if data.nickname:
-                    is_valid, _ = validate_nickname(data.nickname)
-                    if is_valid:
-                        supabase.table('nickname_views').insert({
-                            "nickname": data.nickname.strip(),
+                if actor and actor.get("user_id"):
+                    try:
+                        supabase.table('user_views').insert({
+                            "user_id": actor["user_id"],
                             "game_type": data.game_type,
                             "actual_model_name": actual_model,
                         }).execute()
+                    except Exception as exc:
+                        print(f"user_views insert skipped: {exc}", flush=True)
             except Exception as e:
                 print("Play recording error:", e)
             
@@ -1146,9 +1430,8 @@ async def record_play(data: PlayEvent):
 
 @app.post("/api/evaluate")
 async def submit_evaluation(eval: Evaluation, request: Request):
-    is_valid, error_key = validate_nickname(eval.nickname)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_key)
+    actor = _get_actor_from_request(request, required=True)
+    display_name = actor["display_name"]
     is_valid_comment, comment_error = validate_comment_text(eval.comment)
     if not is_valid_comment:
         raise HTTPException(status_code=400, detail=comment_error)
@@ -1160,9 +1443,9 @@ async def submit_evaluation(eval: Evaluation, request: Request):
     if not actual_model:
         raise HTTPException(status_code=400, detail="Invalid game type or blind ID")
 
-    nickname_key = eval.nickname.casefold()
-    global_history_key = f"global:{nickname_key}"
-    model_history_key = f"model:{nickname_key}:{eval.game_type}:{actual_model}"
+    actor_key = actor.get("user_id") or display_name.casefold()
+    global_history_key = f"global:{actor_key}"
+    model_history_key = f"model:{actor_key}:{eval.game_type}:{actual_model}"
 
     same_model_allowed, same_model_wait = check_same_model_comment_rate_limit(COMMENT_SUBMISSION_HISTORY[model_history_key])
     if not same_model_allowed:
@@ -1184,7 +1467,7 @@ async def submit_evaluation(eval: Evaluation, request: Request):
     )
     
     data = {
-        "nickname": eval.nickname,
+        "nickname": display_name,
         "ip_address": ip,
         "game_type": eval.game_type,
         "actual_model_name": actual_model,
@@ -1199,13 +1482,21 @@ async def submit_evaluation(eval: Evaluation, request: Request):
         "comment": eval.comment,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+    if actor.get("user_id"):
+        data["user_id"] = actor["user_id"]
+        data["profile_display_name"] = display_name
     
     try:
         if LOCAL_TEST_MODE:
-            _local_upsert_nickname(eval.nickname)
+            _local_upsert_nickname(display_name)
             existing = next((
                 row for row in LOCAL_DB["evaluations"]
-                if row["nickname"] == eval.nickname and row["game_type"] == eval.game_type and row["actual_model_name"] == actual_model
+                if (
+                    (actor.get("user_id") and row.get("user_id") == actor["user_id"])
+                    or (not actor.get("user_id") and row.get("nickname") == display_name)
+                )
+                and row["game_type"] == eval.game_type
+                and row["actual_model_name"] == actual_model
             ), None)
             if existing:
                 existing.update(data)
@@ -1217,13 +1508,95 @@ async def submit_evaluation(eval: Evaluation, request: Request):
                 data["is_blinded"] = False
                 LOCAL_DB["evaluations"].append(data)
         else:
-            supabase.table('evaluations').upsert(data, on_conflict="nickname,game_type,actual_model_name").execute()
+            try:
+                existing_res = (
+                    supabase.table('evaluations')
+                    .select('id')
+                    .eq('user_id', actor["user_id"])
+                    .eq('game_type', eval.game_type)
+                    .eq('actual_model_name', actual_model)
+                    .limit(1)
+                    .execute()
+                )
+                existing = (existing_res.data or [None])[0]
+                if existing:
+                    supabase.table('evaluations').update(data).eq('id', existing['id']).execute()
+                else:
+                    insert_data = {
+                        **data,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    supabase.table('evaluations').insert(insert_data).execute()
+            except Exception as exc:
+                stripped_data = _strip_postgrest_missing_column_fields(data, exc)
+                if stripped_data:
+                    if actor.get("user_id") and "user_id" not in stripped_data:
+                        raise
+                    print(f"evaluation save missing-column fallback: {exc}", flush=True)
+                    existing_res = (
+                        supabase.table('evaluations')
+                        .select('id')
+                        .eq('user_id', actor["user_id"])
+                        .eq('game_type', eval.game_type)
+                        .eq('actual_model_name', actual_model)
+                        .limit(1)
+                        .execute()
+                    )
+                    existing = (existing_res.data or [None])[0]
+                    if existing:
+                        supabase.table('evaluations').update(stripped_data).eq('id', existing['id']).execute()
+                    else:
+                        supabase.table('evaluations').insert({
+                            **stripped_data,
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        }).execute()
+                else:
+                    raise
         now_ts = datetime.now(timezone.utc).timestamp()
         COMMENT_SUBMISSION_HISTORY[global_history_key].append(now_ts)
         COMMENT_SUBMISSION_HISTORY[model_history_key].append(now_ts)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/user_evals")
+async def get_current_user_evals(request: Request):
+    _, profile = _get_request_profile(request, required=True)
+    profile_id = _get_profile_id(profile)
+    display_name = _get_profile_display_name(profile)
+    if LOCAL_TEST_MODE:
+        return {
+            "evals": [
+                {
+                    "game_type": row["game_type"],
+                    "blind_model_id": row["blind_model_id"],
+                    "total_score": row["total_score"],
+                    "actual_model_name": row["actual_model_name"],
+                }
+                for row in LOCAL_DB["evaluations"]
+                if (profile_id and row.get("user_id") == profile_id) or row.get("nickname") == display_name
+            ]
+        }
+    try:
+        try:
+            res = (
+                supabase.table('evaluations')
+                .select('game_type, blind_model_id, total_score, actual_model_name')
+                .eq('user_id', profile_id)
+                .execute()
+            )
+        except Exception as exc:
+            print(f"user_evals account lookup fallback: {exc}", flush=True)
+            res = (
+                supabase.table('evaluations')
+                .select('game_type, blind_model_id, total_score, actual_model_name')
+                .eq('nickname', display_name)
+                .execute()
+            )
+        return {"evals": res.data or []}
+    except Exception:
+        return {"evals": []}
+
 
 @app.get("/api/user_evals/{nickname}")
 async def get_user_evals(nickname: str):
@@ -1248,8 +1621,12 @@ async def get_user_evals(nickname: str):
 
 @app.get("/api/results/{game_type}")
 async def get_results(game_type: str, request: Request, nickname: str | None = None):
-    admin_info = verify_admin_token(request.headers.get("X-Admin-Token"))
-    is_admin = bool(admin_info)
+    actor = _get_actor_from_request(request, required=False)
+    current_display_name = actor["display_name"] if actor else nickname
+    is_admin = bool(actor and actor.get("is_admin"))
+    if not is_admin:
+        admin_info = verify_admin_token(request.headers.get("X-Admin-Token"))
+        is_admin = bool(admin_info)
 
     try:
         if LOCAL_TEST_MODE:
@@ -1265,7 +1642,12 @@ async def get_results(game_type: str, request: Request, nickname: str | None = N
                 for nickname_key, row in LOCAL_DB["nicknames"].items()
                 if nickname_key in participant_nicknames
             }
-            return _build_results_payload(game_type, data, reaction_rows, reply_rows, nickname, is_admin, user_eval_rows, user_view_rows, saved_profile_badges)
+            saved_profile_badges.update({
+                profile.get("display_name"): profile.get("profile_badge_key")
+                for profile in LOCAL_DB["profiles"].values()
+                if profile.get("display_name") in participant_nicknames
+            })
+            return _build_results_payload(game_type, data, reaction_rows, reply_rows, current_display_name, is_admin, user_eval_rows, user_view_rows, saved_profile_badges, actor.get("user_id") if actor else None)
 
         res = supabase.table('evaluations').select('*').eq('game_type', game_type).execute()
         data = res.data
@@ -1274,7 +1656,7 @@ async def get_results(game_type: str, request: Request, nickname: str | None = N
         if data:
             eval_ids = [row['id'] for row in data]
             if eval_ids:
-                reaction_res = supabase.table('comment_reactions').select('evaluation_id, nickname, reaction_type').in_('evaluation_id', eval_ids).execute()
+                reaction_res = supabase.table('comment_reactions').select('evaluation_id, nickname, user_id, reaction_type').in_('evaluation_id', eval_ids).execute()
                 reaction_rows = reaction_res.data or []
                 reply_res = supabase.table('comment_replies').select('id, evaluation_id, nickname, reply, is_blinded, created_at').in_('evaluation_id', eval_ids).order('created_at', desc=True).execute()
                 reply_rows = reply_res.data or []
@@ -1293,15 +1675,33 @@ async def get_results(game_type: str, request: Request, nickname: str | None = N
         saved_profile_badges = {}
         if participant_nicknames:
             participant_list = list(participant_nicknames)
-            all_eval_res = supabase.table('evaluations').select('nickname, game_type, actual_model_name').in_('nickname', participant_list).execute()
-            user_eval_rows = all_eval_res.data or []
-            all_view_res = supabase.table('nickname_views').select('nickname, game_type, actual_model_name').in_('nickname', participant_list).execute()
-            user_view_rows = all_view_res.data or []
-            profile_res = supabase.table('nicknames').select('nickname, profile_badge_key').in_('nickname', participant_list).execute()
-            saved_profile_badges = {
-                row['nickname']: row.get('profile_badge_key')
-                for row in (profile_res.data or [])
-            }
+            try:
+                all_eval_res = supabase.table('evaluations').select('nickname, game_type, actual_model_name').in_('nickname', participant_list).execute()
+                user_eval_rows = all_eval_res.data or []
+            except Exception as exc:
+                print(f"results user evaluation badge lookup skipped: {exc}", flush=True)
+            try:
+                all_view_res = supabase.table('nickname_views').select('nickname, game_type, actual_model_name').in_('nickname', participant_list).execute()
+                user_view_rows = all_view_res.data or []
+            except Exception as exc:
+                print(f"results nickname_views badge lookup skipped: {exc}", flush=True)
+            try:
+                profile_res = supabase.table('nicknames').select('nickname, profile_badge_key').in_('nickname', participant_list).execute()
+                saved_profile_badges = {
+                    row['nickname']: row.get('profile_badge_key')
+                    for row in (profile_res.data or [])
+                }
+            except Exception as exc:
+                print(f"results legacy nickname badge lookup skipped: {exc}", flush=True)
+            try:
+                account_profile_res = supabase.table('profiles').select('display_name, profile_badge_key').in_('display_name', participant_list).execute()
+                saved_profile_badges.update({
+                    row['display_name']: row.get('profile_badge_key')
+                    for row in (account_profile_res.data or [])
+                    if row.get('display_name')
+                })
+            except Exception as exc:
+                print(f"results account profile badges skipped: {exc}", flush=True)
 
         badge_lookup = build_user_badge_lookup(participant_nicknames, user_eval_rows, user_view_rows, GAMES_DATA, saved_profile_badges)
 
@@ -1388,23 +1788,23 @@ async def get_results(game_type: str, request: Request, nickname: str | None = N
                 "comments": s['comments']
             })
             
-        return _build_results_payload(game_type, data, reaction_rows, reply_rows, nickname, is_admin, user_eval_rows, user_view_rows, saved_profile_badges)
+        return _build_results_payload(game_type, data, reaction_rows, reply_rows, current_display_name, is_admin, user_eval_rows, user_view_rows, saved_profile_badges, actor.get("user_id") if actor else None)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/comment-reaction")
 async def toggle_comment_reaction(payload: CommentReactionToggle, request: Request):
-    is_valid, error_key = validate_nickname(payload.nickname)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_key)
+    actor = _get_actor_from_request(request, required=True)
+    display_name = actor["display_name"]
 
     if payload.reaction_type not in ("like", "dislike"):
         raise HTTPException(status_code=400, detail="invalid_reaction_type")
 
     forwarded = request.headers.get("X-Forwarded-For")
     ip = forwarded.split(",")[0] if forwarded else request.client.host
-    allowed, wait_time = check_memory_rate_limit(COMMENT_REACTION_RATE_LIMITS, f"{ip}:{payload.nickname.casefold()}", 30, 20)
+    actor_key = actor.get("user_id") or display_name.casefold()
+    allowed, wait_time = check_memory_rate_limit(COMMENT_REACTION_RATE_LIMITS, f"{ip}:{actor_key}", 30, 20)
     if not allowed:
         raise HTTPException(status_code=429, detail=f"rate_limit_comment_reaction:{wait_time}")
 
@@ -1412,10 +1812,15 @@ async def toggle_comment_reaction(payload: CommentReactionToggle, request: Reque
         if LOCAL_TEST_MODE:
             existing = next((
                 row for row in LOCAL_DB["comment_reactions"]
-                if row["evaluation_id"] == payload.evaluation_id and row["nickname"] == payload.nickname
+                if row["evaluation_id"] == payload.evaluation_id
+                and (
+                    (actor.get("user_id") and row.get("user_id") == actor["user_id"])
+                    or (not actor.get("user_id") and row.get("nickname") == display_name)
+                )
             ), None)
         else:
-            existing_res = supabase.table('comment_reactions').select('id, reaction_type').eq('evaluation_id', payload.evaluation_id).eq('nickname', payload.nickname).limit(1).execute()
+            query = supabase.table('comment_reactions').select('id, reaction_type').eq('evaluation_id', payload.evaluation_id)
+            existing_res = query.eq('user_id', actor["user_id"]).limit(1).execute()
             existing = existing_res.data[0] if existing_res.data else None
 
         transition = resolve_comment_reaction(existing['reaction_type'] if existing else None, payload.reaction_type)
@@ -1441,17 +1846,21 @@ async def toggle_comment_reaction(payload: CommentReactionToggle, request: Reque
                 LOCAL_DB["comment_reactions"].append({
                     "id": str(uuid4()),
                     "evaluation_id": payload.evaluation_id,
-                    "nickname": payload.nickname,
+                    "nickname": display_name,
+                    "user_id": actor.get("user_id"),
                     "reaction_type": payload.reaction_type,
                     "created_at": _now_iso(),
                     "updated_at": _now_iso(),
                 })
             else:
-                supabase.table('comment_reactions').insert({
+                insert_data = {
                     "evaluation_id": payload.evaluation_id,
-                    "nickname": payload.nickname,
+                    "nickname": display_name,
                     "reaction_type": payload.reaction_type,
-                }).execute()
+                }
+                if actor.get("user_id"):
+                    insert_data["user_id"] = actor["user_id"]
+                supabase.table('comment_reactions').insert(insert_data).execute()
             current_reaction = transition["current_reaction"]
 
         like_count = 0
@@ -1480,9 +1889,8 @@ async def toggle_comment_reaction(payload: CommentReactionToggle, request: Reque
 
 @app.post("/api/comment-reply")
 async def create_comment_reply(payload: CommentReplyCreate, request: Request):
-    is_valid, error_key = validate_nickname(payload.nickname)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_key)
+    actor = _get_actor_from_request(request, required=True)
+    display_name = actor["display_name"]
 
     is_valid_reply, reply_error = validate_comment_text(payload.reply)
     if not is_valid_reply:
@@ -1495,10 +1903,14 @@ async def create_comment_reply(payload: CommentReplyCreate, request: Request):
                 "updated_at": row.get("updated_at"),
             }
             for row in LOCAL_DB["comment_replies"]
-            if row["nickname"] == payload.nickname
+            if (
+                (actor.get("user_id") and row.get("user_id") == actor["user_id"])
+                or (not actor.get("user_id") and row.get("nickname") == display_name)
+            )
         ]
     else:
-        reply_limit_res = supabase.table('comment_replies').select('created_at, updated_at').eq('nickname', payload.nickname).execute()
+        query = supabase.table('comment_replies').select('created_at, updated_at')
+        reply_limit_res = query.eq('user_id', actor["user_id"]).execute()
         recent_reply_rows = reply_limit_res.data or []
 
     allowed, wait_time, limit_reason = check_reply_submission_rate_limit(recent_reply_rows)
@@ -1516,22 +1928,26 @@ async def create_comment_reply(payload: CommentReplyCreate, request: Request):
             raise HTTPException(status_code=404, detail="comment_not_found")
 
         if LOCAL_TEST_MODE:
-            _local_upsert_nickname(payload.nickname)
+            _local_upsert_nickname(display_name)
             LOCAL_DB["comment_replies"].append({
                 "id": str(uuid4()),
                 "evaluation_id": payload.evaluation_id,
-                "nickname": payload.nickname,
+                "nickname": display_name,
+                "user_id": actor.get("user_id"),
                 "reply": payload.reply,
                 "is_blinded": False,
                 "created_at": _now_iso(),
                 "updated_at": _now_iso(),
             })
         else:
-            supabase.table('comment_replies').insert({
+            insert_data = {
                 "evaluation_id": payload.evaluation_id,
-                "nickname": payload.nickname,
+                "nickname": display_name,
                 "reply": payload.reply,
-            }).execute()
+            }
+            if actor.get("user_id"):
+                insert_data["user_id"] = actor["user_id"]
+            supabase.table('comment_replies').insert(insert_data).execute()
         return {"status": "success"}
     except HTTPException:
         raise
@@ -1541,8 +1957,9 @@ async def create_comment_reply(payload: CommentReplyCreate, request: Request):
 
 @app.post("/api/admin/blind")
 async def admin_toggle_blind(payload: AdminBlindToggle, request: Request):
+    actor = _get_actor_from_request(request, required=False)
     admin_info = verify_admin_token(request.headers.get("X-Admin-Token"))
-    if not admin_info:
+    if not ((actor and actor.get("is_admin")) or admin_info):
         raise HTTPException(status_code=401, detail="admin_auth_required")
 
     table_map = {
@@ -1586,6 +2003,46 @@ async def admin_toggle_blind(payload: AdminBlindToggle, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/mypage")
+async def get_current_mypage(request: Request):
+    _, profile = _get_request_profile(request, required=True)
+    if LOCAL_TEST_MODE:
+        return _summarize_mypage_for_profile(
+            profile,
+            _local_get_eval_rows_for_profile(profile),
+            _local_get_view_rows_for_profile(profile),
+        )
+
+    try:
+        profile_id = _get_profile_id(profile)
+        display_name = _get_profile_display_name(profile)
+        eval_rows = []
+        view_rows = []
+
+        try:
+            eval_res = supabase.table('evaluations').select('game_type, actual_model_name').eq('user_id', profile_id).execute()
+            eval_rows = eval_res.data or []
+        except Exception as exc:
+            print(f"mypage account evaluations lookup fallback: {exc}", flush=True)
+            eval_res = supabase.table('evaluations').select('game_type, actual_model_name').eq('nickname', display_name).execute()
+            eval_rows = eval_res.data or []
+
+        try:
+            view_res = supabase.table('user_views').select('game_type, actual_model_name').eq('user_id', profile_id).execute()
+            view_rows = view_res.data or []
+        except Exception as exc:
+            print(f"mypage account user_views lookup fallback: {exc}", flush=True)
+            try:
+                view_res = supabase.table('nickname_views').select('game_type, actual_model_name').eq('nickname', display_name).execute()
+                view_rows = view_res.data or []
+            except Exception as fallback_exc:
+                print(f"mypage nickname_views fallback skipped: {fallback_exc}", flush=True)
+
+        return _summarize_mypage_for_profile(profile, eval_rows, view_rows)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/mypage/{nickname}")
 async def get_mypage(nickname: str):
     is_valid, error_key = validate_nickname(nickname)
@@ -1603,43 +2060,63 @@ async def get_mypage(nickname: str):
         )
 
     try:
-        eval_res = supabase.table('evaluations').select('game_type, actual_model_name').eq('nickname', nickname).execute()
-        view_res = supabase.table('nickname_views').select('game_type, actual_model_name').eq('nickname', nickname).execute()
-        profile_res = supabase.table('nicknames').select('profile_badge_key').eq('nickname', nickname).limit(1).execute()
-        saved_profile_badge_key = profile_res.data[0].get('profile_badge_key') if profile_res.data else None
-        return summarize_mypage_data(nickname, eval_res.data or [], view_res.data or [], GAMES_DATA, saved_profile_badge_key)
+        eval_rows = []
+        view_rows = []
+        saved_profile_badge_key = None
+
+        try:
+            eval_res = supabase.table('evaluations').select('game_type, actual_model_name').eq('nickname', nickname).execute()
+            eval_rows = eval_res.data or []
+        except Exception as exc:
+            print(f"mypage evaluations lookup skipped: {exc}", flush=True)
+
+        try:
+            view_res = supabase.table('nickname_views').select('game_type, actual_model_name').eq('nickname', nickname).execute()
+            view_rows = view_res.data or []
+        except Exception as exc:
+            print(f"mypage nickname_views lookup skipped: {exc}", flush=True)
+
+        try:
+            profile_res = supabase.table('nicknames').select('profile_badge_key').eq('nickname', nickname).limit(1).execute()
+            saved_profile_badge_key = profile_res.data[0].get('profile_badge_key') if profile_res.data else None
+        except Exception as exc:
+            print(f"mypage nickname profile lookup skipped: {exc}", flush=True)
+
+        return summarize_mypage_data(nickname, eval_rows, view_rows, GAMES_DATA, saved_profile_badge_key)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/mypage/profile-badge")
-async def update_profile_badge(payload: ProfileBadgeUpdate):
-    is_valid, error_key = validate_nickname(payload.nickname)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_key)
-
+async def update_profile_badge(payload: ProfileBadgeUpdate, request: Request):
+    actor = _get_actor_from_request(request, required=True)
+    profile = actor.get("profile")
+    display_name = actor["display_name"]
     try:
         if LOCAL_TEST_MODE:
-            _local_upsert_nickname(payload.nickname)
-            eval_rows = _local_get_eval_rows_for_nickname(payload.nickname)
-            view_rows = _local_get_view_rows_for_nickname(payload.nickname)
+            eval_rows = _local_get_eval_rows_for_profile(profile)
+            view_rows = _local_get_view_rows_for_profile(profile)
             unlocked_badge_keys = get_unlocked_badge_keys(eval_rows, view_rows, GAMES_DATA)
         else:
-            eval_res = supabase.table('evaluations').select('game_type, actual_model_name').eq('nickname', payload.nickname).execute()
-            view_res = supabase.table('nickname_views').select('game_type, actual_model_name').eq('nickname', payload.nickname).execute()
-            unlocked_badge_keys = get_unlocked_badge_keys(eval_res.data or [], view_res.data or [], GAMES_DATA)
+            eval_rows = []
+            view_rows = []
+            eval_res = supabase.table('evaluations').select('game_type, actual_model_name').eq('user_id', actor["user_id"]).execute()
+            eval_rows = eval_res.data or []
+            view_res = supabase.table('user_views').select('game_type, actual_model_name').eq('user_id', actor["user_id"]).execute()
+            view_rows = view_res.data or []
+            unlocked_badge_keys = get_unlocked_badge_keys(eval_rows, view_rows, GAMES_DATA)
         if payload.badge_key not in unlocked_badge_keys:
             raise HTTPException(status_code=400, detail="profile_badge_locked")
 
         resolved_badge_key = resolve_profile_badge_key(payload.badge_key, unlocked_badge_keys)
         if LOCAL_TEST_MODE:
-            LOCAL_DB["nicknames"][payload.nickname]["profile_badge_key"] = resolved_badge_key
-            LOCAL_DB["nicknames"][payload.nickname]["last_active_at"] = _now_iso()
+            profile["profile_badge_key"] = resolved_badge_key
+            profile["updated_at"] = _now_iso()
         else:
-            supabase.table('nicknames').update({
+            supabase.table('profiles').update({
                 "profile_badge_key": resolved_badge_key,
-                "last_active_at": datetime.now(timezone.utc).isoformat(),
-            }).eq('nickname', payload.nickname).execute()
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq('id', actor["user_id"]).execute()
         return {"status": "success", "profile_badge_key": resolved_badge_key}
     except HTTPException:
         raise
