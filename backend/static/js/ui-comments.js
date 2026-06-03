@@ -40,7 +40,7 @@ function renderReplyCard(reply) {
         <div style="display:grid; grid-template-columns:72px 1fr; gap:0.9rem; padding:0.85rem 0; border-top:1px solid var(--border-color);">
             <div style="display:flex; flex-direction:column; align-items:center; gap:0.35rem; background:${COMMENT_PROFILE_PANEL_BG}; padding:0.55rem 0.45rem; border-radius:16px; color:${COMMENT_PROFILE_PANEL_TEXT}; box-shadow:0 10px 24px rgba(0, 0, 0, 0.16); border:1px solid var(--border-color);">
                 <div style="width:44px; height:44px;">${renderBadgeSvg(reply.badge?.stage_key || 'badge_egg', 44)}</div>
-                <div style="font-size:0.78rem; font-weight:700; text-align:center; line-height:1.35; word-break:break-word;">${escapeHtml(reply.nickname)}</div>
+                <div style="font-size:0.78rem; font-weight:700; text-align:center; line-height:1.35; word-break:break-word;">${escapeHtml(reply.display_name)}</div>
             </div>
             <div style="border:1px solid ${COMMENT_CONTENT_PANEL_BORDER}; border-radius:14px; padding:0.8rem 0.9rem; background:${COMMENT_CONTENT_PANEL_BG}; box-shadow:0 8px 24px rgba(0, 0, 0, 0.16);">
                 <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin-bottom:0.25rem;">
@@ -102,7 +102,7 @@ function renderCommentCard(comment, options = {}) {
             <div style="display:grid; grid-template-columns:${profileColumnWidth}px 1fr; gap:${compact ? '1rem' : '1.2rem'}; align-items:start; width:100%;">
                 <div style="display:flex; flex-direction:column; align-items:center; gap:0.55rem; background:${COMMENT_PROFILE_PANEL_BG}; padding:${profileBoxPadding}; border-radius:${profileRadius}; color:${COMMENT_PROFILE_PANEL_TEXT}; box-shadow:0 14px 32px rgba(0, 0, 0, 0.18); border:1px solid var(--border-color);">
                     <div style="width:${badgeSize}px; height:${badgeSize}px;">${renderBadgeSvg(comment.badge?.stage_key || 'badge_egg', badgeSize)}</div>
-                    <div style="font-size:0.84rem; font-weight:800; text-align:center; line-height:1.3; word-break:break-word;">${escapeHtml(comment.nickname)}</div>
+                    <div style="font-size:0.84rem; font-weight:800; text-align:center; line-height:1.3; word-break:break-word;">${escapeHtml(comment.display_name)}</div>
                 </div>
                 <div style="border:1px solid ${COMMENT_CONTENT_PANEL_BORDER}; border-radius:18px; background:${COMMENT_CONTENT_PANEL_BG}; padding:${contentPadding}; box-shadow:0 14px 32px rgba(0, 0, 0, 0.18);">
                     <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin-bottom:0.55rem;">
@@ -231,7 +231,7 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
 
     try {
         const data = await apiFetchResults(state.selectedCategory);
-        state.isAdmin = !!(state.adminToken && data.is_admin);
+        state.isAdmin = !!data.is_admin;
         const results = data.results || [];
 
         results.forEach((r) => {

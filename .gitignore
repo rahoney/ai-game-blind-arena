@@ -16,13 +16,6 @@ Thumbs.db
 # Local working materials and legacy/reference docs
 temp/
 docs/
-!docs/
-docs/*
-!docs/new-system/
-docs/new-system/*
-!docs/new-system/README.md
-!docs/new-system/06_AUTH_ACCOUNT_PLAN.md
-!docs/new-system/07_NICKNAME_REMOVAL_INVENTORY.md
 
 # One-off migration/repair scripts and local probes
 fix_*.py

@@ -1,17 +1,41 @@
--- Supabase Schema for LLM Game Evaluator
+-- Supabase schema for VeilPlays account-owned activity.
+-- Legacy nickname-login tables are intentionally not part of this schema.
 
--- 1. Create nicknames table
-CREATE TABLE nicknames (
-    nickname TEXT PRIMARY KEY,
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    firebase_uid TEXT NOT NULL UNIQUE,
+    login_id TEXT UNIQUE,
+    real_name TEXT,
+    display_name TEXT NOT NULL,
+    display_name_set BOOLEAN NOT NULL DEFAULT FALSE,
+    avatar_url TEXT,
+    role TEXT NOT NULL DEFAULT 'user',
+    provider TEXT,
+    social_providers TEXT[] NOT NULL DEFAULT '{}',
+    email TEXT,
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    email_verification_required BOOLEAN NOT NULL DEFAULT TRUE,
+    account_status TEXT NOT NULL DEFAULT 'active',
     profile_badge_key TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    last_login_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_active_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. Create evaluations table
+CREATE UNIQUE INDEX unique_profiles_display_name_ci
+ON profiles (LOWER(display_name));
+
+CREATE UNIQUE INDEX unique_profiles_login_id_ci
+ON profiles (LOWER(login_id))
+WHERE login_id IS NOT NULL;
+
 CREATE TABLE evaluations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nickname TEXT NOT NULL REFERENCES nicknames(nickname) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    profile_display_name TEXT NOT NULL,
     ip_address TEXT NOT NULL,
     game_type TEXT NOT NULL,
     actual_model_name TEXT NOT NULL,
@@ -26,13 +50,15 @@ CREATE TABLE evaluations (
     comment TEXT CHECK (length(comment) <= 150),
     is_blinded BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_evaluations_user_model UNIQUE (user_id, game_type, actual_model_name)
 );
 
--- Ensure a user can only have one active evaluation per game & actual model (for upsert)
-ALTER TABLE evaluations ADD CONSTRAINT unique_user_eval UNIQUE (nickname, game_type, actual_model_name);
+CREATE INDEX idx_evaluations_user_id ON evaluations (user_id);
+CREATE INDEX idx_evaluations_game_type ON evaluations (game_type);
+CREATE INDEX idx_evaluations_model ON evaluations (actual_model_name);
+CREATE INDEX idx_evaluations_profile_display_name ON evaluations (profile_display_name);
 
--- 3. Create game_stats table to track play counts
 CREATE TABLE game_stats (
     game_type TEXT NOT NULL,
     actual_model_name TEXT NOT NULL,
@@ -40,41 +66,39 @@ CREATE TABLE game_stats (
     PRIMARY KEY (game_type, actual_model_name)
 );
 
--- 4. Create nickname_views table to track per-nickname view history
-CREATE TABLE nickname_views (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nickname TEXT NOT NULL REFERENCES nicknames(nickname) ON DELETE CASCADE,
+CREATE TABLE user_views (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    display_name TEXT,
     game_type TEXT NOT NULL,
     actual_model_name TEXT NOT NULL,
-    viewed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    viewed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_nickname_views_nickname ON nickname_views (nickname);
-CREATE INDEX idx_nickname_views_nickname_game_type ON nickname_views (nickname, game_type);
-CREATE INDEX idx_nickname_views_nickname_model ON nickname_views (nickname, actual_model_name);
+CREATE INDEX idx_user_views_user_id ON user_views (user_id);
+CREATE INDEX idx_user_views_user_game_type ON user_views (user_id, game_type);
+CREATE INDEX idx_user_views_user_model ON user_views (user_id, actual_model_name);
+CREATE INDEX idx_user_views_display_name ON user_views (display_name);
 
--- 5. Create comment_reactions table for like/dislike toggles
 CREATE TABLE comment_reactions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     evaluation_id UUID NOT NULL REFERENCES evaluations(id) ON DELETE CASCADE,
-    nickname TEXT NOT NULL REFERENCES nicknames(nickname) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    profile_display_name TEXT NOT NULL,
     reaction_type TEXT NOT NULL CHECK (reaction_type IN ('like', 'dislike')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT unique_comment_reaction UNIQUE (evaluation_id, nickname)
+    CONSTRAINT unique_comment_reactions_user UNIQUE (evaluation_id, user_id)
 );
 
 CREATE INDEX idx_comment_reactions_evaluation_id ON comment_reactions (evaluation_id);
-CREATE INDEX idx_comment_reactions_nickname ON comment_reactions (nickname);
-CREATE INDEX idx_evaluations_nickname ON evaluations (nickname);
-CREATE INDEX idx_evaluations_game_type ON evaluations (game_type);
-CREATE INDEX idx_evaluations_model ON evaluations (actual_model_name);
+CREATE INDEX idx_comment_reactions_user_id ON comment_reactions (user_id);
 
--- 6. Create comment_replies table for first-level replies only
 CREATE TABLE comment_replies (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     evaluation_id UUID NOT NULL REFERENCES evaluations(id) ON DELETE CASCADE,
-    nickname TEXT NOT NULL REFERENCES nicknames(nickname) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    profile_display_name TEXT NOT NULL,
     reply TEXT NOT NULL CHECK (length(reply) <= 150),
     is_blinded BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -82,10 +106,5 @@ CREATE TABLE comment_replies (
 );
 
 CREATE INDEX idx_comment_replies_evaluation_id ON comment_replies (evaluation_id);
-CREATE INDEX idx_comment_replies_nickname ON comment_replies (nickname);
-
--- Note: Ensure Row Level Security (RLS) is configured correctly in Supabase.
--- For a public-facing API backend with a service key or anon key, you may need to:
--- ALTER TABLE evaluations ENABLE ROW LEVEL SECURITY;
--- CREATE POLICY "Enable full access for anon" ON evaluations FOR ALL USING (true);
--- (Or just disable RLS if you only access via backend with Service Role Key)
+CREATE INDEX idx_comment_replies_user_id ON comment_replies (user_id);
+CREATE INDEX idx_comment_replies_profile_display_name ON comment_replies (profile_display_name);

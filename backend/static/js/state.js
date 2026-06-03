@@ -1,7 +1,6 @@
 const API_BASE = '/api';
 
 let state = {
-    nickname: '',
     authUser: null,
     account: null,
     authConfigured: false,
@@ -14,6 +13,11 @@ let state = {
         token: '',
     },
     loginIdAvailability: {
+        value: '',
+        status: 'idle',
+        message: '',
+    },
+    displayNameAvailability: {
         value: '',
         status: 'idle',
         message: '',
@@ -34,7 +38,6 @@ let state = {
     isLoginSubmitting: false,
     isEvaluationSubmitting: false,
     isAdmin: false,
-    adminToken: '',
     privacyReturnView: null,
     pendingReactionIds: new Set(),
     pendingReplyIds: new Set(),

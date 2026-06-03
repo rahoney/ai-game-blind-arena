@@ -20,7 +20,7 @@ let CLIENT_BANNED_NICKNAME_TERMS = [
 
 async function loadNicknameBlocklist() {
     try {
-        const response = await fetch('/static/data/nickname_blocklist.csv?v=20260416-11', { cache: 'no-store' });
+        const response = await fetch('/api/nickname-blocklist.csv', { cache: 'no-store' });
         const csvText = await response.text();
         const rows = csvText.replace(/^\uFEFF/, '').split(/\r?\n/).slice(1);
         const reservedTerms = new Set(CLIENT_RESERVED_NICKNAME_TERMS);
@@ -42,8 +42,8 @@ async function loadNicknameBlocklist() {
     }
 }
 
-function validateNicknameInput(nickname) {
-    const trimmed = (nickname || '').trim();
+function validateDisplayNameInput(displayName) {
+    const trimmed = (displayName || '').trim();
     if (!trimmed) return 'nickname_required';
 
     const lowered = trimmed.toLowerCase();
@@ -56,7 +56,7 @@ function validateNicknameInput(nickname) {
     if (/[\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uD7B0-\uD7FF]/.test(trimmed)) {
         return 'nickname_jamo_only';
     }
-    if (/^[A-Za-z]{6,14}$/.test(trimmed) || /^[가-힣]{3,8}$/.test(trimmed)) {
+    if (/^[A-Za-z0-9가-힣]{3,14}$/.test(trimmed)) {
         return null;
     }
     return 'nickname_format';
@@ -83,7 +83,7 @@ function formatWaitTime(seconds) {
     return s > 1 ? `${s} seconds` : `${s} second`;
 }
 
-function getNicknameErrorMessage(errorKey) {
+function getDisplayNameErrorMessage(errorKey) {
     if (typeof errorKey === 'string' && errorKey.includes(':') && errorKey.startsWith('rate_limit_')) {
         const parts = errorKey.split(':');
         const key = parts[0];
@@ -95,7 +95,7 @@ function getNicknameErrorMessage(errorKey) {
 
 function translateApiDetail(detail) {
     if (!detail) return t('nickname_generic_error');
-    return getNicknameErrorMessage(detail);
+    return getDisplayNameErrorMessage(detail);
 }
 
 function handleNicknameFocus(input) {
@@ -155,42 +155,6 @@ window.alert = function customAlert(message) {
     showAppMessage(message);
 };
 
-function showAdminPasswordPrompt(nickname) {
-    return new Promise((resolve) => {
-        const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(2,6,23,0.82);display:flex;align-items:center;justify-content:center;z-index:10000;padding:1.5rem;';
-        overlay.innerHTML = `
-            <div style="width:min(420px,100%);background:#0f172a;border:1px solid rgba(148,163,184,0.25);border-radius:18px;padding:1.5rem;box-shadow:0 20px 50px rgba(0,0,0,0.45);">
-                <h3 style="margin:0 0 0.75rem;color:#fff;font-size:1.25rem;">${t('admin_password_title')}</h3>
-                <p style="margin:0 0 1rem;color:#cbd5e1;line-height:1.6;">${t('admin_password_desc', { nickname: escapeHtml(nickname) })}</p>
-                <input id="admin-password-input" type="password" placeholder="${t('admin_password_placeholder')}" style="width:100%;padding:0.95rem 1rem;border-radius:12px;border:1px solid rgba(148,163,184,0.25);background:#020617;color:#fff;font-size:1rem;" />
-                <div style="display:flex;justify-content:flex-end;gap:0.75rem;margin-top:1rem;">
-                    <button id="admin-password-cancel" class="secondary" style="width:auto;padding:0.8rem 1rem;">${t('admin_password_cancel')}</button>
-                    <button id="admin-password-confirm" style="width:auto;padding:0.8rem 1rem;">${t('admin_password_confirm')}</button>
-                </div>
-            </div>
-        `;
-
-        const cleanup = (value) => {
-            overlay.remove();
-            resolve(value);
-        };
-
-        document.body.appendChild(overlay);
-        const input = overlay.querySelector('#admin-password-input');
-        overlay.querySelector('#admin-password-cancel').addEventListener('click', () => cleanup(null));
-        overlay.querySelector('#admin-password-confirm').addEventListener('click', () => cleanup(input.value.trim()));
-        overlay.addEventListener('click', (event) => {
-            if (event.target === overlay) cleanup(null);
-        });
-        input.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') cleanup(input.value.trim());
-            if (event.key === 'Escape') cleanup(null);
-        });
-        input.focus();
-    });
-}
-
 function getEffectiveEnglishLetterCount(text) {
     let count = 0;
     let previous = null;
@@ -225,13 +189,13 @@ function validateCommentInput(comment) {
     return 'comment_too_short';
 }
 
-function getBadgeSeenStorageKey(nickname) {
-    return `badge_seen_${nickname}`;
+function getBadgeSeenStorageKey(displayName) {
+    return `badge_seen_${displayName}`;
 }
 
 function notifyNewUnlockedBadges(mypageData, { shouldNotify = false } = {}) {
-    if (!shouldNotify || !mypageData?.nickname) return;
-    const storageKey = getBadgeSeenStorageKey(mypageData.nickname);
+    if (!shouldNotify || !mypageData?.display_name) return;
+    const storageKey = getBadgeSeenStorageKey(mypageData.display_name);
     const seen = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]'));
     const unlocked = mypageData.unlocked_badge_keys || [];
     const newlyUnlocked = unlocked.filter(key => !seen.has(key));
@@ -245,8 +209,8 @@ function notifyNewUnlockedBadges(mypageData, { shouldNotify = false } = {}) {
 }
 
 function syncSeenUnlockedBadges(mypageData) {
-    if (!mypageData?.nickname) return;
-    localStorage.setItem(getBadgeSeenStorageKey(mypageData.nickname), JSON.stringify(mypageData.unlocked_badge_keys || []));
+    if (!mypageData?.display_name) return;
+    localStorage.setItem(getBadgeSeenStorageKey(mypageData.display_name), JSON.stringify(mypageData.unlocked_badge_keys || []));
 }
 
 function preserveContentScroll(callback) {
@@ -285,7 +249,7 @@ async function refreshCurrentCommentsView() {
 
     if (state.currentView?.id === 'results') {
         const data = await apiFetchResults(state.selectedCategory);
-        state.isAdmin = !!(state.adminToken && data.is_admin);
+        state.isAdmin = !!data.is_admin;
         const results = data.results || [];
         results.forEach(r => {
             const sum = parseFloat(r.avg_control || 0) +

@@ -3,16 +3,11 @@ from pathlib import Path
 import csv
 import re
 from collections import defaultdict
-import base64
-import hashlib
-import hmac
-import json
 import os
 
 from dotenv import load_dotenv
 
-ENGLISH_NICKNAME_RE = re.compile(r"^[A-Za-z]{6,14}$")
-KOREAN_NICKNAME_RE = re.compile(r"^[가-힣]{3,8}$")
+DISPLAY_NAME_RE = re.compile(r"^[A-Za-z0-9가-힣]{3,14}$")
 JAMO_RE = re.compile(r"[\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uD7B0-\uD7FF]")
 
 DEFAULT_RESERVED_NICKNAME_TERMS = (
@@ -28,7 +23,6 @@ DEFAULT_BANNED_NICKNAME_TERMS = (
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 BLOCKLIST_CSV_PATH = BASE_DIR / "data" / "nickname_blocklist.csv"
-ADMIN_TOKEN_MAX_AGE_SECONDS = 60 * 60 * 12
 
 
 def has_supabase_config():
@@ -100,26 +94,26 @@ CATEGORY_COMPLETION_BADGES = {
 }
 
 
-def validate_nickname(nickname: str):
-    nickname = (nickname or "").strip()
-    if not nickname:
+def validate_display_name(display_name: str):
+    display_name = (display_name or "").strip()
+    if not display_name:
         return False, "nickname_required"
 
-    lowered = nickname.casefold()
+    lowered = display_name.casefold()
     if any(term in lowered for term in RESERVED_NICKNAME_TERMS if term.isascii()):
         return False, "nickname_reserved"
-    if any(term in nickname for term in RESERVED_NICKNAME_TERMS if not term.isascii()):
+    if any(term in display_name for term in RESERVED_NICKNAME_TERMS if not term.isascii()):
         return False, "nickname_reserved"
 
     if any(term in lowered for term in BANNED_NICKNAME_TERMS if term.isascii()):
         return False, "nickname_banned"
-    if any(term in nickname for term in BANNED_NICKNAME_TERMS if not term.isascii()):
+    if any(term in display_name for term in BANNED_NICKNAME_TERMS if not term.isascii()):
         return False, "nickname_banned"
 
-    if JAMO_RE.search(nickname):
+    if JAMO_RE.search(display_name):
         return False, "nickname_jamo_only"
 
-    if ENGLISH_NICKNAME_RE.fullmatch(nickname) or KOREAN_NICKNAME_RE.fullmatch(nickname):
+    if DISPLAY_NAME_RE.fullmatch(display_name):
         return True, None
 
     return False, "nickname_format"
@@ -255,23 +249,31 @@ def resolve_profile_badge_key(saved_profile_badge_key: str | None, unlocked_badg
     return unlocked_badge_keys[-1]
 
 
-def build_user_badge_lookup(target_nicknames, eval_rows, view_rows, games_data, saved_profile_badges=None):
+def _activity_display_name(row):
+    return (row.get("profile_display_name") or row.get("display_name") or "").strip()
+
+
+def build_user_badge_lookup(target_display_names, eval_rows, view_rows, games_data, saved_profile_badges=None):
     saved_profile_badges = saved_profile_badges or {}
-    target_nicknames = target_nicknames or []
+    target_display_names = target_display_names or []
     eval_map = defaultdict(list)
     view_map = defaultdict(list)
 
     for row in eval_rows or []:
-        eval_map[row["nickname"]].append(row)
+        display_name = _activity_display_name(row)
+        if display_name:
+            eval_map[display_name].append(row)
     for row in view_rows or []:
-        view_map[row["nickname"]].append(row)
+        display_name = _activity_display_name(row)
+        if display_name:
+            view_map[display_name].append(row)
 
     result = {}
-    for nickname in target_nicknames:
-        unlocked_badge_keys = get_unlocked_badge_keys(eval_map.get(nickname, []), view_map.get(nickname, []), games_data)
-        result[nickname] = {
+    for display_name in target_display_names:
+        unlocked_badge_keys = get_unlocked_badge_keys(eval_map.get(display_name, []), view_map.get(display_name, []), games_data)
+        result[display_name] = {
             "unlocked_badge_keys": unlocked_badge_keys,
-            "profile_badge_key": resolve_profile_badge_key(saved_profile_badges.get(nickname), unlocked_badge_keys),
+            "profile_badge_key": resolve_profile_badge_key(saved_profile_badges.get(display_name), unlocked_badge_keys),
         }
     return result
 
@@ -375,7 +377,7 @@ def check_reply_submission_rate_limit(replies, cooldown_seconds: int = 10, windo
     return True, 0, None
 
 
-def summarize_mypage_data(nickname: str, eval_rows, view_rows, games_data, saved_profile_badge_key: str | None = None):
+def summarize_mypage_data(display_name: str, eval_rows, view_rows, games_data, saved_profile_badge_key: str | None = None):
     eval_rows = eval_rows or []
     view_rows = view_rows or []
 
@@ -434,7 +436,7 @@ def summarize_mypage_data(nickname: str, eval_rows, view_rows, games_data, saved
     profile_badge_key = resolve_profile_badge_key(saved_profile_badge_key, unlocked_badge_keys)
 
     return {
-        "nickname": nickname,
+        "display_name": display_name,
         "badge": {
             **get_badge_info(len(unique_models)),
             "stage_key": profile_badge_key,
@@ -470,87 +472,6 @@ def resolve_comment_reaction(existing_reaction: str | None, requested_reaction: 
         return {"action": "update", "current_reaction": requested_reaction}
     return {"action": "insert", "current_reaction": requested_reaction}
 
-
-def get_admin_nicknames():
-    raw = os.environ.get("ADMIN_NICKNAMES", "")
-    if not raw and not has_supabase_config():
-        raw = "winamp"
-    return tuple(nickname.strip() for nickname in raw.split(",") if nickname.strip())
-
-
-def is_admin_nickname(nickname: str):
-    nickname = (nickname or "").strip()
-    return nickname in get_admin_nicknames()
-
-
-def get_admin_password():
-    password = os.environ.get("ADMIN_PASSWORD", "")
-    if not password and not has_supabase_config():
-        return "pppp"
-    return password
-
-
-def _get_admin_token_secret():
-    return (
-        os.environ.get("ADMIN_SESSION_SECRET")
-        or os.environ.get("ADMIN_PASSWORD")
-        or "development-admin-secret"
-    )
-
-
-def issue_admin_token(nickname: str):
-    if not get_admin_password():
-        raise ValueError("Admin password is not configured")
-    payload = {
-        "nickname": nickname,
-        "issued_at": int(datetime.now(timezone.utc).timestamp()),
-    }
-    payload_bytes = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    payload_token = base64.urlsafe_b64encode(payload_bytes).decode("ascii").rstrip("=")
-    signature = hmac.new(
-        _get_admin_token_secret().encode("utf-8"),
-        payload_token.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-    return f"{payload_token}.{signature}"
-
-
-def verify_admin_token(token: str | None):
-    if not get_admin_password():
-        return None
-    if not token or "." not in token:
-        return None
-
-    payload_token, signature = token.rsplit(".", 1)
-    expected_signature = hmac.new(
-        _get_admin_token_secret().encode("utf-8"),
-        payload_token.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-
-    if not hmac.compare_digest(signature, expected_signature):
-        return None
-
-    padding = "=" * (-len(payload_token) % 4)
-    try:
-        payload_bytes = base64.urlsafe_b64decode((payload_token + padding).encode("ascii"))
-        payload = json.loads(payload_bytes.decode("utf-8"))
-    except Exception:
-        return None
-
-    nickname = payload.get("nickname")
-    issued_at = int(payload.get("issued_at", 0))
-    now_ts = int(datetime.now(timezone.utc).timestamp())
-
-    if not nickname or not is_admin_nickname(nickname):
-        return None
-    if now_ts - issued_at > ADMIN_TOKEN_MAX_AGE_SECONDS:
-        return None
-
-    return {
-        "nickname": nickname,
-        "issued_at": issued_at,
-    }
 
 def check_submission_rate_limit(evaluations):
     return check_comment_submission_rate_limit(evaluations)

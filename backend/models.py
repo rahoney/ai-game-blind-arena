@@ -1,15 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 
-class NicknameLogin(BaseModel):
-    nickname: str = Field(min_length=1, max_length=20)
-
-    @field_validator("nickname")
-    @classmethod
-    def strip_nickname(cls, value: str):
-        return value.strip()
-
-
 class ProfileDisplayNameUpdate(BaseModel):
     display_name: str = Field(min_length=1, max_length=20)
 
@@ -20,12 +11,13 @@ class ProfileDisplayNameUpdate(BaseModel):
 
 
 class ProfileIdentityUpdate(BaseModel):
-    login_id: str = Field(min_length=4, max_length=30)
+    login_id: str = Field(min_length=4, max_length=15)
     real_name: str = Field(min_length=1, max_length=50)
     display_name: str = Field(min_length=1, max_length=20)
     email_verification_token: Optional[str] = Field(default=None, max_length=500)
+    language: Optional[str] = Field(default="ko", max_length=5)
 
-    @field_validator("login_id", "real_name", "display_name", "email_verification_token", mode="before")
+    @field_validator("login_id", "real_name", "display_name", "email_verification_token", "language", mode="before")
     @classmethod
     def strip_identity_fields(cls, value):
         return value.strip() if isinstance(value, str) else value
@@ -51,7 +43,7 @@ class SignupEmailVerificationConfirm(BaseModel):
 
 
 class LoginIdEmailRequest(BaseModel):
-    login_id: str = Field(min_length=4, max_length=30)
+    login_id: str = Field(min_length=4, max_length=15)
 
     @field_validator("login_id", mode="before")
     @classmethod
@@ -72,7 +64,7 @@ class FindLoginIdRequest(BaseModel):
 
 class PasswordResetRequest(BaseModel):
     real_name: str = Field(min_length=1, max_length=50)
-    login_id: str = Field(min_length=4, max_length=30)
+    login_id: str = Field(min_length=4, max_length=15)
     email: str = Field(min_length=3, max_length=254)
     language: Optional[str] = Field(default="ko", max_length=5)
 
@@ -95,7 +87,6 @@ class SocialProvidersUpdate(BaseModel):
         return sorted({str(provider).strip() for provider in value if str(provider).strip()})
 
 class Evaluation(BaseModel):
-    nickname: Optional[str] = Field(default=None, max_length=20)
     game_type: str = Field(min_length=1, max_length=100)
     blind_model_id: str = Field(min_length=1, max_length=10)
     score_control: int = Field(ge=1, le=10)
@@ -106,7 +97,7 @@ class Evaluation(BaseModel):
     score_overall: int = Field(ge=1, le=10)
     comment: Optional[str] = Field(default=None, max_length=150)
 
-    @field_validator("nickname", "game_type", "blind_model_id", mode="before")
+    @field_validator("game_type", "blind_model_id", mode="before")
     @classmethod
     def strip_required_strings(cls, value):
         return value.strip() if isinstance(value, str) else value
@@ -119,9 +110,8 @@ class Evaluation(BaseModel):
 class PlayEvent(BaseModel):
     game_type: str = Field(min_length=1, max_length=100)
     blind_model_id: str = Field(min_length=1, max_length=10)
-    nickname: Optional[str] = Field(default=None, max_length=20)
 
-    @field_validator("game_type", "blind_model_id", "nickname", mode="before")
+    @field_validator("game_type", "blind_model_id", mode="before")
     @classmethod
     def strip_play_fields(cls, value):
         return value.strip() if isinstance(value, str) else value
@@ -129,10 +119,9 @@ class PlayEvent(BaseModel):
 
 class CommentReactionToggle(BaseModel):
     evaluation_id: str = Field(min_length=1, max_length=100)
-    nickname: Optional[str] = Field(default=None, max_length=20)
     reaction_type: str = Field(min_length=1, max_length=10)
 
-    @field_validator("evaluation_id", "nickname", "reaction_type", mode="before")
+    @field_validator("evaluation_id", "reaction_type", mode="before")
     @classmethod
     def strip_reaction_fields(cls, value):
         return value.strip() if isinstance(value, str) else value
@@ -140,22 +129,11 @@ class CommentReactionToggle(BaseModel):
 
 class CommentReplyCreate(BaseModel):
     evaluation_id: str = Field(min_length=1, max_length=100)
-    nickname: Optional[str] = Field(default=None, max_length=20)
     reply: str = Field(min_length=1, max_length=150)
 
-    @field_validator("evaluation_id", "nickname", "reply", mode="before")
+    @field_validator("evaluation_id", "reply", mode="before")
     @classmethod
     def strip_reply_fields(cls, value):
-        return value.strip() if isinstance(value, str) else value
-
-
-class AdminAuthRequest(BaseModel):
-    nickname: str = Field(min_length=1, max_length=20)
-    password: str = Field(min_length=1, max_length=200)
-
-    @field_validator("nickname", "password", mode="before")
-    @classmethod
-    def strip_admin_auth_fields(cls, value):
         return value.strip() if isinstance(value, str) else value
 
 
@@ -171,10 +149,9 @@ class AdminBlindToggle(BaseModel):
 
 
 class ProfileBadgeUpdate(BaseModel):
-    nickname: Optional[str] = Field(default=None, max_length=20)
     badge_key: str = Field(min_length=1, max_length=100)
 
-    @field_validator("nickname", "badge_key", mode="before")
+    @field_validator("badge_key", mode="before")
     @classmethod
     def strip_profile_badge_fields(cls, value):
         return value.strip() if isinstance(value, str) else value

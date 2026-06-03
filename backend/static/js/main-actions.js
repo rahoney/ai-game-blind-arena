@@ -1,50 +1,3 @@
-async function handleLogin() {
-    if (state.isLoginSubmitting) return;
-    const nicknameInput = document.getElementById('nickname').value.trim();
-    const validationError = validateNicknameInput(nicknameInput);
-    if (validationError) {
-        alert(getNicknameErrorMessage(validationError));
-        return;
-    }
-
-    const loginButton = document.getElementById('login-submit-btn');
-    try {
-        state.isLoginSubmitting = true;
-        if (loginButton) loginButton.disabled = true;
-        const res = await apiNicknameLogin(nicknameInput);
-        const data = await res.json();
-        if (!res.ok) {
-            alert(getNicknameErrorMessage(data.detail));
-            return;
-        }
-
-        if (data.status === 'admin_required') {
-            const password = await showAdminPasswordPrompt(data.nickname);
-            if (!password) return;
-            const adminRes = await apiAdminAuth(data.nickname, password);
-            const adminData = await adminRes.json();
-            if (!adminRes.ok) {
-                alert(getNicknameErrorMessage(adminData.detail));
-                return;
-            }
-            state.nickname = adminData.nickname;
-            state.isAdmin = true;
-            state.adminToken = adminData.admin_token || '';
-        } else {
-            state.nickname = data.nickname;
-            state.isAdmin = false;
-            state.adminToken = '';
-        }
-        await apiFetchUserEvals();
-        navigateTo('category', renderCategorySelection);
-    } catch (e) {
-        alert(t('nickname_login_network_error'));
-    } finally {
-        state.isLoginSubmitting = false;
-        if (loginButton) loginButton.disabled = false;
-    }
-}
-
 async function selectCategory(category) {
     state.selectedCategory = category;
     navigateTo('list', renderGameList);
@@ -56,7 +9,6 @@ async function handleLogout() {
     } catch (e) {
         console.error('Sign out failed', e);
     }
-    state.nickname = '';
     state.selectedCategory = null;
     state.selectedGame = null;
     state.userEvals = [];
@@ -65,7 +17,6 @@ async function handleLogout() {
     state.playCommentsLoading = false;
     state.profileBadgeSelection = '';
     state.isAdmin = false;
-    state.adminToken = '';
     navigateTo('category', renderCategorySelection);
 }
 
@@ -120,7 +71,7 @@ async function toggleCommentReaction(evaluationId, reactionType) {
         const res = await apiToggleCommentReaction(evaluationId, reactionType);
         const data = await res.json();
         if (!res.ok) {
-            showAppMessage(getNicknameErrorMessage(data.detail || 'comment_reaction_error'), { tone: 'error' });
+            showAppMessage(getDisplayNameErrorMessage(data.detail || 'comment_reaction_error'), { tone: 'error' });
             return;
         }
         await refreshCurrentCommentsView();
