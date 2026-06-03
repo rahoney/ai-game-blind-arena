@@ -102,6 +102,17 @@ async function apiCheckLoginIdAvailability(loginId) {
     return data;
 }
 
+async function apiCheckDisplayNameAvailability(displayName) {
+    const res = await fetch(`${API_BASE}/profile/display-name-availability?display_name=${encodeURIComponent(displayName)}`, {
+        cache: 'no-store'
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'display_name_check_failed');
+    }
+    return data;
+}
+
 async function apiResolveLoginIdEmail(loginId) {
     const res = await fetch(`${API_BASE}/auth/login-id-email`, {
         method: 'POST',

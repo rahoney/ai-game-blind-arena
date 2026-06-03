@@ -7,8 +7,7 @@ import os
 
 from dotenv import load_dotenv
 
-ENGLISH_NICKNAME_RE = re.compile(r"^[A-Za-z]{6,14}$")
-KOREAN_NICKNAME_RE = re.compile(r"^[가-힣]{3,8}$")
+DISPLAY_NAME_RE = re.compile(r"^[A-Za-z0-9가-힣]{3,14}$")
 JAMO_RE = re.compile(r"[\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uD7B0-\uD7FF]")
 
 DEFAULT_RESERVED_NICKNAME_TERMS = (
@@ -114,7 +113,7 @@ def validate_display_name(display_name: str):
     if JAMO_RE.search(display_name):
         return False, "nickname_jamo_only"
 
-    if ENGLISH_NICKNAME_RE.fullmatch(display_name) or KOREAN_NICKNAME_RE.fullmatch(display_name):
+    if DISPLAY_NAME_RE.fullmatch(display_name):
         return True, None
 
     return False, "nickname_format"

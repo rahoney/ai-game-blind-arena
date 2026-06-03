@@ -43,6 +43,7 @@ try:
         validate_display_name,
         validate_comment_text,
         get_badge_info,
+        check_memory_rate_limit,
         make_rate_limit_store,
         summarize_mypage_data,
         resolve_comment_reaction,
@@ -78,6 +79,7 @@ except ImportError:
         validate_display_name,
         validate_comment_text,
         get_badge_info,
+        check_memory_rate_limit,
         make_rate_limit_store,
         summarize_mypage_data,
         resolve_comment_reaction,
@@ -131,7 +133,7 @@ def _now_iso():
 
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
-LOGIN_ID_RE = re.compile(r"^[A-Za-z0-9]{4,30}$")
+LOGIN_ID_RE = re.compile(r"^[A-Za-z0-9]{4,15}$")
 SERVICE_BRAND_NAME = "VeilPlays"
 SERVICE_CONTEXT_NAME = "AI Game Blind Arena"
 
@@ -454,10 +456,10 @@ def _confirm_signup_email_verification(email: str, code: str):
     return {"verified": True, "email_verification_token": _issue_signup_email_token(normalized_email)}
 
 
-def _validate_identity_fields(login_id: str, real_name: str, display_name: str):
+def _validate_identity_fields(login_id: str, real_name: str, display_name: str, language: str | None = "ko"):
     if not LOGIN_ID_RE.fullmatch(login_id):
         raise HTTPException(status_code=400, detail="login_id_format")
-    if not _is_valid_real_name(real_name):
+    if not _is_valid_real_name(real_name, language):
         raise HTTPException(status_code=400, detail="real_name_format")
     is_valid, error_key = validate_display_name(display_name)
     if not is_valid:
@@ -492,6 +494,35 @@ def _is_login_id_taken(login_id: str, current_uid: str | None = None):
     return not current_uid or duplicate.get("firebase_uid") != current_uid
 
 
+def _is_display_name_taken(display_name: str, current_uid: str | None = None):
+    is_valid, error_key = validate_display_name(display_name)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_key)
+
+    if LOCAL_TEST_MODE:
+        for existing_uid, existing in LOCAL_DB["profiles"].items():
+            if current_uid and existing_uid == current_uid:
+                continue
+            if existing.get("display_name", "").casefold() == display_name.casefold():
+                return True
+        return False
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    duplicate_res = (
+        supabase.table("profiles")
+        .select("id, firebase_uid")
+        .ilike("display_name", display_name)
+        .limit(1)
+        .execute()
+    )
+    duplicate = (duplicate_res.data or [None])[0]
+    if not duplicate:
+        return False
+    return not current_uid or duplicate.get("firebase_uid") != current_uid
+
+
 def _find_profile_by_login_id(login_id: str):
     if not LOGIN_ID_RE.fullmatch(login_id):
         _invalid_recovery_input()
@@ -515,21 +546,13 @@ def _find_profile_by_login_id(login_id: str):
     return (res.data or [None])[0]
 
 
-def _is_valid_real_name(real_name: str):
+def _is_valid_real_name(real_name: str, language: str | None = "ko"):
     name = real_name.strip()
     if not name:
         return False
-    if re.search(r"[^A-Za-z가-힣\s]", name):
-        return False
-    if re.search(r"[ㄱ-ㅎㅏ-ㅣ]", name):
-        return False
-    has_korean = bool(re.search(r"[가-힣]", name))
-    has_english = bool(re.search(r"[A-Za-z]", name))
-    if has_korean and (has_english or re.search(r"\s", name)):
-        return False
-    if has_english and re.search(r"([A-Za-z])\1\1", name, re.IGNORECASE):
-        return False
-    return True
+    if (language or "ko").split("-")[0].lower() == "en":
+        return bool(re.fullmatch(r"[A-Za-z]+(?: [A-Za-z]+)*", name)) and len(re.sub(r"\s+", "", name)) >= 3
+    return bool(re.fullmatch(r"[가-힣]{2,}", name))
 
 
 def _profile_payload_from_firebase_user(user: dict, role: str):
@@ -669,15 +692,7 @@ def _update_profile_display_name(profile: dict, display_name: str):
         raise HTTPException(status_code=503, detail="Supabase is not configured")
 
     try:
-        duplicate_res = (
-            supabase.table("profiles")
-            .select("id, firebase_uid")
-            .ilike("display_name", display_name)
-            .limit(1)
-            .execute()
-        )
-        duplicate = (duplicate_res.data or [None])[0]
-        if duplicate and duplicate.get("firebase_uid") != uid:
+        if _is_display_name_taken(display_name, uid):
             raise HTTPException(status_code=409, detail="display_name_taken")
 
         update_payload = {
@@ -694,7 +709,7 @@ def _update_profile_display_name(profile: dict, display_name: str):
 
 
 def _update_profile_identity(profile: dict, payload: ProfileIdentityUpdate):
-    _validate_identity_fields(payload.login_id, payload.real_name, payload.display_name)
+    _validate_identity_fields(payload.login_id, payload.real_name, payload.display_name, payload.language)
     uid = profile.get("firebase_uid")
 
     if LOCAL_TEST_MODE:
@@ -723,15 +738,7 @@ def _update_profile_identity(profile: dict, payload: ProfileIdentityUpdate):
         if _is_login_id_taken(payload.login_id, uid):
             raise HTTPException(status_code=409, detail="login_id_taken")
 
-        display_duplicate_res = (
-            supabase.table("profiles")
-            .select("id, firebase_uid")
-            .ilike("display_name", payload.display_name)
-            .limit(1)
-            .execute()
-        )
-        display_duplicate = (display_duplicate_res.data or [None])[0]
-        if display_duplicate and display_duplicate.get("firebase_uid") != uid:
+        if _is_display_name_taken(payload.display_name, uid):
             raise HTTPException(status_code=409, detail="display_name_taken")
 
         update_payload = {
@@ -1075,6 +1082,23 @@ async def check_login_id_availability(login_id: str):
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail="login_id_check_failed") from exc
+
+
+@app.get("/api/profile/display-name-availability")
+async def check_display_name_availability(display_name: str):
+    normalized_display_name = (display_name or "").strip()
+    is_valid, error_key = validate_display_name(normalized_display_name)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_key)
+    try:
+        return {
+            "display_name": normalized_display_name,
+            "available": not _is_display_name_taken(normalized_display_name),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="display_name_check_failed") from exc
 
 
 @app.post("/api/auth/login-id-email")

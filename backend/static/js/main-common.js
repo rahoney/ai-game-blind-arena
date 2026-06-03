@@ -56,7 +56,7 @@ function validateDisplayNameInput(displayName) {
     if (/[\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uD7B0-\uD7FF]/.test(trimmed)) {
         return 'nickname_jamo_only';
     }
-    if (/^[A-Za-z]{6,14}$/.test(trimmed) || /^[가-힣]{3,8}$/.test(trimmed)) {
+    if (/^[A-Za-z0-9가-힣]{3,14}$/.test(trimmed)) {
         return null;
     }
     return 'nickname_format';

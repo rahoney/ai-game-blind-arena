@@ -17,15 +17,9 @@ function renderLogin() {
     const isResetPassword = mode === 'reset_password';
     el.innerHTML = `
         <div class="card auth-card">
-            <h2 style="margin-bottom: 0.35rem; font-size: 2.2rem; color: var(--text-color); line-height: 1.3; font-weight: 800; letter-spacing: 0;">${t('title')}</h2>
-            <p style="margin:0 0 1.5rem; color:var(--primary); font-size:1.05rem; font-weight:800;">${t('subtitle')}</p>
-            <p class="auth-description">${isDisplayName ? t('auth_display_name_setup_desc') : isVerifyEmail ? t('auth_verify_email_desc') : isHelp ? t('auth_help_desc') : isFindId ? t('auth_find_id_desc') : isResetPassword ? t('auth_reset_password_desc') : t('auth_description')}</p>
+            ${isDisplayName || isVerifyEmail || isHelp || isFindId || isResetPassword ? `<p class="auth-description">${isDisplayName ? t('auth_display_name_setup_desc') : isVerifyEmail ? t('auth_verify_email_desc') : isHelp ? t('auth_help_desc') : isFindId ? t('auth_find_id_desc') : t('auth_reset_password_desc')}</p>` : ''}
             ${disabled ? `<p class="auth-status">${t('auth_not_configured')}</p>` : ''}
             <div class="auth-form">
-                ${!isDisplayName && !isVerifyEmail ? `<div class="auth-mode-tabs" role="tablist">
-                    <button type="button" class="${!isSignup ? 'active' : ''}" onclick="setAuthMode('login')">${t('auth_login')}</button>
-                    <button type="button" class="${isSignup ? 'active' : ''}" onclick="setAuthMode('signup')">${t('auth_signup')}</button>
-                </div>` : ''}
                 ${isDisplayName ? `
                     <label for="auth-display-name">${t('auth_display_name_label')}</label>
                     <input type="text" id="auth-display-name" autocomplete="nickname" placeholder="${t('auth_display_name_placeholder')}" onkeypress="if(event.keyCode==13) handleDisplayNameSubmit()" ${disabled ? 'disabled' : ''}>
@@ -71,14 +65,20 @@ function renderLogin() {
                         ${renderAuthFieldLabel('auth-real-name', 'auth_real_name_label')}
                         <input type="text" id="auth-real-name" autocomplete="name" placeholder="${t('auth_real_name_placeholder')}" oninput="updateSignupSubmitState()" ${disabled ? 'disabled' : ''}>
                         ${renderAuthFieldLabel('auth-display-name', 'auth_display_name_label')}
-                        <input type="text" id="auth-display-name" autocomplete="nickname" placeholder="${t('auth_display_name_placeholder')}" oninput="updateSignupSubmitState()" ${disabled ? 'disabled' : ''}>
+                        <div class="auth-inline-control">
+                            <input type="text" id="auth-display-name" autocomplete="nickname" placeholder="${t('auth_display_name_placeholder')}" oninput="handleSignupDisplayNameInput()" ${disabled ? 'disabled' : ''}>
+                            <button type="button" class="secondary" onclick="handleDisplayNameAvailabilityCheck()" ${disabled ? 'disabled' : ''}>${t('auth_display_name_check')}</button>
+                        </div>
+                        <p id="auth-display-name-availability" class="auth-field-message"></p>
                         ${renderAuthFieldLabel('auth-password', 'auth_password_label')}
                         <input type="password" id="auth-password" autocomplete="new-password" placeholder="${t('auth_password_placeholder')}" oninput="updateSignupSubmitState()" onkeypress="if(event.keyCode==13) handleEmailAuth('signup')" ${disabled ? 'disabled' : ''}>
                         ${renderAuthFieldLabel('auth-password-confirm', 'auth_password_confirm_label')}
                         <input type="password" id="auth-password-confirm" autocomplete="new-password" placeholder="${t('auth_password_confirm_placeholder')}" oninput="updateSignupSubmitState()" onkeypress="if(event.keyCode==13) handleEmailAuth('signup')" ${disabled ? 'disabled' : ''}>
-                        <p class="auth-field-hint">${t('auth_signup_enable_hint')}</p>
                         <div class="auth-actions">
                             <button id="login-submit-btn" onclick="handleEmailAuth('signup')" disabled>${t('auth_signup')}</button>
+                        </div>
+                        <div class="auth-help-actions">
+                            <button type="button" onclick="setAuthMode('login')">${t('auth_back_to_login')}</button>
                         </div>
                     ` : `
                         <label for="auth-email">${t('auth_email_label')}</label>
@@ -101,16 +101,14 @@ function renderLogin() {
                 ${isSignup ? `
                     <label for="auth-password-confirm">${t('auth_password_confirm_label')}</label>
                     <input type="password" id="auth-password-confirm" autocomplete="new-password" placeholder="${t('auth_password_confirm_placeholder')}" oninput="updateSignupSubmitState()" onkeypress="if(event.keyCode==13) handleEmailAuth('signup')" ${disabled ? 'disabled' : ''}>
-                    <p class="auth-field-hint">${t('auth_signup_enable_hint')}</p>
                 ` : ''}
-                <div class="auth-actions">
-                    <button id="login-submit-btn" onclick="handleEmailAuth('${mode}')" ${disabled || isSignup ? 'disabled' : ''}>${isSignup ? t('auth_signup') : t('auth_login')}</button>
+                <div class="auth-actions auth-login-actions">
+                    <button id="login-submit-btn" onclick="handleEmailAuth('login')" ${disabled ? 'disabled' : ''}>${t('auth_login')}</button>
+                    <button type="button" class="secondary" onclick="setAuthMode('signup')" ${disabled ? 'disabled' : ''}>${t('auth_signup')}</button>
                 </div>
-                ${!isSignup ? `
-                    <div class="auth-help-actions">
-                        <button type="button" onclick="setAuthMode('help')" ${disabled ? 'disabled' : ''}>${t('auth_login_help')}</button>
-                    </div>
-                ` : ''}
+                <div class="auth-help-actions">
+                    <button type="button" onclick="setAuthMode('help')" ${disabled ? 'disabled' : ''}>${t('auth_login_help')}</button>
+                </div>
                 <button class="auth-google-button" onclick="handleGoogleLogin()" ${disabled ? 'disabled' : ''}>${t('auth_google_login')}</button>
                 `}
             </div>

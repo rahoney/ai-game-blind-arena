@@ -17,6 +17,11 @@ let state = {
         status: 'idle',
         message: '',
     },
+    displayNameAvailability: {
+        value: '',
+        status: 'idle',
+        message: '',
+    },
     signupEmailTimerId: null,
     games: {},
     categories: [],

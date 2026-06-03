@@ -30,6 +30,8 @@ function setAuthMode(mode) {
     state.authMode = ['signup', 'display_name', 'verify_email', 'help', 'find_id', 'reset_password'].includes(mode) ? mode : 'login';
     if (state.authMode !== 'signup') {
         stopSignupEmailCountdown();
+        state.loginIdAvailability = { value: '', status: 'idle', message: '' };
+        state.displayNameAvailability = { value: '', status: 'idle', message: '' };
     }
     renderLogin();
 }
@@ -51,9 +53,11 @@ function getFriendlyAuthError(error, mode = 'login') {
             recoveryRateLimited: '입력 오류가 너무 많습니다. 잠시 후 다시 시도하세요.',
             mailServiceNotConfigured: '메일 발송 기능이 아직 설정되지 않았습니다.',
             mailSendFailed: '메일 발송 중 문제가 발생했습니다.',
+            passwordResetLinkFailed: '비밀번호 재설정 링크를 생성하지 못했습니다. 잠시 후 다시 시도하세요.',
             signupEmailVerificationNotConfigured: '이메일 인증 기능을 준비 중입니다. 잠시 후 다시 시도해 주세요.',
             loginIdTaken: '중복된 아이디입니다.',
-            loginIdFormat: '아이디는 영문과 숫자 4~30자만 사용할 수 있습니다.',
+            displayNameTaken: '이미 사용 중인 표시 닉네임입니다.',
+            loginIdFormat: '아이디는 영문과 숫자 4~15자만 사용할 수 있습니다.',
             generic: mode === 'signup' ? '회원가입 처리 중 문제가 발생했습니다.' : '로그인 처리 중 문제가 발생했습니다.',
         },
         en: {
@@ -70,9 +74,11 @@ function getFriendlyAuthError(error, mode = 'login') {
             recoveryRateLimited: 'Too many failed attempts. Try again later.',
             mailServiceNotConfigured: 'Email delivery is not configured yet.',
             mailSendFailed: 'Failed to send email.',
+            passwordResetLinkFailed: 'Failed to create the password reset link. Please try again later.',
             signupEmailVerificationNotConfigured: 'Email verification is being prepared. Please try again shortly.',
             loginIdTaken: 'This ID is already taken.',
-            loginIdFormat: 'Use only 4-30 letters or numbers.',
+            displayNameTaken: 'This display nickname is already in use.',
+            loginIdFormat: 'Use only 4-15 letters or numbers.',
             generic: mode === 'signup' ? 'Sign-up failed.' : 'Login failed.',
         },
     };
@@ -91,8 +97,10 @@ function getFriendlyAuthError(error, mode = 'login') {
     if (String(code).startsWith('recovery_rate_limited')) return bucket.recoveryRateLimited;
     if (code === 'mail_service_not_configured') return bucket.mailServiceNotConfigured;
     if (code === 'mail_send_failed') return bucket.mailSendFailed;
+    if (code === 'password_reset_link_failed') return bucket.passwordResetLinkFailed;
     if (code === 'signup_email_verification_not_configured') return bucket.signupEmailVerificationNotConfigured;
     if (code === 'login_id_taken') return bucket.loginIdTaken;
+    if (code === 'display_name_taken') return bucket.displayNameTaken;
     if (code === 'login_id_format') return bucket.loginIdFormat;
     return bucket.generic;
 }
@@ -109,11 +117,12 @@ function getIdentityFormValues() {
         real_name: document.getElementById('auth-real-name')?.value.trim() || '',
         display_name: document.getElementById('auth-display-name')?.value.trim() || '',
         email_verification_token: state.signupEmailVerification?.token || '',
+        language: state.language || 'ko',
     };
 }
 
 function isValidLoginId(loginId) {
-    return /^[A-Za-z0-9]{4,30}$/.test(loginId || '');
+    return /^[A-Za-z0-9]{4,15}$/.test(loginId || '');
 }
 
 function isValidSignupPassword(password) {
@@ -143,6 +152,8 @@ function isValidSignupForm() {
         && state.loginIdAvailability?.status === 'available'
         && isValidRealName(identity.real_name)
         && !validateDisplayNameInput(identity.display_name)
+        && state.displayNameAvailability?.value === identity.display_name
+        && state.displayNameAvailability?.status === 'available'
         && isValidSignupPassword(password)
         && password === passwordConfirm
     );
@@ -151,13 +162,10 @@ function isValidSignupForm() {
 function isValidRealName(realName) {
     const value = (realName || '').trim();
     if (!value) return false;
-    if (/[^A-Za-z가-힣\s]/.test(value)) return false;
-    if (/[ㄱ-ㅎㅏ-ㅣ]/.test(value)) return false;
-    const hasKorean = /[가-힣]/.test(value);
-    const hasEnglish = /[A-Za-z]/.test(value);
-    if (hasKorean && (hasEnglish || /\s/.test(value))) return false;
-    if (hasEnglish && /([A-Za-z])\1\1/i.test(value)) return false;
-    return true;
+    if ((state.language || 'ko') === 'en') {
+        return /^[A-Za-z]+(?: [A-Za-z]+)*$/.test(value) && value.replace(/\s+/g, '').length >= 3;
+    }
+    return /^[가-힣]{2,}$/.test(value);
 }
 
 function updateSignupSubmitState() {
@@ -187,9 +195,12 @@ function updateSignupFieldStatuses() {
     const loginStatus = state.loginIdAvailability?.value === identity.login_id && state.loginIdAvailability?.status === 'available'
         ? 'valid'
         : getFieldVisualState(!!identity.login_id, false);
+    const displayNameStatus = state.displayNameAvailability?.value === identity.display_name && state.displayNameAvailability?.status === 'available'
+        ? 'valid'
+        : getFieldVisualState(!!identity.display_name, false);
     setAuthFieldStatus('login-id', loginStatus);
     setAuthFieldStatus('real-name', getFieldVisualState(!!identity.real_name, isValidRealName(identity.real_name)));
-    setAuthFieldStatus('display-name', getFieldVisualState(!!identity.display_name, !validateDisplayNameInput(identity.display_name)));
+    setAuthFieldStatus('display-name', displayNameStatus);
     setAuthFieldStatus('password', getFieldVisualState(!!password, isValidSignupPassword(password)));
     setAuthFieldStatus('password-confirm', getFieldVisualState(!!passwordConfirm, !!passwordConfirm && password === passwordConfirm && isValidSignupPassword(password)));
 }
@@ -205,6 +216,68 @@ function handleSignupLoginIdInput() {
         message.className = 'auth-field-message';
     }
     updateSignupSubmitState();
+}
+
+function handleSignupDisplayNameInput() {
+    const displayName = document.getElementById('auth-display-name')?.value.trim() || '';
+    if (state.displayNameAvailability?.value !== displayName) {
+        state.displayNameAvailability = { value: displayName, status: 'idle', message: '' };
+    }
+    const message = document.getElementById('auth-display-name-availability');
+    if (message) {
+        const validationError = validateDisplayNameInput(displayName);
+        message.textContent = displayName
+            ? validationError
+                ? getDisplayNameErrorMessage(validationError)
+                : t('auth_display_name_check_required')
+            : '';
+        message.className = `auth-field-message ${displayName && validationError ? 'invalid' : ''}`.trim();
+    }
+    updateSignupSubmitState();
+}
+
+async function handleDisplayNameAvailabilityCheck() {
+    const displayName = document.getElementById('auth-display-name')?.value.trim() || '';
+    const message = document.getElementById('auth-display-name-availability');
+    const validationError = validateDisplayNameInput(displayName);
+    if (validationError) {
+        state.displayNameAvailability = { value: displayName, status: 'invalid', message: validationError };
+        if (message) {
+            message.textContent = getDisplayNameErrorMessage(validationError);
+            message.className = 'auth-field-message invalid';
+        }
+        updateSignupSubmitState();
+        return;
+    }
+    try {
+        state.displayNameAvailability = { value: displayName, status: 'checking', message: '' };
+        if (message) {
+            message.textContent = t('auth_display_name_checking');
+            message.className = 'auth-field-message';
+        }
+        updateSignupSubmitState();
+        const data = await apiCheckDisplayNameAvailability(displayName);
+        state.displayNameAvailability = {
+            value: displayName,
+            status: data.available ? 'available' : 'taken',
+            message: data.available ? 'available' : 'taken',
+        };
+        if (message) {
+            message.textContent = data.available ? t('auth_display_name_available') : t('auth_display_name_taken');
+            message.className = `auth-field-message ${data.available ? 'valid' : 'invalid'}`;
+        }
+    } catch (e) {
+        state.displayNameAvailability = { value: displayName, status: 'error', message: e?.message || 'display_name_check_failed' };
+        if (message) {
+            const detail = e?.message || '';
+            message.textContent = detail && detail !== 'display_name_check_failed'
+                ? getDisplayNameErrorMessage(detail)
+                : t('auth_display_name_check_failed');
+            message.className = 'auth-field-message invalid';
+        }
+    } finally {
+        updateSignupSubmitState();
+    }
 }
 
 async function handleLoginIdAvailabilityCheck() {
@@ -392,6 +465,7 @@ async function handleEmailAuth(mode) {
             await saveProfileIdentity(identity);
             state.signupEmailVerification = { email: '', codeSent: false, expiresAt: 0, token: '' };
             state.loginIdAvailability = { value: '', status: 'idle', message: '' };
+            state.displayNameAvailability = { value: '', status: 'idle', message: '' };
             showAppMessage(t('auth_signup_complete'), { tone: 'success' });
         } else {
             const data = await apiResolveLoginIdEmail(email);
