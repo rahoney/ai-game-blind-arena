@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import json
@@ -21,7 +21,6 @@ try:
     from .models import (
         Evaluation,
         PlayEvent,
-        NicknameLogin,
         ProfileDisplayNameUpdate,
         ProfileIdentityUpdate,
         SignupEmailVerificationRequest,
@@ -33,7 +32,6 @@ try:
         SocialProvidersUpdate,
         CommentReactionToggle,
         CommentReplyCreate,
-        AdminAuthRequest,
         AdminBlindToggle,
         ProfileBadgeUpdate,
     )
@@ -42,17 +40,12 @@ try:
         check_comment_submission_rate_limit,
         check_same_model_comment_rate_limit,
         check_reply_submission_rate_limit,
-        validate_nickname,
+        validate_display_name,
         validate_comment_text,
         get_badge_info,
-        check_memory_rate_limit,
         make_rate_limit_store,
         summarize_mypage_data,
         resolve_comment_reaction,
-        is_admin_nickname,
-        get_admin_password,
-        issue_admin_token,
-        verify_admin_token,
         build_user_badge_lookup,
         get_unlocked_badge_keys,
         resolve_profile_badge_key,
@@ -63,7 +56,6 @@ except ImportError:
     from models import (
         Evaluation,
         PlayEvent,
-        NicknameLogin,
         ProfileDisplayNameUpdate,
         ProfileIdentityUpdate,
         SignupEmailVerificationRequest,
@@ -75,7 +67,6 @@ except ImportError:
         SocialProvidersUpdate,
         CommentReactionToggle,
         CommentReplyCreate,
-        AdminAuthRequest,
         AdminBlindToggle,
         ProfileBadgeUpdate,
     )
@@ -84,17 +75,12 @@ except ImportError:
         check_comment_submission_rate_limit,
         check_same_model_comment_rate_limit,
         check_reply_submission_rate_limit,
-        validate_nickname,
+        validate_display_name,
         validate_comment_text,
         get_badge_info,
-        check_memory_rate_limit,
         make_rate_limit_store,
         summarize_mypage_data,
         resolve_comment_reaction,
-        is_admin_nickname,
-        get_admin_password,
-        issue_admin_token,
-        verify_admin_token,
         build_user_badge_lookup,
         get_unlocked_badge_keys,
         resolve_profile_badge_key,
@@ -103,19 +89,15 @@ except ImportError:
 app = FastAPI(title="LLM Game Evaluator")
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
-LOGIN_RATE_LIMITS = make_rate_limit_store()
 COMMENT_REACTION_RATE_LIMITS = make_rate_limit_store()
 COMMENT_REPLY_RATE_LIMITS = make_rate_limit_store()
-ADMIN_AUTH_RATE_LIMITS = make_rate_limit_store()
 COMMENT_SUBMISSION_HISTORY = make_rate_limit_store()
 RECOVERY_RATE_LIMITS = make_rate_limit_store()
 LOCAL_TEST_MODE = not bool(supabase)
 LOCAL_DB = {
-    "nicknames": {},
     "profiles": {},
     "game_stats": {},
     "evaluations": [],
-    "nickname_views": [],
     "user_views": [],
     "comment_reactions": [],
     "comment_replies": [],
@@ -477,7 +459,7 @@ def _validate_identity_fields(login_id: str, real_name: str, display_name: str):
         raise HTTPException(status_code=400, detail="login_id_format")
     if not _is_valid_real_name(real_name):
         raise HTTPException(status_code=400, detail="real_name_format")
-    is_valid, error_key = validate_nickname(display_name)
+    is_valid, error_key = validate_display_name(display_name)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_key)
 
@@ -643,14 +625,14 @@ def _get_profile_id(profile: dict | None):
     return (profile or {}).get("id")
 
 
-def _get_actor_from_request(request: Request, fallback_nickname: str | None = None, required: bool = True, allow_legacy_nickname: bool = False):
+def _get_actor_from_request(request: Request, required: bool = True):
     user, profile = _get_request_profile(request, required=required)
     if profile:
         display_name = _get_profile_display_name(profile)
         profile_id = _get_profile_id(profile)
         if not profile_id:
             raise HTTPException(status_code=500, detail="profile_id_missing")
-        is_valid, error_key = validate_nickname(display_name)
+        is_valid, error_key = validate_display_name(display_name)
         if not is_valid:
             raise HTTPException(status_code=400, detail=error_key)
         return {
@@ -661,30 +643,13 @@ def _get_actor_from_request(request: Request, fallback_nickname: str | None = No
             "is_admin": profile.get("role") in ("admin", "super_admin"),
         }
 
-    if not allow_legacy_nickname:
-        if required:
-            raise HTTPException(status_code=401, detail="auth_required")
-        return None
-
-    nickname = (fallback_nickname or "").strip()
-    if not nickname:
-        if required:
-            raise HTTPException(status_code=401, detail="auth_required")
-        return None
-    is_valid, error_key = validate_nickname(nickname)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_key)
-    return {
-        "user": None,
-        "profile": None,
-        "user_id": None,
-        "display_name": nickname,
-        "is_admin": False,
-    }
+    if required:
+        raise HTTPException(status_code=401, detail="auth_required")
+    return None
 
 
 def _update_profile_display_name(profile: dict, display_name: str):
-    is_valid, error_key = validate_nickname(display_name)
+    is_valid, error_key = validate_display_name(display_name)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_key)
 
@@ -878,61 +843,30 @@ def _find_actual_model(game_type: str, blind_model_id: str, preferred_lang: str 
     return None
 
 
-def _local_upsert_nickname(nickname: str):
-    existing = LOCAL_DB["nicknames"].get(nickname)
-    if existing:
-        existing["last_active_at"] = _now_iso()
-        return {"status": "success", "nickname": nickname, "created": False}
-
-    LOCAL_DB["nicknames"][nickname] = {
-        "nickname": nickname,
-        "profile_badge_key": None,
-        "created_at": _now_iso(),
-        "last_active_at": _now_iso(),
-    }
-    return {"status": "success", "nickname": nickname, "created": True}
-
-
-def _local_get_eval_rows_for_nickname(nickname: str):
-    return [
-        {"game_type": row["game_type"], "actual_model_name": row["actual_model_name"]}
-        for row in LOCAL_DB["evaluations"]
-        if row["nickname"] == nickname
-    ]
-
-
-def _local_get_view_rows_for_nickname(nickname: str):
-    return [
-        {"game_type": row["game_type"], "actual_model_name": row["actual_model_name"]}
-        for row in LOCAL_DB["nickname_views"]
-        if row["nickname"] == nickname
-    ]
-
-
 def _local_get_eval_rows_for_profile(profile: dict):
     profile_id = _get_profile_id(profile)
-    display_name = _get_profile_display_name(profile)
     return [
-        {"game_type": row["game_type"], "actual_model_name": row["actual_model_name"]}
+        {
+            "profile_display_name": _activity_display_name(row),
+            "game_type": row["game_type"],
+            "actual_model_name": row["actual_model_name"],
+        }
         for row in LOCAL_DB["evaluations"]
-        if (profile_id and row.get("user_id") == profile_id) or row.get("nickname") == display_name
+        if profile_id and row.get("user_id") == profile_id
     ]
 
 
 def _local_get_view_rows_for_profile(profile: dict):
     profile_id = _get_profile_id(profile)
-    display_name = _get_profile_display_name(profile)
-    rows = [
-        {"game_type": row["game_type"], "actual_model_name": row["actual_model_name"]}
+    return [
+        {
+            "display_name": row.get("display_name"),
+            "game_type": row["game_type"],
+            "actual_model_name": row["actual_model_name"],
+        }
         for row in LOCAL_DB["user_views"]
         if profile_id and row.get("user_id") == profile_id
     ]
-    rows.extend(
-        {"game_type": row["game_type"], "actual_model_name": row["actual_model_name"]}
-        for row in LOCAL_DB["nickname_views"]
-        if row.get("nickname") == display_name
-    )
-    return rows
 
 
 def _summarize_mypage_for_profile(profile: dict, eval_rows, view_rows):
@@ -961,16 +895,20 @@ def _strip_postgrest_missing_column_fields(row: dict, exc: Exception):
     return {key: value for key, value in row.items() if key not in missing_fields}
 
 
-def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, nickname: str | None, is_admin: bool, user_eval_rows, user_view_rows, saved_profile_badges, current_user_id: str | None = None):
+def _activity_display_name(row: dict):
+    return (row.get("profile_display_name") or row.get("display_name") or "").strip()
+
+
+def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, current_display_name: str | None, is_admin: bool, user_eval_rows, user_view_rows, saved_profile_badges, current_user_id: str | None = None):
     stats = {}
     blind_mapping = {}
     for lang_dict in GAMES_DATA.values():
         for m in lang_dict.get(game_type, []):
             blind_mapping[m['actual_model']] = m['blind_id']
 
-    participant_nicknames = {row['nickname'] for row in data}
-    participant_nicknames.update(reply['nickname'] for reply in reply_rows)
-    badge_lookup = build_user_badge_lookup(participant_nicknames, user_eval_rows, user_view_rows, GAMES_DATA, saved_profile_badges)
+    participant_display_names = {_activity_display_name(row) for row in data if _activity_display_name(row)}
+    participant_display_names.update(_activity_display_name(reply) for reply in reply_rows if _activity_display_name(reply))
+    badge_lookup = build_user_badge_lookup(participant_display_names, user_eval_rows, user_view_rows, GAMES_DATA, saved_profile_badges)
 
     reaction_map = {}
     for reaction in reaction_rows:
@@ -986,8 +924,9 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, nick
             reaction_map[key]["like_count"] += 1
         elif reaction['reaction_type'] == 'dislike':
             reaction_map[key]["dislike_count"] += 1
-        if reaction.get('nickname'):
-            reaction_map[key]["user_reactions"][reaction['nickname']] = reaction['reaction_type']
+        reaction_display_name = _activity_display_name(reaction)
+        if reaction_display_name:
+            reaction_map[key]["user_reactions"][reaction_display_name] = reaction['reaction_type']
         if reaction.get('user_id'):
             reaction_map[key]["user_reactions_by_id"][reaction['user_id']] = reaction['reaction_type']
 
@@ -996,14 +935,15 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, nick
         evaluation_id = reply['evaluation_id']
         reply_map.setdefault(evaluation_id, [])
         is_blinded = bool(reply.get('is_blinded'))
+        reply_display_name = _activity_display_name(reply)
         reply_map[evaluation_id].append({
             "id": reply['id'],
-            "nickname": reply['nickname'],
+            "display_name": reply_display_name,
             "reply": reply['reply'] if is_admin or not is_blinded else "",
             "created_at": reply.get('created_at'),
             "is_blinded": is_blinded,
             "badge": {
-                "stage_key": badge_lookup.get(reply['nickname'], {}).get('profile_badge_key', 'badge_egg')
+                "stage_key": badge_lookup.get(reply_display_name, {}).get('profile_badge_key', 'badge_egg')
             },
         })
 
@@ -1027,9 +967,10 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, nick
         if row.get('comment'):
             reaction_info = reaction_map.get(row['id'], {"like_count": 0, "dislike_count": 0, "user_reactions": {}, "user_reactions_by_id": {}})
             is_blinded = bool(row.get('is_blinded'))
+            row_display_name = _activity_display_name(row)
             stats[m_name]['comments'].append({
                 "id": row['id'],
-                "nickname": row['nickname'],
+                "display_name": row_display_name,
                 "comment": row['comment'] if is_admin or not is_blinded else "",
                 "is_blinded": is_blinded,
                 "created_at": row.get('created_at'),
@@ -1038,10 +979,10 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, nick
                 "user_reaction": (
                     reaction_info["user_reactions_by_id"].get(current_user_id)
                     if current_user_id
-                    else reaction_info["user_reactions"].get(nickname) if nickname else None
+                    else reaction_info["user_reactions"].get(current_display_name) if current_display_name else None
                 ),
                 "badge": {
-                    "stage_key": badge_lookup.get(row['nickname'], {}).get('profile_badge_key', 'badge_egg')
+                    "stage_key": badge_lookup.get(row_display_name, {}).get('profile_badge_key', 'badge_egg')
                 },
                 "replies": reply_map.get(row['id'], []),
             })
@@ -1069,6 +1010,18 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, nick
 async def serve_index():
     with open(STATIC_DIR / "index.html", "r", encoding="utf-8") as f:
         return f.read()
+
+
+@app.get("/api/nickname-blocklist.csv")
+async def get_nickname_blocklist():
+    blocklist_path = BASE_DIR / "data" / "nickname_blocklist.csv"
+    if not blocklist_path.exists():
+        raise HTTPException(status_code=404, detail="nickname_blocklist_not_found")
+    return FileResponse(
+        str(blocklist_path),
+        media_type="text/csv; charset=utf-8",
+        filename="nickname_blocklist.csv",
+    )
 
 
 @app.get("/api/auth/config")
@@ -1237,81 +1190,6 @@ async def update_profile_social_providers(payload: SocialProvidersUpdate, reques
     }
 
 
-@app.post("/api/nickname/login")
-async def nickname_login(payload: NicknameLogin, request: Request):
-    nickname = payload.nickname.strip()
-    is_valid, error_key = validate_nickname(nickname)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_key)
-
-    forwarded = request.headers.get("X-Forwarded-For")
-    ip = forwarded.split(",")[0] if forwarded else request.client.host
-    allowed, wait_time = check_memory_rate_limit(LOGIN_RATE_LIMITS, f"{ip}:{nickname.casefold()}", 60, 6)
-    if not allowed:
-        raise HTTPException(status_code=429, detail=f"rate_limit_login:{wait_time}")
-
-    if is_admin_nickname(nickname):
-        return {"status": "admin_required", "nickname": nickname}
-
-    if LOCAL_TEST_MODE:
-        return _local_upsert_nickname(nickname)
-
-    try:
-        existing = supabase.table('nicknames').select('nickname').eq('nickname', nickname).limit(1).execute()
-        if existing.data:
-            supabase.table('nicknames').update({"last_active_at": datetime.now(timezone.utc).isoformat()}).eq('nickname', nickname).execute()
-            return {"status": "success", "nickname": nickname, "created": False}
-
-        supabase.table('nicknames').insert({"nickname": nickname}).execute()
-        return {"status": "success", "nickname": nickname, "created": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-def _upsert_nickname_login(nickname: str):
-    if LOCAL_TEST_MODE:
-        return _local_upsert_nickname(nickname)
-
-    existing = supabase.table('nicknames').select('nickname').eq('nickname', nickname).limit(1).execute()
-    if existing.data:
-        supabase.table('nicknames').update({"last_active_at": datetime.now(timezone.utc).isoformat()}).eq('nickname', nickname).execute()
-        return {"status": "success", "nickname": nickname, "created": False}
-
-    supabase.table('nicknames').insert({"nickname": nickname}).execute()
-    return {"status": "success", "nickname": nickname, "created": True}
-
-
-@app.post("/api/admin/auth")
-async def admin_auth(payload: AdminAuthRequest, request: Request):
-    nickname = payload.nickname.strip()
-    is_valid, error_key = validate_nickname(nickname)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_key)
-    if not is_admin_nickname(nickname):
-        raise HTTPException(status_code=403, detail="admin_auth_forbidden")
-    if not get_admin_password():
-        raise HTTPException(status_code=503, detail="admin_auth_not_configured")
-
-    forwarded = request.headers.get("X-Forwarded-For")
-    ip = forwarded.split(",")[0] if forwarded else request.client.host
-    allowed, wait_time = check_memory_rate_limit(ADMIN_AUTH_RATE_LIMITS, f"{ip}:{nickname.casefold()}", 60, 5)
-    if not allowed:
-        raise HTTPException(status_code=429, detail=f"rate_limit_admin_auth:{wait_time}")
-
-    if payload.password != get_admin_password():
-        raise HTTPException(status_code=401, detail="admin_auth_invalid_password")
-
-    try:
-        login_result = _upsert_nickname_login(nickname)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-    return {
-        **login_result,
-        "is_admin": True,
-        "admin_token": issue_admin_token(nickname),
-    }
-
 @app.get("/api/games")
 async def get_games(lang: str = 'ko'):
     """Returns games grouped by type, hides actual model names, and includes play counts based on language."""
@@ -1342,7 +1220,8 @@ async def get_games(lang: str = 'ko'):
             key = f"{row['game_type']}_{row['actual_model_name']}"
             if key not in eval_counts:
                 eval_counts[key] = set()
-            eval_counts[key].add(row.get('user_id') or row['nickname'])
+            if row.get('user_id'):
+                eval_counts[key].add(row['user_id'])
     elif supabase:
         try:
             # Fetch play counts
@@ -1351,17 +1230,14 @@ async def get_games(lang: str = 'ko'):
                 key = f"{row['game_type']}_{row['actual_model_name']}"
                 play_counts[key] = row['plays']
                 
-            # Fetch unique evaluator counts by account id when available, otherwise by legacy nickname.
-            try:
-                res_evals = supabase.table('evaluations').select('game_type, actual_model_name, nickname, user_id').execute()
-            except Exception as exc:
-                print(f"Evaluation account count fallback: {exc}", flush=True)
-                res_evals = supabase.table('evaluations').select('game_type, actual_model_name, nickname').execute()
+            res_evals = supabase.table('evaluations').select('game_type, actual_model_name, user_id').execute()
             for row in res_evals.data:
+                if not row.get('user_id'):
+                    continue
                 key = f"{row['game_type']}_{row['actual_model_name']}"
                 if key not in eval_counts:
                     eval_counts[key] = set()
-                eval_counts[key].add(row.get('user_id') or row['nickname'])
+                eval_counts[key].add(row['user_id'])
         except Exception as e:
             print("DB Fetch Error:", e)
             
@@ -1418,6 +1294,7 @@ async def record_play(data: PlayEvent, request: Request):
                     try:
                         supabase.table('user_views').insert({
                             "user_id": actor["user_id"],
+                            "display_name": actor["display_name"],
                             "game_type": data.game_type,
                             "actual_model_name": actual_model,
                         }).execute()
@@ -1467,7 +1344,6 @@ async def submit_evaluation(eval: Evaluation, request: Request):
     )
     
     data = {
-        "nickname": display_name,
         "ip_address": ip,
         "game_type": eval.game_type,
         "actual_model_name": actual_model,
@@ -1481,20 +1357,15 @@ async def submit_evaluation(eval: Evaluation, request: Request):
         "total_score": total_score,
         "comment": eval.comment,
         "updated_at": datetime.now(timezone.utc).isoformat(),
+        "user_id": actor["user_id"],
+        "profile_display_name": display_name,
     }
-    if actor.get("user_id"):
-        data["user_id"] = actor["user_id"]
-        data["profile_display_name"] = display_name
     
     try:
         if LOCAL_TEST_MODE:
-            _local_upsert_nickname(display_name)
             existing = next((
                 row for row in LOCAL_DB["evaluations"]
-                if (
-                    (actor.get("user_id") and row.get("user_id") == actor["user_id"])
-                    or (not actor.get("user_id") and row.get("nickname") == display_name)
-                )
+                if row.get("user_id") == actor["user_id"]
                 and row["game_type"] == eval.game_type
                 and row["actual_model_name"] == actual_model
             ), None)
@@ -1574,59 +1445,26 @@ async def get_current_user_evals(request: Request):
                     "actual_model_name": row["actual_model_name"],
                 }
                 for row in LOCAL_DB["evaluations"]
-                if (profile_id and row.get("user_id") == profile_id) or row.get("nickname") == display_name
+                if profile_id and row.get("user_id") == profile_id
             ]
         }
     try:
-        try:
-            res = (
-                supabase.table('evaluations')
-                .select('game_type, blind_model_id, total_score, actual_model_name')
-                .eq('user_id', profile_id)
-                .execute()
-            )
-        except Exception as exc:
-            print(f"user_evals account lookup fallback: {exc}", flush=True)
-            res = (
-                supabase.table('evaluations')
-                .select('game_type, blind_model_id, total_score, actual_model_name')
-                .eq('nickname', display_name)
-                .execute()
-            )
+        res = (
+            supabase.table('evaluations')
+            .select('game_type, blind_model_id, total_score, actual_model_name')
+            .eq('user_id', profile_id)
+            .execute()
+        )
         return {"evals": res.data or []}
     except Exception:
         return {"evals": []}
 
 
-@app.get("/api/user_evals/{nickname}")
-async def get_user_evals(nickname: str):
-    if LOCAL_TEST_MODE:
-        return {
-            "evals": [
-                {
-                    "game_type": row["game_type"],
-                    "blind_model_id": row["blind_model_id"],
-                    "total_score": row["total_score"],
-                    "actual_model_name": row["actual_model_name"],
-                }
-                for row in LOCAL_DB["evaluations"]
-                if row["nickname"] == nickname
-            ]
-        }
-    try:
-        res = supabase.table('evaluations').select('game_type, blind_model_id, total_score, actual_model_name').eq('nickname', nickname).execute()
-        return {"evals": res.data}
-    except Exception as e:
-        return {"evals": []}
-
 @app.get("/api/results/{game_type}")
-async def get_results(game_type: str, request: Request, nickname: str | None = None):
+async def get_results(game_type: str, request: Request):
     actor = _get_actor_from_request(request, required=False)
-    current_display_name = actor["display_name"] if actor else nickname
+    current_display_name = actor["display_name"] if actor else None
     is_admin = bool(actor and actor.get("is_admin"))
-    if not is_admin:
-        admin_info = verify_admin_token(request.headers.get("X-Admin-Token"))
-        is_admin = bool(admin_info)
 
     try:
         if LOCAL_TEST_MODE:
@@ -1634,18 +1472,15 @@ async def get_results(game_type: str, request: Request, nickname: str | None = N
             eval_ids = {row["id"] for row in data}
             reaction_rows = [row for row in LOCAL_DB["comment_reactions"] if row["evaluation_id"] in eval_ids]
             reply_rows = [row for row in LOCAL_DB["comment_replies"] if row["evaluation_id"] in eval_ids]
-            participant_nicknames = {row["nickname"] for row in data} | {row["nickname"] for row in reply_rows}
-            user_eval_rows = [row for row in LOCAL_DB["evaluations"] if row["nickname"] in participant_nicknames]
-            user_view_rows = [row for row in LOCAL_DB["nickname_views"] if row["nickname"] in participant_nicknames]
-            saved_profile_badges = {
-                nickname_key: row.get("profile_badge_key")
-                for nickname_key, row in LOCAL_DB["nicknames"].items()
-                if nickname_key in participant_nicknames
-            }
+            participant_display_names = {_activity_display_name(row) for row in data if _activity_display_name(row)}
+            participant_display_names.update(_activity_display_name(reply) for reply in reply_rows if _activity_display_name(reply))
+            user_eval_rows = [row for row in LOCAL_DB["evaluations"] if _activity_display_name(row) in participant_display_names]
+            user_view_rows = [row for row in LOCAL_DB["user_views"] if _activity_display_name(row) in participant_display_names]
+            saved_profile_badges = {}
             saved_profile_badges.update({
                 profile.get("display_name"): profile.get("profile_badge_key")
                 for profile in LOCAL_DB["profiles"].values()
-                if profile.get("display_name") in participant_nicknames
+                if profile.get("display_name") in participant_display_names
             })
             return _build_results_payload(game_type, data, reaction_rows, reply_rows, current_display_name, is_admin, user_eval_rows, user_view_rows, saved_profile_badges, actor.get("user_id") if actor else None)
 
@@ -1656,138 +1491,38 @@ async def get_results(game_type: str, request: Request, nickname: str | None = N
         if data:
             eval_ids = [row['id'] for row in data]
             if eval_ids:
-                reaction_res = supabase.table('comment_reactions').select('evaluation_id, nickname, user_id, reaction_type').in_('evaluation_id', eval_ids).execute()
+                reaction_res = supabase.table('comment_reactions').select('evaluation_id, profile_display_name, user_id, reaction_type').in_('evaluation_id', eval_ids).execute()
                 reaction_rows = reaction_res.data or []
-                reply_res = supabase.table('comment_replies').select('id, evaluation_id, nickname, reply, is_blinded, created_at').in_('evaluation_id', eval_ids).order('created_at', desc=True).execute()
+                reply_res = supabase.table('comment_replies').select('id, evaluation_id, profile_display_name, reply, is_blinded, created_at').in_('evaluation_id', eval_ids).order('created_at', desc=True).execute()
                 reply_rows = reply_res.data or []
         
-        stats = {}
-        blind_mapping = {}
-        for lang_dict in GAMES_DATA.values():
-            for m in lang_dict.get(game_type, []):
-                blind_mapping[m['actual_model']] = m['blind_id']
-
-        participant_nicknames = {row['nickname'] for row in data}
-        participant_nicknames.update(reply['nickname'] for reply in reply_rows)
-
         user_eval_rows = []
         user_view_rows = []
         saved_profile_badges = {}
-        if participant_nicknames:
-            participant_list = list(participant_nicknames)
+        participant_display_names = {_activity_display_name(row) for row in data if _activity_display_name(row)}
+        participant_display_names.update(_activity_display_name(reply) for reply in reply_rows if _activity_display_name(reply))
+        if participant_display_names:
+            participant_list = list(participant_display_names)
             try:
-                all_eval_res = supabase.table('evaluations').select('nickname, game_type, actual_model_name').in_('nickname', participant_list).execute()
+                all_eval_res = supabase.table('evaluations').select('profile_display_name, game_type, actual_model_name').in_('profile_display_name', participant_list).execute()
                 user_eval_rows = all_eval_res.data or []
             except Exception as exc:
                 print(f"results user evaluation badge lookup skipped: {exc}", flush=True)
             try:
-                all_view_res = supabase.table('nickname_views').select('nickname, game_type, actual_model_name').in_('nickname', participant_list).execute()
+                all_view_res = supabase.table('user_views').select('display_name, game_type, actual_model_name').in_('display_name', participant_list).execute()
                 user_view_rows = all_view_res.data or []
             except Exception as exc:
-                print(f"results nickname_views badge lookup skipped: {exc}", flush=True)
-            try:
-                profile_res = supabase.table('nicknames').select('nickname, profile_badge_key').in_('nickname', participant_list).execute()
-                saved_profile_badges = {
-                    row['nickname']: row.get('profile_badge_key')
-                    for row in (profile_res.data or [])
-                }
-            except Exception as exc:
-                print(f"results legacy nickname badge lookup skipped: {exc}", flush=True)
+                print(f"results user_views badge lookup skipped: {exc}", flush=True)
             try:
                 account_profile_res = supabase.table('profiles').select('display_name, profile_badge_key').in_('display_name', participant_list).execute()
-                saved_profile_badges.update({
+                saved_profile_badges = {
                     row['display_name']: row.get('profile_badge_key')
                     for row in (account_profile_res.data or [])
                     if row.get('display_name')
-                })
+                }
             except Exception as exc:
                 print(f"results account profile badges skipped: {exc}", flush=True)
 
-        badge_lookup = build_user_badge_lookup(participant_nicknames, user_eval_rows, user_view_rows, GAMES_DATA, saved_profile_badges)
-
-        reaction_map = {}
-        for reaction in reaction_rows:
-            key = reaction['evaluation_id']
-            if key not in reaction_map:
-                reaction_map[key] = {
-                    "like_count": 0,
-                    "dislike_count": 0,
-                    "user_reactions": {}
-                }
-            if reaction['reaction_type'] == 'like':
-                reaction_map[key]["like_count"] += 1
-            elif reaction['reaction_type'] == 'dislike':
-                reaction_map[key]["dislike_count"] += 1
-            reaction_map[key]["user_reactions"][reaction['nickname']] = reaction['reaction_type']
-
-        reply_map = {}
-        for reply in reply_rows:
-            evaluation_id = reply['evaluation_id']
-            reply_map.setdefault(evaluation_id, [])
-            is_blinded = bool(reply.get('is_blinded'))
-            reply_map[evaluation_id].append({
-                "id": reply['id'],
-                "nickname": reply['nickname'],
-                "reply": reply['reply'] if is_admin or not is_blinded else "",
-                "created_at": reply.get('created_at'),
-                "is_blinded": is_blinded,
-                "badge": {
-                    "stage_key": badge_lookup.get(reply['nickname'], {}).get('profile_badge_key', 'badge_egg')
-                },
-            })
-        
-        for row in data:
-            m_name = row['actual_model_name']
-            if m_name not in stats:
-                stats[m_name] = {
-                    "count": 0,
-                    "scores": {"control": 0, "structure": 0, "presentation": 0, "difficulty": 0, "fun": 0, "overall": 0, "total": 0},
-                    "comments": []
-                }
-            stats[m_name]['count'] += 1
-            stats[m_name]['scores']['control'] += row['score_control']
-            stats[m_name]['scores']['structure'] += row['score_structure']
-            stats[m_name]['scores']['presentation'] += row['score_presentation']
-            stats[m_name]['scores']['difficulty'] += row['score_difficulty']
-            stats[m_name]['scores']['fun'] += row['score_fun']
-            stats[m_name]['scores']['overall'] += row['score_overall']
-            stats[m_name]['scores']['total'] += row['total_score']
-            
-            if row.get('comment'):
-                reaction_info = reaction_map.get(row['id'], {"like_count": 0, "dislike_count": 0, "user_reactions": {}})
-                is_blinded = bool(row.get('is_blinded'))
-                stats[m_name]['comments'].append({
-                    "id": row['id'],
-                    "nickname": row['nickname'],
-                    "comment": row['comment'] if is_admin or not is_blinded else "",
-                    "is_blinded": is_blinded,
-                    "created_at": row.get('created_at'),
-                    "like_count": reaction_info["like_count"],
-                    "dislike_count": reaction_info["dislike_count"],
-                    "user_reaction": reaction_info["user_reactions"].get(nickname) if nickname else None,
-                    "badge": {
-                        "stage_key": badge_lookup.get(row['nickname'], {}).get('profile_badge_key', 'badge_egg')
-                    },
-                    "replies": reply_map.get(row['id'], []),
-                })
-                
-        result = []
-        for m_name, s in stats.items():
-            count = s['count']
-            result.append({
-                "actual_model_name": m_name,
-                "blind_id": blind_mapping.get(m_name, "?"),
-                "participant_count": count,
-                "avg_control": round(s['scores']['control'] / count, 1) if count > 0 else 0,
-                "avg_structure": round(s['scores']['structure'] / count, 1) if count > 0 else 0,
-                "avg_presentation": round(s['scores']['presentation'] / count, 1) if count > 0 else 0,
-                "avg_difficulty": round(s['scores']['difficulty'] / count, 1) if count > 0 else 0,
-                "avg_fun": round(s['scores']['fun'] / count, 1) if count > 0 else 0,
-                "avg_overall": round(s['scores']['overall'] / count, 1) if count > 0 else 0,
-                "avg_total": round(s['scores']['total'] / count, 1) if count > 0 else 0,
-                "comments": s['comments']
-            })
-            
         return _build_results_payload(game_type, data, reaction_rows, reply_rows, current_display_name, is_admin, user_eval_rows, user_view_rows, saved_profile_badges, actor.get("user_id") if actor else None)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1813,10 +1548,7 @@ async def toggle_comment_reaction(payload: CommentReactionToggle, request: Reque
             existing = next((
                 row for row in LOCAL_DB["comment_reactions"]
                 if row["evaluation_id"] == payload.evaluation_id
-                and (
-                    (actor.get("user_id") and row.get("user_id") == actor["user_id"])
-                    or (not actor.get("user_id") and row.get("nickname") == display_name)
-                )
+                and row.get("user_id") == actor["user_id"]
             ), None)
         else:
             query = supabase.table('comment_reactions').select('id, reaction_type').eq('evaluation_id', payload.evaluation_id)
@@ -1846,8 +1578,8 @@ async def toggle_comment_reaction(payload: CommentReactionToggle, request: Reque
                 LOCAL_DB["comment_reactions"].append({
                     "id": str(uuid4()),
                     "evaluation_id": payload.evaluation_id,
-                    "nickname": display_name,
-                    "user_id": actor.get("user_id"),
+                    "user_id": actor["user_id"],
+                    "profile_display_name": display_name,
                     "reaction_type": payload.reaction_type,
                     "created_at": _now_iso(),
                     "updated_at": _now_iso(),
@@ -1855,11 +1587,10 @@ async def toggle_comment_reaction(payload: CommentReactionToggle, request: Reque
             else:
                 insert_data = {
                     "evaluation_id": payload.evaluation_id,
-                    "nickname": display_name,
+                    "user_id": actor["user_id"],
+                    "profile_display_name": display_name,
                     "reaction_type": payload.reaction_type,
                 }
-                if actor.get("user_id"):
-                    insert_data["user_id"] = actor["user_id"]
                 supabase.table('comment_reactions').insert(insert_data).execute()
             current_reaction = transition["current_reaction"]
 
@@ -1903,10 +1634,7 @@ async def create_comment_reply(payload: CommentReplyCreate, request: Request):
                 "updated_at": row.get("updated_at"),
             }
             for row in LOCAL_DB["comment_replies"]
-            if (
-                (actor.get("user_id") and row.get("user_id") == actor["user_id"])
-                or (not actor.get("user_id") and row.get("nickname") == display_name)
-            )
+            if row.get("user_id") == actor["user_id"]
         ]
     else:
         query = supabase.table('comment_replies').select('created_at, updated_at')
@@ -1928,12 +1656,11 @@ async def create_comment_reply(payload: CommentReplyCreate, request: Request):
             raise HTTPException(status_code=404, detail="comment_not_found")
 
         if LOCAL_TEST_MODE:
-            _local_upsert_nickname(display_name)
             LOCAL_DB["comment_replies"].append({
                 "id": str(uuid4()),
                 "evaluation_id": payload.evaluation_id,
-                "nickname": display_name,
-                "user_id": actor.get("user_id"),
+                "user_id": actor["user_id"],
+                "profile_display_name": display_name,
                 "reply": payload.reply,
                 "is_blinded": False,
                 "created_at": _now_iso(),
@@ -1942,11 +1669,10 @@ async def create_comment_reply(payload: CommentReplyCreate, request: Request):
         else:
             insert_data = {
                 "evaluation_id": payload.evaluation_id,
-                "nickname": display_name,
+                "user_id": actor["user_id"],
+                "profile_display_name": display_name,
                 "reply": payload.reply,
             }
-            if actor.get("user_id"):
-                insert_data["user_id"] = actor["user_id"]
             supabase.table('comment_replies').insert(insert_data).execute()
         return {"status": "success"}
     except HTTPException:
@@ -1957,9 +1683,8 @@ async def create_comment_reply(payload: CommentReplyCreate, request: Request):
 
 @app.post("/api/admin/blind")
 async def admin_toggle_blind(payload: AdminBlindToggle, request: Request):
-    actor = _get_actor_from_request(request, required=False)
-    admin_info = verify_admin_token(request.headers.get("X-Admin-Token"))
-    if not ((actor and actor.get("is_admin")) or admin_info):
+    actor = _get_actor_from_request(request, required=True)
+    if not actor.get("is_admin"):
         raise HTTPException(status_code=401, detail="admin_auth_required")
 
     table_map = {
@@ -2015,74 +1740,16 @@ async def get_current_mypage(request: Request):
 
     try:
         profile_id = _get_profile_id(profile)
-        display_name = _get_profile_display_name(profile)
         eval_rows = []
         view_rows = []
 
-        try:
-            eval_res = supabase.table('evaluations').select('game_type, actual_model_name').eq('user_id', profile_id).execute()
-            eval_rows = eval_res.data or []
-        except Exception as exc:
-            print(f"mypage account evaluations lookup fallback: {exc}", flush=True)
-            eval_res = supabase.table('evaluations').select('game_type, actual_model_name').eq('nickname', display_name).execute()
-            eval_rows = eval_res.data or []
+        eval_res = supabase.table('evaluations').select('game_type, actual_model_name').eq('user_id', profile_id).execute()
+        eval_rows = eval_res.data or []
 
-        try:
-            view_res = supabase.table('user_views').select('game_type, actual_model_name').eq('user_id', profile_id).execute()
-            view_rows = view_res.data or []
-        except Exception as exc:
-            print(f"mypage account user_views lookup fallback: {exc}", flush=True)
-            try:
-                view_res = supabase.table('nickname_views').select('game_type, actual_model_name').eq('nickname', display_name).execute()
-                view_rows = view_res.data or []
-            except Exception as fallback_exc:
-                print(f"mypage nickname_views fallback skipped: {fallback_exc}", flush=True)
+        view_res = supabase.table('user_views').select('game_type, actual_model_name').eq('user_id', profile_id).execute()
+        view_rows = view_res.data or []
 
         return _summarize_mypage_for_profile(profile, eval_rows, view_rows)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/mypage/{nickname}")
-async def get_mypage(nickname: str):
-    is_valid, error_key = validate_nickname(nickname)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_key)
-
-    if LOCAL_TEST_MODE:
-        saved_profile_badge_key = LOCAL_DB["nicknames"].get(nickname, {}).get("profile_badge_key")
-        return summarize_mypage_data(
-            nickname,
-            _local_get_eval_rows_for_nickname(nickname),
-            _local_get_view_rows_for_nickname(nickname),
-            GAMES_DATA,
-            saved_profile_badge_key,
-        )
-
-    try:
-        eval_rows = []
-        view_rows = []
-        saved_profile_badge_key = None
-
-        try:
-            eval_res = supabase.table('evaluations').select('game_type, actual_model_name').eq('nickname', nickname).execute()
-            eval_rows = eval_res.data or []
-        except Exception as exc:
-            print(f"mypage evaluations lookup skipped: {exc}", flush=True)
-
-        try:
-            view_res = supabase.table('nickname_views').select('game_type, actual_model_name').eq('nickname', nickname).execute()
-            view_rows = view_res.data or []
-        except Exception as exc:
-            print(f"mypage nickname_views lookup skipped: {exc}", flush=True)
-
-        try:
-            profile_res = supabase.table('nicknames').select('profile_badge_key').eq('nickname', nickname).limit(1).execute()
-            saved_profile_badge_key = profile_res.data[0].get('profile_badge_key') if profile_res.data else None
-        except Exception as exc:
-            print(f"mypage nickname profile lookup skipped: {exc}", flush=True)
-
-        return summarize_mypage_data(nickname, eval_rows, view_rows, GAMES_DATA, saved_profile_badge_key)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -289,8 +289,8 @@ function renderAbout() {
 
 function navigateToInquiry() {
     const el = document.getElementById('view-list');
-    const nickname = encodeURIComponent(state.nickname || "");
-    const googleFormUrl = `https://docs.google.com/forms/d/e/1FAIpQLSfe83B3pzmpGqtHKDBjMIge3fcobUbT_lNZYjCZPm_Bm1n6wA/viewform?embedded=true&entry.1188400760=${nickname}`;
+    const displayNameParam = encodeURIComponent(getCurrentProfileDisplayName() || "");
+    const googleFormUrl = `https://docs.google.com/forms/d/e/1FAIpQLSfe83B3pzmpGqtHKDBjMIge3fcobUbT_lNZYjCZPm_Bm1n6wA/viewform?embedded=true&entry.1188400760=${displayNameParam}`;
 
     el.innerHTML = `
         <div class="card" style="height: 85vh; display: flex; flex-direction: column; max-width: 1000px; padding: 2rem; margin-top: 2rem;">

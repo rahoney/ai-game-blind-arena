@@ -187,20 +187,10 @@ async function apiUpdateSocialProviders(idToken, providers) {
 
 async function apiFetchUserEvals() {
     const headers = await getCurrentAuthHeaders();
-    const nickname = getCurrentProfileDisplayName();
-    const url = headers.Authorization ? `${API_BASE}/user_evals` : `${API_BASE}/user_evals/${encodeURIComponent(nickname)}`;
-    if (!headers.Authorization && !nickname) return;
-    const res = await fetch(url, { headers });
+    if (!headers.Authorization) return;
+    const res = await fetch(`${API_BASE}/user_evals`, { headers });
     const data = await res.json();
     state.userEvals = data.evals;
-}
-
-async function apiNicknameLogin(nickname) {
-    return await fetch(`${API_BASE}/nickname/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname })
-    });
 }
 
 async function apiRecordPlay(gameType, blindId) {
@@ -224,20 +214,15 @@ async function apiSubmitEvaluation(payload) {
 }
 
 async function apiFetchResults(gameType) {
-    const nickname = getCurrentProfileDisplayName();
     const headers = await getCurrentAuthHeaders();
-    if (!headers.Authorization && state.adminToken) headers['X-Admin-Token'] = state.adminToken;
-    const nicknameQuery = !headers.Authorization && nickname ? `?nickname=${encodeURIComponent(nickname)}` : '';
-    const res = await fetch(`${API_BASE}/results/${gameType}${nicknameQuery}`, { headers });
+    const res = await fetch(`${API_BASE}/results/${gameType}`, { headers });
     return await res.json();
 }
 
 async function apiFetchMyPage() {
-    const nickname = getCurrentProfileDisplayName();
     const headers = await getCurrentAuthHeaders();
-    const url = headers.Authorization ? `${API_BASE}/mypage` : `${API_BASE}/mypage/${encodeURIComponent(nickname)}`;
-    if (!headers.Authorization && !nickname) return null;
-    const res = await fetch(url, { headers });
+    if (!headers.Authorization) return null;
+    const res = await fetch(`${API_BASE}/mypage`, { headers });
     const data = await res.json();
     state.myPageData = data;
     return data;
@@ -278,17 +263,8 @@ async function apiSubmitCommentReply(evaluationId, reply) {
     });
 }
 
-async function apiAdminAuth(nickname, password) {
-    return await fetch(`${API_BASE}/admin/auth`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nickname, password })
-    });
-}
-
 async function apiAdminToggleBlind(targetType, targetId, isBlinded) {
     const headers = await getCurrentAuthHeaders(true);
-    if (!headers.Authorization) headers['X-Admin-Token'] = state.adminToken;
     return await fetch(`${API_BASE}/admin/blind`, {
         method: 'POST',
         headers,

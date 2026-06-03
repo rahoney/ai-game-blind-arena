@@ -5,7 +5,6 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 ALTER TABLE evaluations
-ADD COLUMN IF NOT EXISTS nickname TEXT,
 ADD COLUMN IF NOT EXISTS ip_address TEXT,
 ADD COLUMN IF NOT EXISTS game_type TEXT,
 ADD COLUMN IF NOT EXISTS actual_model_name TEXT,
@@ -30,18 +29,10 @@ ON evaluations (game_type);
 CREATE INDEX IF NOT EXISTS idx_evaluations_model
 ON evaluations (actual_model_name);
 
-CREATE INDEX IF NOT EXISTS idx_evaluations_nickname
-ON evaluations (nickname);
-
 CREATE INDEX IF NOT EXISTS idx_evaluations_user_id
 ON evaluations (user_id);
 
-CREATE UNIQUE INDEX IF NOT EXISTS unique_evaluations_legacy_nickname_model
-ON evaluations (nickname, game_type, actual_model_name)
-WHERE user_id IS NULL AND nickname IS NOT NULL;
-
 CREATE UNIQUE INDEX IF NOT EXISTS unique_evaluations_user_model
-ON evaluations (user_id, game_type, actual_model_name)
-WHERE user_id IS NOT NULL;
+ON evaluations (user_id, game_type, actual_model_name);
 
 NOTIFY pgrst, 'reload schema';

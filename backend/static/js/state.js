@@ -1,7 +1,6 @@
 const API_BASE = '/api';
 
 let state = {
-    nickname: '',
     authUser: null,
     account: null,
     authConfigured: false,
@@ -34,7 +33,6 @@ let state = {
     isLoginSubmitting: false,
     isEvaluationSubmitting: false,
     isAdmin: false,
-    adminToken: '',
     privacyReturnView: null,
     pendingReactionIds: new Set(),
     pendingReplyIds: new Set(),

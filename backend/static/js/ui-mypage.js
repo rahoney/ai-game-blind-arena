@@ -1,10 +1,10 @@
 function renderMyPage() {
     const el = document.getElementById('view-mypage');
     const accountProfile = state.account?.profile || {};
-    const displayName = accountProfile.display_name || state.nickname || '';
+    const displayName = accountProfile.display_name || '';
     const loginId = accountProfile.login_id || '';
     const data = state.myPageData || {
-        nickname: displayName,
+        display_name: displayName,
         unique_eval_model_count: 0,
         evaluations_by_game_type: [],
         top_game_type: null,
@@ -78,7 +78,7 @@ function renderMyPage() {
                     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom:1rem;">
                         <div style="padding:0.85rem 1rem; border:1px solid var(--border-color); border-radius:14px; background:var(--card-bg);">
                             <div style="font-size:0.82rem; color:var(--text-muted); font-weight:800; margin-bottom:0.25rem;">${t('nickname_label')}</div>
-                            <div style="font-size:1.25rem; color:var(--text-color); font-weight:900; word-break:break-word;">${escapeHtml(data.nickname || displayName || '-')}</div>
+                            <div style="font-size:1.25rem; color:var(--text-color); font-weight:900; word-break:break-word;">${escapeHtml(data.display_name || displayName || '-')}</div>
                         </div>
                         <div style="padding:0.85rem 1rem; border:1px solid var(--border-color); border-radius:14px; background:var(--card-bg);">
                             <div style="font-size:0.82rem; color:var(--text-muted); font-weight:800; margin-bottom:0.25rem;">${t('auth_login_id_label')}</div>

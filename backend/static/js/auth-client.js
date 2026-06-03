@@ -7,14 +7,7 @@ function getAccountDisplayName() {
 }
 
 function getCurrentProfileDisplayName() {
-    return (state.account?.profile?.display_name || state.nickname || '').trim();
-}
-
-function syncNicknameFromAccount() {
-    const displayName = state.account?.profile?.display_name;
-    if (displayName) {
-        state.nickname = displayName;
-    }
+    return (state.account?.profile?.display_name || '').trim();
 }
 
 function getLinkedProviderIds() {
@@ -31,7 +24,6 @@ function setSignedOutState() {
     state.authUser = null;
     state.account = null;
     state.isAdmin = false;
-    state.adminToken = '';
 }
 
 function setAuthMode(mode) {
@@ -107,8 +99,8 @@ function getFriendlyAuthError(error, mode = 'login') {
 
 function getDisplayNameValidationError(displayName) {
     if (!displayName) return t('auth_display_name_required');
-    const validationError = validateNicknameInput(displayName);
-    return validationError ? getNicknameErrorMessage(validationError) : '';
+    const validationError = validateDisplayNameInput(displayName);
+    return validationError ? getDisplayNameErrorMessage(validationError) : '';
 }
 
 function getIdentityFormValues() {
@@ -150,7 +142,7 @@ function isValidSignupForm() {
         && state.loginIdAvailability?.value === identity.login_id
         && state.loginIdAvailability?.status === 'available'
         && isValidRealName(identity.real_name)
-        && !validateNicknameInput(identity.display_name)
+        && !validateDisplayNameInput(identity.display_name)
         && isValidSignupPassword(password)
         && password === passwordConfirm
     );
@@ -197,7 +189,7 @@ function updateSignupFieldStatuses() {
         : getFieldVisualState(!!identity.login_id, false);
     setAuthFieldStatus('login-id', loginStatus);
     setAuthFieldStatus('real-name', getFieldVisualState(!!identity.real_name, isValidRealName(identity.real_name)));
-    setAuthFieldStatus('display-name', getFieldVisualState(!!identity.display_name, !validateNicknameInput(identity.display_name)));
+    setAuthFieldStatus('display-name', getFieldVisualState(!!identity.display_name, !validateDisplayNameInput(identity.display_name)));
     setAuthFieldStatus('password', getFieldVisualState(!!password, isValidSignupPassword(password)));
     setAuthFieldStatus('password-confirm', getFieldVisualState(!!passwordConfirm, !!passwordConfirm && password === passwordConfirm && isValidSignupPassword(password)));
 }
@@ -333,7 +325,6 @@ async function initializeFirebaseAuth() {
                         const token = await user.getIdToken();
                         state.account = await apiFetchAuthMe(token);
                         state.isAdmin = !!state.account?.is_admin;
-                        syncNicknameFromAccount();
                         if (needsEmailVerification(user)) {
                             state.authMode = 'verify_email';
                         }
@@ -361,7 +352,6 @@ async function refreshAccountFromFirebaseUser() {
     const token = await firebaseAuth.currentUser.getIdToken(true);
     state.account = await apiFetchAuthMe(token);
     state.isAdmin = !!state.account?.is_admin;
-    syncNicknameFromAccount();
     renderSidebar();
     return state.account;
 }
@@ -662,7 +652,7 @@ async function handleDisplayNameSubmit() {
         const detail = e?.message || '';
         const message = detail === 'display_name_taken'
             ? t('auth_display_name_taken')
-            : getNicknameErrorMessage(detail || 'nickname_generic_error');
+            : getDisplayNameErrorMessage(detail || 'nickname_generic_error');
         showAppMessage(message, { tone: 'error' });
     } finally {
         state.isLoginSubmitting = false;
