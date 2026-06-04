@@ -3,6 +3,7 @@ function renderMyPage() {
     const accountProfile = state.account?.profile || {};
     const displayName = accountProfile.display_name || '';
     const loginId = accountProfile.login_id || '';
+    const realName = accountProfile.real_name || '';
     const data = state.myPageData || {
         display_name: displayName,
         unique_eval_model_count: 0,
@@ -51,9 +52,15 @@ function renderMyPage() {
     const unlockedBadgeKeys = data.unlocked_badge_keys || ['badge_egg'];
     const unlockedBadgeCountText = String(data.unlocked_badge_count || unlockedBadgeKeys.length).padStart(2, '0');
     const selectedBadgeKey = state.profileBadgeSelection || currentProfileBadgeKey;
-    const googleLinkHtml = state.account && !hasLinkedProvider('google.com')
-        ? `<button class="secondary" style="width:auto; padding:0.85rem 1rem;" onclick="handleLinkGoogleProvider()">${t('auth_link_google')}</button>`
-        : '';
+    const providerButtons = [
+        ['google', 'google.com', 'auth_link_google'],
+        ['kakao', 'oidc.kakao', 'auth_link_kakao'],
+        ['naver', 'oidc.naver', 'auth_link_naver'],
+    ].map(([providerKey, providerId, labelKey]) => (
+        state.account && !hasLinkedProvider(providerId)
+            ? `<button class="secondary" style="width:auto; padding:0.85rem 1rem;" onclick="handleLinkSocialProvider('${providerKey}')">${t(labelKey)}</button>`
+            : ''
+    )).join('');
 
     el.innerHTML = `
         <div class="card" style="max-width: 1000px; margin-top: 2rem;">
@@ -81,13 +88,18 @@ function renderMyPage() {
                             <div style="font-size:1.25rem; color:var(--text-color); font-weight:900; word-break:break-word;">${escapeHtml(data.display_name || displayName || '-')}</div>
                         </div>
                         <div style="padding:0.85rem 1rem; border:1px solid var(--border-color); border-radius:14px; background:var(--card-bg);">
+                            <div style="font-size:0.82rem; color:var(--text-muted); font-weight:800; margin-bottom:0.25rem;">${t('auth_real_name_label')}</div>
+                            <div style="font-size:1.25rem; color:var(--text-color); font-weight:900; word-break:break-word;">${escapeHtml(realName || '-')}</div>
+                        </div>
+                        <div style="padding:0.85rem 1rem; border:1px solid var(--border-color); border-radius:14px; background:var(--card-bg);">
                             <div style="font-size:0.82rem; color:var(--text-muted); font-weight:800; margin-bottom:0.25rem;">${t('auth_login_id_label')}</div>
                             <div style="font-size:1.25rem; color:var(--text-color); font-weight:900; word-break:break-word;">${escapeHtml(loginId || '-')}</div>
                         </div>
                     </div>
                     <div style="display:flex; gap:0.6rem; align-items:stretch; flex-wrap:wrap; margin-bottom:1rem;">
                         <button class="secondary" style="width:auto; padding:0.85rem 1rem;" onclick="handleCurrentUserPasswordReset()">${t('mypage_password_reset')}</button>
-                        ${googleLinkHtml}
+                        ${providerButtons}
+                        <button class="secondary" style="width:auto; padding:0.85rem 1rem; color:#ef4444;" onclick="handleDeleteAccount()">${t('mypage_delete_account')}</button>
                     </div>
                     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
                         <div style="padding: 1rem; border: 1px solid var(--border-color); border-radius: 16px; background: var(--card-bg); box-shadow:0 10px 24px rgba(0, 0, 0, 0.18);">

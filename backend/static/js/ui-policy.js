@@ -41,7 +41,7 @@ function getPrivacyPolicyContent() {
                         'Core service data is stored in Supabase-backed service storage.',
                         'Browser-side settings such as language preference and seen badge alerts may be stored in localStorage on the user device.',
                         'Account profile data, display nicknames, evaluations, comments, replies, reactions, and view history may be retained while the service is operated unless deletion, moderation, legal retention, or policy changes require otherwise.',
-                        'Because this version does not provide a full self-service account deletion feature, some service records may remain until separately reviewed by the operator.',
+                        'If a user deletes their account, account identity fields are anonymized or removed. Existing evaluations, comments, replies, reactions, and related service records may remain with deleted-user display wording so the public evaluation dataset is preserved.',
                     ],
                 },
                 {
@@ -67,6 +67,7 @@ function getPrivacyPolicyContent() {
                     heading: '7. User Rights and Requests',
                     body: [
                         'Users may request information about stored personal data to the extent reasonably possible for this service structure.',
+                        'Users may delete their account from My Page. Account identity information is removed or anonymized, while already posted evaluations and comments may remain as deleted-user content.',
                         'Users may request review of moderation or removal needs for posted content through the Contact Us page linked from the About screen.',
                         'Some requests may be limited where ownership cannot be reliably verified from account records.',
                     ],
@@ -124,7 +125,7 @@ function getPrivacyPolicyContent() {
                     '핵심 서비스 데이터는 Supabase 기반 저장소에 보관될 수 있습니다.',
                     '언어 설정, 배지 알림 확인 상태 등 일부 브라우저 설정은 사용자 기기의 localStorage에 저장될 수 있습니다.',
                     '닉네임, 평가, 코멘트, 댓글, 반응, 조회 기록은 서비스 운영 중 보관될 수 있으며, 운영 정책 변경, 블라인드 처리, 삭제 검토, 법령상 보관 사유가 있는 경우를 제외하고 별도 종료 시점까지 유지될 수 있습니다.',
-                    '현재 버전에는 완전한 회원 탈퇴/자기 삭제 기능이 없으므로 일부 기록은 운영자 검토 전까지 남아 있을 수 있습니다.',
+                    '회원 탈퇴 시 계정 식별 정보는 삭제 또는 익명화됩니다. 이미 등록된 평가, 코멘트, 댓글, 반응 및 관련 서비스 기록은 공개 평가 데이터 보존을 위해 탈퇴한 사용자 표시로 남을 수 있습니다.',
                 ],
             },
             {
@@ -150,6 +151,7 @@ function getPrivacyPolicyContent() {
                 heading: '7. 이용자 권리 및 요청',
                 body: [
                     '서비스 구조상 가능한 범위 내에서 저장 정보에 대한 문의를 요청할 수 있습니다.',
+                    '마이페이지에서 회원 탈퇴를 진행할 수 있습니다. 탈퇴 시 계정 식별 정보는 삭제 또는 익명화되며, 이미 게시한 평가와 코멘트는 탈퇴한 사용자 콘텐츠로 남을 수 있습니다.',
                     '게시된 코멘트나 댓글에 대한 삭제 또는 블라인드 검토 요청은 About 화면의 문의하기 페이지를 통해 접수할 수 있습니다.',
                     '일부 요청은 계정 기록만으로 소유권을 충분히 확인하기 어려운 경우 제한될 수 있습니다.',
                 ],

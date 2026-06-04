@@ -220,7 +220,7 @@ async function submitEvaluation() {
 }
 
 async function init() {
-    await loadNicknameBlocklist();
+    await loadDisplayNameBlocklist();
     await apiFetchGames();
     renderLogin();
 }

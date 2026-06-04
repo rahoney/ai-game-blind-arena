@@ -20,6 +20,21 @@ function hasLinkedProvider(providerId) {
     return getLinkedProviderIds().includes(providerId);
 }
 
+const SOCIAL_AUTH_PROVIDERS = {
+    google: {
+        providerId: 'google.com',
+        createProvider: () => new firebase.auth.GoogleAuthProvider(),
+    },
+    kakao: {
+        providerId: 'oidc.kakao',
+        createProvider: () => new firebase.auth.OAuthProvider('oidc.kakao'),
+    },
+    naver: {
+        providerId: 'oidc.naver',
+        createProvider: () => new firebase.auth.OAuthProvider('oidc.naver'),
+    },
+};
+
 function setSignedOutState() {
     state.authUser = null;
     state.account = null;
@@ -611,10 +626,16 @@ async function handleVerifyEmailRefresh() {
 }
 
 async function handleGoogleLogin() {
+    return handleSocialLogin('google');
+}
+
+async function handleSocialLogin(providerKey) {
     if (!firebaseAuth || state.isLoginSubmitting) return;
+    const providerConfig = SOCIAL_AUTH_PROVIDERS[providerKey];
+    if (!providerConfig) return;
     try {
         state.isLoginSubmitting = true;
-        const provider = new firebase.auth.GoogleAuthProvider();
+        const provider = providerConfig.createProvider();
         await firebaseAuth.signInWithPopup(provider);
         await refreshAccountFromFirebaseUser();
         if (state.account?.profile && !state.account.profile.display_name_set) {
@@ -707,10 +728,16 @@ async function syncSocialProviders() {
 }
 
 async function handleLinkGoogleProvider() {
+    return handleLinkSocialProvider('google');
+}
+
+async function handleLinkSocialProvider(providerKey) {
     if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    const providerConfig = SOCIAL_AUTH_PROVIDERS[providerKey];
+    if (!providerConfig) return;
     try {
         state.isLoginSubmitting = true;
-        const provider = new firebase.auth.GoogleAuthProvider();
+        const provider = providerConfig.createProvider();
         await firebaseAuth.currentUser.linkWithPopup(provider);
         await syncSocialProviders();
         showAppMessage(t('auth_social_link_success'), { tone: 'success' });
@@ -722,6 +749,26 @@ async function handleLinkGoogleProvider() {
         showAppMessage(message, { tone: 'error' });
     } finally {
         state.isLoginSubmitting = false;
+        renderMyPage();
+    }
+}
+
+async function handleDeleteAccount() {
+    if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    if (!window.confirm(t('mypage_delete_account_confirm'))) return;
+    try {
+        state.isLoginSubmitting = true;
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        await apiDeleteAccount(token);
+        await firebaseAuth.signOut();
+        setSignedOutState();
+        showAppMessage(t('mypage_delete_account_success'), { tone: 'success' });
+        navigateTo('login', renderLogin);
+    } catch (e) {
+        showAppMessage(t('mypage_delete_account_error', { detail: t(e?.message || 'account_delete_failed') }), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+        renderSidebar();
     }
 }
 
@@ -746,7 +793,7 @@ async function handleDisplayNameSubmit() {
         const detail = e?.message || '';
         const message = detail === 'display_name_taken'
             ? t('auth_display_name_taken')
-            : getDisplayNameErrorMessage(detail || 'nickname_generic_error');
+            : getDisplayNameErrorMessage(detail || 'display_name_generic_error');
         showAppMessage(message, { tone: 'error' });
     } finally {
         state.isLoginSubmitting = false;

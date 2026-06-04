@@ -97,26 +97,26 @@ CATEGORY_COMPLETION_BADGES = {
 def validate_display_name(display_name: str):
     display_name = (display_name or "").strip()
     if not display_name:
-        return False, "nickname_required"
+        return False, "display_name_required"
 
     lowered = display_name.casefold()
     if any(term in lowered for term in RESERVED_NICKNAME_TERMS if term.isascii()):
-        return False, "nickname_reserved"
+        return False, "display_name_reserved"
     if any(term in display_name for term in RESERVED_NICKNAME_TERMS if not term.isascii()):
-        return False, "nickname_reserved"
+        return False, "display_name_reserved"
 
     if any(term in lowered for term in BANNED_NICKNAME_TERMS if term.isascii()):
-        return False, "nickname_banned"
+        return False, "display_name_banned"
     if any(term in display_name for term in BANNED_NICKNAME_TERMS if not term.isascii()):
-        return False, "nickname_banned"
+        return False, "display_name_banned"
 
     if JAMO_RE.search(display_name):
-        return False, "nickname_jamo_only"
+        return False, "display_name_jamo_only"
 
     if DISPLAY_NAME_RE.fullmatch(display_name):
         return True, None
 
-    return False, "nickname_format"
+    return False, "display_name_format"
 
 
 def get_effective_english_letter_count(text: str):

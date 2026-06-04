@@ -104,3 +104,15 @@ def require_firebase_user(request: Request):
         return verify_firebase_id_token(extract_bearer_token(request))
     except FirebaseAuthConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+def delete_firebase_user(uid: str):
+    try:
+        from firebase_admin import auth as firebase_auth
+
+        get_firebase_app()
+        firebase_auth.delete_user(uid)
+    except FirebaseAuthConfigurationError:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="firebase_account_delete_failed") from exc

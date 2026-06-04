@@ -197,6 +197,22 @@ async function apiUpdateSocialProviders(idToken, providers) {
     return data;
 }
 
+async function apiDeleteAccount(idToken) {
+    const res = await fetch(`${API_BASE}/profile/account`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ confirm: true })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'account_delete_failed');
+    }
+    return data;
+}
+
 async function apiFetchUserEvals() {
     const headers = await getCurrentAuthHeaders();
     if (!headers.Authorization) return;

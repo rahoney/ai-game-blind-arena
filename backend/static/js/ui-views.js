@@ -109,7 +109,11 @@ function renderLogin() {
                 <div class="auth-help-actions">
                     <button type="button" onclick="setAuthMode('help')" ${disabled ? 'disabled' : ''}>${t('auth_login_help')}</button>
                 </div>
-                <button class="auth-google-button" onclick="handleGoogleLogin()" ${disabled ? 'disabled' : ''}>${t('auth_google_login')}</button>
+                <div class="auth-social-buttons">
+                    <button class="auth-google-button" onclick="handleSocialLogin('google')" ${disabled ? 'disabled' : ''}>${t('auth_google_login')}</button>
+                    <button class="auth-google-button" onclick="handleSocialLogin('kakao')" ${disabled ? 'disabled' : ''}>${t('auth_kakao_login')}</button>
+                    <button class="auth-google-button" onclick="handleSocialLogin('naver')" ${disabled ? 'disabled' : ''}>${t('auth_naver_login')}</button>
+                </div>
                 `}
             </div>
         </div>
