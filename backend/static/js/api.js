@@ -1,6 +1,7 @@
 async function apiFetchGames() {
     const lang = state.language || 'ko';
-    const res = await fetch(`${API_BASE}/games?lang=${lang}`);
+    const blindSeed = encodeURIComponent(ensureBlindSeed());
+    const res = await fetch(`${API_BASE}/games?lang=${lang}&blind_seed=${blindSeed}`);
     const data = await res.json();
     state.games = data.games;
     state.categories = data.categories || [];
@@ -204,15 +205,17 @@ async function apiFetchUserEvals() {
     state.userEvals = data.evals;
 }
 
-async function apiRecordPlay(gameType, blindId) {
+async function apiRecordPlay(gameType, blindId, blindModelToken = '') {
     const headers = await getCurrentAuthHeaders(true);
     await fetch(`${API_BASE}/play`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ game_type: gameType, blind_model_id: blindId })
+        body: JSON.stringify({ game_type: gameType, blind_model_id: blindId, blind_model_token: blindModelToken })
     });
-    // Refresh game list behind the scenes to update play count
-    await apiFetchGames();
+    const model = state.games?.[gameType]?.find((item) => item.blind_id === blindId);
+    if (model) {
+        model.play_count = Number(model.play_count || 0) + 1;
+    }
 }
 
 async function apiSubmitEvaluation(payload) {

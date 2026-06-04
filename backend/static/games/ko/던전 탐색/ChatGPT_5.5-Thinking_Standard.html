@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8x8 로그라이크 던전</title>
+  <style>
+    :root {
+      --bg: #101014;
+      --panel: #181821;
+      --panel-2: #232334;
+      --text: #f4f0df;
+      --muted: #a9a3b8;
+      --accent: #d6a84f;
+      --danger: #ef6461;
+      --heal: #6ee7a8;
+      --wall: #4a405a;
+      --floor: #2d2a38;
+      --fog: #07070a;
+      --seen: #171722;
+      --player: #79d2ff;
+      --exit: #ffd166;
+      --shadow: rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at top, #2b2338 0%, #12121a 42%, #07070a 100%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    .game-shell {
+      width: min(94vw, 760px);
+      padding: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 28px;
+      background: linear-gradient(180deg, rgba(30, 30, 42, 0.96), rgba(16, 16, 23, 0.96));
+      box-shadow: 0 24px 60px var(--shadow);
+      position: relative;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.5rem, 4vw, 2.35rem);
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 11px 15px;
+      color: #20170a;
+      background: linear-gradient(180deg, #ffe39a, #d6a84f);
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(214, 168, 79, 0.25);
+      transition: transform 0.12s ease, filter 0.12s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .secondary-btn {
+      background: #303044;
+      color: var(--text);
+      box-shadow: none;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .hud {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .stat {
+      background: var(--panel-2);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 18px;
+      padding: 12px;
+      min-height: 72px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin-bottom: 5px;
+    }
+
+    .stat-value {
+      font-size: 1.35rem;
+      font-weight: 900;
+    }
+
+    .main-area {
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) 240px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .board-wrap {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 22px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      gap: 6px;
+      aspect-ratio: 1 / 1;
+      width: 100%;
+    }
+
+    .cell {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 13px;
+      background: var(--floor);
+      font-size: clamp(1.2rem, 4vw, 2rem);
+      user-select: none;
+      transition:
+        transform 0.12s ease,
+        background 0.18s ease,
+        filter 0.18s ease,
+        opacity 0.18s ease;
+      box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+    }
+
+    .cell.visible {
+      outline: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .cell.seen:not(.visible) {
+      background: var(--seen);
+      opacity: 0.72;
+      filter: grayscale(0.8) brightness(0.55);
+    }
+
+    .cell.fog {
+      background: var(--fog);
+      color: transparent;
+      box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.75);
+    }
+
+    .cell.wall {
+      background: linear-gradient(180deg, #544963, #342e43);
+    }
+
+    .cell.player {
+      background: linear-gradient(180deg, #284e63, #1d3545);
+      color: var(--player);
+      animation: pulse 1.15s ease-in-out infinite;
+    }
+
+    .cell.enemy {
+      background: linear-gradient(180deg, #522a35, #301a23);
+      color: #ff8b8b;
+    }
+
+    .cell.item {
+      background: linear-gradient(180deg, #244636, #182d26);
+      color: var(--heal);
+    }
+
+    .cell.exit {
+      background: linear-gradient(180deg, #5c4921, #312817);
+      color: var(--exit);
+    }
+
+    .cell.hit {
+      animation: hit 0.25s ease;
+    }
+
+    .cell.heal {
+      animation: heal 0.45s ease;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-2px); }
+    }
+
+    @keyframes hit {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.13); filter: brightness(1.7); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes heal {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.14); filter: brightness(1.55); }
+      100% { transform: scale(1); }
+    }
+
+    .side-panel {
+      display: grid;
+      gap: 12px;
+    }
+
+    .info-card {
+      padding: 15px;
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+    }
+
+    .info-card h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+    }
+
+    .legend {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .log {
+      height: 176px;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-right: 4px;
+      color: #d9d3e7;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    .log-entry {
+      padding: 8px 10px;
+      background: rgba(255, 255, 255, 0.045);
+      border-radius: 12px;
+    }
+
+    .controls {
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 0.94rem;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+      border-radius: 28px;
+      background: rgba(7, 7, 10, 0.84);
+      backdrop-filter: blur(8px);
+      z-index: 10;
+    }
+
+    .modal {
+      width: min(92vw, 480px);
+      padding: 28px;
+      border-radius: 26px;
+      background: linear-gradient(180deg, #242433, #15151f);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      text-align: center;
+      box-shadow: 0 20px 70px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal h2 {
+      margin: 0 0 10px;
+      font-size: 2rem;
+    }
+
+    .modal p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 720px) {
+      body {
+        overflow: auto;
+        padding: 20px 0;
+      }
+
+      .game-shell {
+        padding: 18px;
+      }
+
+      .title-row {
+        flex-direction: column;
+      }
+
+      .top-actions {
+        justify-content: flex-start;
+      }
+
+      .hud {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .main-area {
+        grid-template-columns: 1fr;
+      }
+
+      .side-panel {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="game-shell">
+    <div class="title-row">
+      <div>
+        <h1>🕯️ 그림자 던전</h1>
+        <div class="subtitle">
+          8x8 격자 속에서 어둠을 밝히며 탈출구를 찾아라.
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="restartBtn" class="secondary-btn">처음부터</button>
+      </div>
+    </div>
+
+    <section class="hud">
+      <div class="stat">
+        <div class="stat-label">체력</div>
+        <div id="hpStat" class="stat-value">-</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">공격력</div>
+        <div id="atkStat" class="stat-value">-</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">점수</div>
+        <div id="scoreStat" class="stat-value">-</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">턴</div>
+        <div id="turnStat" class="stat-value">-</div>
+      </div>
+    </section>
+
+    <section class="main-area">
+      <div class="board-wrap">
+        <div id="board" class="board" aria-label="8x8 dungeon board"></div>
+      </div>
+
+      <aside class="side-panel">
+        <div class="info-card">
+          <h2>기호</h2>
+          <div class="legend">
+            <div>🧙 P : 플레이어</div>
+            <div>👹 E : 적</div>
+            <div>💚 I : 회복 아이템</div>
+            <div>🚪 O : 탈출구</div>
+            <div>🧱 # : 벽</div>
+            <div>⬛ 어둠 : 아직 보이지 않음</div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h2>조작</h2>
+          <div class="controls">
+            방향키 또는 WASD로 이동<br />
+            적과 부딪히면 전투<br />
+            회복 아이템 위로 이동하면 즉시 회복<br />
+            탈출구에 도착하면 승리
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h2>로그</h2>
+          <div id="log" class="log"></div>
+        </div>
+      </aside>
+    </section>
+
+    <div id="overlay" class="overlay">
+      <div class="modal">
+        <h2 id="modalTitle">🕯️ 그림자 던전</h2>
+        <p id="modalText">
+          주변 1칸만 보이는 어두운 던전입니다.<br />
+          벽과 적을 피해 탈출구까지 도달하세요.
+        </p>
+        <div class="modal-actions">
+          <button id="startBtn">게임 시작</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const SIZE = 8;
+    const TILE = {
+      FLOOR: "floor",
+      WALL: "wall",
+      PLAYER: "player",
+      ENEMY: "enemy",
+      ITEM: "item",
+      EXIT: "exit"
+    };
+
+    const SYMBOL = {
+      floor: "",
+      wall: "🧱",
+      player: "🧙",
+      enemy: "👹",
+      item: "💚",
+      exit: "🚪"
+    };
+
+    const state = {
+      map: [],
+      seen: [],
+      player: null,
+      enemy: null,
+      item: null,
+      exit: null,
+      hp: 30,
+      maxHp: 30,
+      atk: 7,
+      enemyHp: 16,
+      score: 0,
+      turn: 1,
+      status: "start",
+      lastEffect: null,
+      logs: []
+    };
+
+    const boardEl = document.getElementById("board");
+    const hpStatEl = document.getElementById("hpStat");
+    const atkStatEl = document.getElementById("atkStat");
+    const scoreStatEl = document.getElementById("scoreStat");
+    const turnStatEl = document.getElementById("turnStat");
+    const logEl = document.getElementById("log");
+    const overlayEl = document.getElementById("overlay");
+    const modalTitleEl = document.getElementById("modalTitle");
+    const modalTextEl = document.getElementById("modalText");
+    const startBtn = document.getElementById("startBtn");
+    const restartBtn = document.getElementById("restartBtn");
+
+    function posKey(pos) {
+      return `${pos.x},${pos.y}`;
+    }
+
+    function samePos(a, b) {
+      return a && b && a.x === b.x && a.y === b.y;
+    }
+
+    function inBounds(x, y) {
+      return x >= 0 && x < SIZE && y >= 0 && y < SIZE;
+    }
+
+    function randInt(max) {
+      return Math.floor(Math.random() * max);
+    }
+
+    function clonePos(pos) {
+      return { x: pos.x, y: pos.y };
+    }
+
+    function addLog(text) {
+      state.logs.unshift(text);
+      state.logs = state.logs.slice(0, 8);
+    }
+
+    function createEmptyGrid(value) {
+      return Array.from({ length: SIZE }, () => Array.from({ length: SIZE }, () => value));
+    }
+
+    function shuffle(array) {
+      const arr = array.slice();
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = randInt(i + 1);
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function neighbors(pos) {
+      return [
+        { x: pos.x + 1, y: pos.y },
+        { x: pos.x - 1, y: pos.y },
+        { x: pos.x, y: pos.y + 1 },
+        { x: pos.x, y: pos.y - 1 }
+      ].filter(p => inBounds(p.x, p.y));
+    }
+
+    // BFS로 시작점에서 탈출구까지 실제 도달 가능한지 확인한다.
+    function hasPath(map, start, goal) {
+      const queue = [start];
+      const visited = new Set([posKey(start)]);
+
+      while (queue.length) {
+        const cur = queue.shift();
+
+        if (samePos(cur, goal)) return true;
+
+        for (const next of neighbors(cur)) {
+          const key = posKey(next);
+          if (visited.has(key)) continue;
+          if (map[next.y][next.x] === TILE.WALL) continue;
+
+          visited.add(key);
+          queue.push(next);
+        }
+      }
+
+      return false;
+    }
+
+    function getRandomFloorCell(map, blocked = []) {
+      const blockedKeys = new Set(blocked.map(posKey));
+      const floors = [];
+
+      for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+          const pos = { x, y };
+          if (map[y][x] === TILE.FLOOR && !blockedKeys.has(posKey(pos))) {
+            floors.push(pos);
+          }
+        }
+      }
+
+      return floors[randInt(floors.length)];
+    }
+
+    // 도달 가능한 8x8 맵을 생성할 때까지 재시도한다.
+    function generateReachableMap() {
+      let attempts = 0;
+
+      while (attempts < 500) {
+        attempts++;
+
+        const map = createEmptyGrid(TILE.FLOOR);
+        const player = { x: 0, y: 0 };
+        const exit = { x: SIZE - 1, y: SIZE - 1 };
+
+        const wallCount = 14 + randInt(5);
+        let placed = 0;
+
+        while (placed < wallCount) {
+          const x = randInt(SIZE);
+          const y = randInt(SIZE);
+          const nearStart = x <= 1 && y <= 1;
+          const nearExit = x >= SIZE - 2 && y >= SIZE - 2;
+
+          if (nearStart || nearExit) continue;
+          if (samePos({ x, y }, player) || samePos({ x, y }, exit)) continue;
+          if (map[y][x] === TILE.WALL) continue;
+
+          map[y][x] = TILE.WALL;
+          placed++;
+        }
+
+        if (hasPath(map, player, exit)) {
+          return { map, player, exit };
+        }
+      }
+
+      // 극히 드문 실패 시 벽이 적은 안전 맵을 반환한다.
+      const fallback = createEmptyGrid(TILE.FLOOR);
+      fallback[2][2] = TILE.WALL;
+      fallback[3][4] = TILE.WALL;
+      fallback[5][1] = TILE.WALL;
+      return {
+        map: fallback,
+        player: { x: 0, y: 0 },
+        exit: { x: SIZE - 1, y: SIZE - 1 }
+      };
+    }
+
+    function resetGame() {
+      const generated = generateReachableMap();
+
+      state.map = generated.map;
+      state.seen = createEmptyGrid(false);
+      state.player = clonePos(generated.player);
+      state.exit = clonePos(generated.exit);
+
+      state.enemy = getRandomFloorCell(state.map, [state.player, state.exit]);
+      state.item = getRandomFloorCell(state.map, [state.player, state.exit, state.enemy]);
+
+      state.hp = 30;
+      state.maxHp = 30;
+      state.atk = 7;
+      state.enemyHp = 16;
+      state.score = 0;
+      state.turn = 1;
+      state.status = "playing";
+      state.lastEffect = null;
+      state.logs = [];
+
+      addLog("🕯️ 던전에 들어섰다. 탈출구를 찾아야 한다.");
+      revealAroundPlayer();
+      hideOverlay();
+      render();
+    }
+
+    // 플레이어 주변 1칸을 밝히고, 이전에 본 칸은 기억한다.
+    function revealAroundPlayer() {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const x = state.player.x + dx;
+          const y = state.player.y + dy;
+          if (inBounds(x, y)) {
+            state.seen[y][x] = true;
+          }
+        }
+      }
+    }
+
+    function isVisible(x, y) {
+      return Math.abs(state.player.x - x) <= 1 && Math.abs(state.player.y - y) <= 1;
+    }
+
+    function getTileAt(x, y) {
+      const pos = { x, y };
+
+      if (samePos(pos, state.player)) return TILE.PLAYER;
+      if (state.enemy && samePos(pos, state.enemy)) return TILE.ENEMY;
+      if (state.item && samePos(pos, state.item)) return TILE.ITEM;
+      if (samePos(pos, state.exit)) return TILE.EXIT;
+      if (state.map[y][x] === TILE.WALL) return TILE.WALL;
+
+      return TILE.FLOOR;
+    }
+
+    function tryMove(dx, dy) {
+      if (state.status !== "playing") return;
+
+      const next = {
+        x: state.player.x + dx,
+        y: state.player.y + dy
+      };
+
+      state.lastEffect = null;
+
+      if (!inBounds(next.x, next.y)) {
+        addLog("끝없는 어둠이다. 그쪽으로는 갈 수 없다.");
+        render();
+        return;
+      }
+
+      if (state.map[next.y][next.x] === TILE.WALL) {
+        addLog("🧱 차가운 돌벽이 길을 막고 있다.");
+        state.lastEffect = { x: next.x, y: next.y, type: "hit" };
+        render();
+        return;
+      }
+
+      state.turn++;
+
+      if (state.enemy && samePos(next, state.enemy)) {
+        handleCombat(next);
+      } else {
+        state.player = next;
+        state.score += 1;
+
+        if (state.item && samePos(state.player, state.item)) {
+          handleItemPickup();
+        }
+
+        if (samePos(state.player, state.exit)) {
+          winGame();
+        }
+      }
+
+      revealAroundPlayer();
+      render();
+    }
+
+    function handleCombat(enemyPos) {
+      state.enemyHp -= state.atk;
+      state.hp -= 6;
+      state.lastEffect = { x: enemyPos.x, y: enemyPos.y, type: "hit" };
+
+      addLog("⚔️ 적과 충돌했다. 서로 피해를 입었다.");
+
+      if (state.enemyHp <= 0) {
+        addLog("👹 적을 쓰러뜨렸다.");
+        state.enemy = null;
+        state.score += 30;
+        state.player = enemyPos;
+      }
+
+      if (state.hp <= 0) {
+        loseGame();
+      }
+    }
+
+    function handleItemPickup() {
+      const healed = Math.min(10, state.maxHp - state.hp);
+      state.hp = Math.min(state.maxHp, state.hp + 10);
+      state.item = null;
+      state.score += 15;
+      state.lastEffect = { x: state.player.x, y: state.player.y, type: "heal" };
+
+      if (healed > 0) {
+        addLog(`💚 회복 아이템을 사용했다. 체력 +${healed}`);
+      } else {
+        addLog("💚 회복 아이템을 발견했지만 이미 체력이 가득하다.");
+      }
+    }
+
+    function winGame() {
+      state.status = "win";
+      state.score += Math.max(50, 120 - state.turn);
+      addLog("🚪 탈출구에 도착했다.");
+      showOverlay(
+        "🎉 탈출 성공!",
+        `어둠의 던전에서 살아남았습니다.<br />최종 점수: ${state.score}점 · 턴 수: ${state.turn}`
+      );
+    }
+
+    function loseGame() {
+      state.status = "lose";
+      state.hp = 0;
+      addLog("💀 체력이 모두 소진되었다.");
+      showOverlay(
+        "💀 패배",
+        `던전의 어둠에 쓰러졌습니다.<br />최종 점수: ${state.score}점 · 턴 수: ${state.turn}`
+      );
+    }
+
+    function showOverlay(title, text) {
+      modalTitleEl.innerHTML = title;
+      modalTextEl.innerHTML = text;
+      startBtn.textContent = "다시 시작";
+      overlayEl.classList.remove("hidden");
+    }
+
+    function hideOverlay() {
+      overlayEl.classList.add("hidden");
+    }
+
+    function render() {
+      renderBoard();
+      renderHud();
+      renderLog();
+    }
+
+    function renderBoard() {
+      boardEl.innerHTML = "";
+
+      for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+          const cell = document.createElement("div");
+          const visible = isVisible(x, y);
+          const seen = state.seen[y][x];
+          const tile = getTileAt(x, y);
+
+          cell.className = "cell";
+
+          if (!seen) {
+            cell.classList.add("fog");
+            cell.textContent = "";
+          } else if (!visible) {
+            cell.classList.add("seen");
+
+            const rememberedTile =
+              tile === TILE.PLAYER || tile === TILE.ENEMY || tile === TILE.ITEM
+                ? TILE.FLOOR
+                : tile;
+
+            cell.classList.add(rememberedTile);
+            cell.textContent = SYMBOL[rememberedTile] || "";
+          } else {
+            cell.classList.add("visible", tile);
+            cell.textContent = SYMBOL[tile] || "";
+          }
+
+          if (
+            state.lastEffect &&
+            state.lastEffect.x === x &&
+            state.lastEffect.y === y
+          ) {
+            cell.classList.add(state.lastEffect.type);
+          }
+
+          boardEl.appendChild(cell);
+        }
+      }
+    }
+
+    function renderHud() {
+      hpStatEl.textContent = `${state.hp}/${state.maxHp}`;
+      atkStatEl.textContent = state.atk;
+      scoreStatEl.textContent = state.score;
+      turnStatEl.textContent = state.turn;
+    }
+
+    function renderLog() {
+      logEl.innerHTML = "";
+
+      state.logs.forEach(text => {
+        const entry = document.createElement("div");
+        entry.className = "log-entry";
+        entry.textContent = text;
+        logEl.appendChild(entry);
+      });
+    }
+
+    function handleKeydown(event) {
+      const key = event.key.toLowerCase();
+
+      const keyMap = {
+        arrowup: [0, -1],
+        w: [0, -1],
+        arrowdown: [0, 1],
+        s: [0, 1],
+        arrowleft: [-1, 0],
+        a: [-1, 0],
+        arrowright: [1, 0],
+        d: [1, 0]
+      };
+
+      if (!keyMap[key]) return;
+
+      event.preventDefault();
+      const [dx, dy] = keyMap[key];
+      tryMove(dx, dy);
+    }
+
+    startBtn.addEventListener("click", resetGame);
+    restartBtn.addEventListener("click", resetGame);
+    window.addEventListener("keydown", handleKeydown);
+
+    renderHud();
+    renderLog();
+  </script>
+</body>
+</html>

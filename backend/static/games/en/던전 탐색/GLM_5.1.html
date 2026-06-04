@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚔️ Dungeon Roguelike</title>
+<style>
+  /* localized comment */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    color: #d4c8a0;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+  #game-container {
+    text-align: center;
+    user-select: none;
+    position: relative;
+  }
+
+  /* ── Start Screen ── */
+  #start-screen {
+    animation: fadeIn 1s ease;
+  }
+  #start-screen h1 {
+    font-size: 2.4rem;
+    color: #f0c040;
+    text-shadow: 0 0 20px #f0c040aa, 0 0 40px #8b4513aa;
+    margin-bottom: 8px;
+  }
+  #start-screen .subtitle {
+    color: #887755;
+    font-size: 0.9rem;
+    margin-bottom: 30px;
+  }
+  .ascii-art {
+    font-size: 0.7rem;
+    line-height: 1.2;
+    color: #665533;
+    margin-bottom: 24px;
+    white-space: pre;
+  }
+  .instructions {
+    background: #15151f;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 16px 24px;
+    margin-bottom: 28px;
+    text-align: left;
+    display: inline-block;
+    font-size: 0.85rem;
+    line-height: 1.8;
+  }
+  .instructions .icon { margin-right: 6px; }
+  .btn {
+    background: linear-gradient(135deg, #3a2a0a, #5a3a0a);
+    color: #f0c040;
+    border: 2px solid #f0c04066;
+    padding: 12px 36px;
+    font-size: 1.1rem;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
+    text-shadow: 0 0 8px #f0c040aa;
+  }
+  .btn:hover {
+    background: linear-gradient(135deg, #5a3a0a, #7a5a0a);
+    box-shadow: 0 0 20px #f0c04044;
+    transform: scale(1.05);
+  }
+
+  /* localized comment */
+  #game-screen { display: none; animation: fadeIn 0.5s ease; }
+  #game-screen h2 {
+    font-size: 1.3rem;
+    color: #f0c040;
+    text-shadow: 0 0 10px #f0c040aa;
+    margin-bottom: 12px;
+  }
+
+  /* localized comment */
+  #stats-bar {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 12px;
+    font-size: 0.95rem;
+    flex-wrap: wrap;
+  }
+  .stat {
+    background: #15151f;
+    border: 1px solid #2a2a3a;
+    padding: 6px 14px;
+    border-radius: 4px;
+  }
+  .stat-hp { color: #e04040; }
+  .stat-score { color: #f0c040; }
+  .stat-turn { color: #60a0e0; }
+
+  /* localized comment */
+  #hp-bar-container {
+    width: 100%;
+    max-width: 520px;
+    height: 14px;
+    background: #1a1a2a;
+    border-radius: 7px;
+    margin: 0 auto 12px;
+    border: 1px solid #333;
+    overflow: hidden;
+  }
+  #hp-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #cc2020, #e04040);
+    border-radius: 7px;
+    transition: width 0.3s ease;
+  }
+
+  /* localized comment */
+  #grid-wrapper {
+    position: relative;
+    display: inline-block;
+    border: 2px solid #3a3020;
+    border-radius: 6px;
+    padding: 4px;
+    background: #0d0d15;
+    box-shadow: 0 0 30px #00000088, inset 0 0 20px #00000044;
+  }
+  #grid {
+    display: grid;
+    grid-template-columns: repeat(8, 60px);
+    grid-template-rows: repeat(8, 60px);
+    gap: 1px;
+  }
+  .cell {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    border-radius: 3px;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .cell-floor {
+    background: #16161e;
+    color: #444;
+  }
+  .cell-floor::after {
+    content: '·';
+    font-size: 1rem;
+    color: #2a2a3a;
+  }
+  .cell-wall {
+    background: #1a1510;
+    color: #5a4a30;
+    font-size: 1.5rem;
+    text-shadow: 0 0 4px #000;
+  }
+  .cell-player {
+    background: #1a1a2e;
+    font-size: 1.8rem;
+    text-shadow: 0 0 12px #f0c040aa;
+    z-index: 2;
+  }
+  .cell-player::after { content: none; }
+  .cell-enemy {
+    background: #1e1018;
+    text-shadow: 0 0 8px #e0404088;
+    z-index: 1;
+  }
+  .cell-enemy::after { content: none; }
+  .cell-item {
+    background: #161e16;
+    text-shadow: 0 0 8px #40e04088;
+  }
+  .cell-item::after { content: none; }
+  .cell-exit {
+    background: #1e1e10;
+    text-shadow: 0 0 12px #f0c040aa;
+  }
+  .cell-exit::after { content: none; }
+
+  /* localized comment */
+  .cell.visible { opacity: 1; }
+  .cell.explored {
+    opacity: 0.3;
+    filter: saturate(0.3);
+  }
+  .cell.hidden {
+    background: #08080c !important;
+    color: transparent !important;
+    text-shadow: none !important;
+  }
+  .cell.hidden::after { color: transparent !important; }
+
+  /* localized comment */
+  .cell-flash-red {
+    animation: flashRed 0.3s ease;
+  }
+  .cell-flash-green {
+    animation: flashGreen 0.3s ease;
+  }
+  @keyframes flashRed {
+    0%, 100% { box-shadow: none; }
+    50% { box-shadow: inset 0 0 20px #ff0000aa; }
+  }
+  @keyframes flashGreen {
+    0%, 100% { box-shadow: none; }
+    50% { box-shadow: inset 0 0 20px #00ff00aa; }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* localized comment */
+  #message-log {
+    margin-top: 12px;
+    background: #0d0d15;
+    border: 1px solid #2a2a3a;
+    border-radius: 6px;
+    padding: 8px 14px;
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+    height: 80px;
+    overflow-y: auto;
+    font-size: 0.78rem;
+    text-align: left;
+    line-height: 1.6;
+  }
+  #message-log::-webkit-scrollbar { width: 4px; }
+  #message-log::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  .msg-combat { color: #e06060; }
+  .msg-item { color: #60e060; }
+  .msg-info { color: #6090e0; }
+  .msg-system { color: #888; }
+
+  /* localized comment */
+  #controls-info {
+    margin-top: 10px;
+    font-size: 0.75rem;
+    color: #555;
+  }
+
+  /* localized comment */
+  #end-screen {
+    display: none;
+    animation: fadeIn 0.5s ease;
+  }
+  #end-screen h2 {
+    font-size: 2rem;
+    margin-bottom: 8px;
+  }
+  #end-screen .end-subtitle {
+    font-size: 1rem;
+    color: #888;
+    margin-bottom: 20px;
+  }
+  #end-stats {
+    margin-bottom: 24px;
+    font-size: 1rem;
+    line-height: 2;
+  }
+  .win-title {
+    color: #f0c040;
+    text-shadow: 0 0 20px #f0c040aa;
+  }
+  .lose-title {
+    color: #e04040;
+    text-shadow: 0 0 20px #e04040aa;
+  }
+
+  /* localized comment */
+  #legend {
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: #666;
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .legend-item span { margin-right: 4px; }
+</style>
+</head>
+<body>
+<div id="game-container">
+
+  <!-- Start Screen -->
+  <div id="start-screen">
+    <h1>⚔️ Dungeon Escape ⚔️</h1>
+    <div class="subtitle">— 8x8 Roguelike Adventure —</div>
+    <div class="ascii-art">
+   ██████╗ ██╗██╗  ██╗███████╗██╗      █████╗ ██╗
+  ██╔════╝ ██║╚██╗██╔╝██╔════╝██║     ██╔══██╗██║
+  ██║  ███╗██║ ╚███╔╝ █████╗  ██║     ███████║██║
+  ██║   ██║██║ ██╔██╗ ██╔══╝  ██║     ██╔══██║██║
+  ╚██████╔╝██║██╔╝ ██╗███████╗███████╗██║  ██║██║
+   ╚═════╝ ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝</div>
+    <div class="instructions">
+      <div><span class="icon">🧙</span> You You are trapped in a dungeon. Find the exit!</div>
+      <div><span class="icon">🚪</span> <b>Exit</b> to win</div>
+      <div><span class="icon">👹</span> <b>Monster</b> triggers combat</div>
+      <div><span class="icon">❤️</span> <b>Healing Item</b> to recover health</div>
+      <div><span class="icon">🧱</span> <b>Wall</b> cannot be passed</div>
+      <div><span class="icon">🌫️</span> <b>Limited vision</b>: only nearby 2 cells are visible</div>
+      <div style="margin-top:8px; color:#f0c040;">WASD / Arrow keys: Move &nbsp; Space: Ready</div>
+    </div>
+    <br>
+    <button class="btn" id="btn-start">⚔️ Enter Dungeon</button>
+  </div>
+
+  <!-- localized comment -->
+  <div id="game-screen">
+    <h2>⚔️ Dungeon Escape ⚔️</h2>
+    <div id="stats-bar">
+      <div class="stat stat-hp">❤️ Health: <span id="hp-text">12/12</span></div>
+      <div class="stat stat-score">⭐ Score: <span id="score-text">0</span></div>
+      <div class="stat stat-turn">🔄 Turn: <span id="turn-text">0</span></div>
+      <div class="stat">👹 Defeated: <span id="kill-text">0</span></div>
+    </div>
+    <div id="hp-bar-container"><div id="hp-bar" style="width:100%"></div></div>
+    <div id="grid-wrapper"><div id="grid"></div></div>
+    <div id="legend">
+      <span class="legend-item"><span>🧙</span>Player</span>
+      <span class="legend-item"><span>👹</span>Enemy</span>
+      <span class="legend-item"><span>❤️</span>Heal</span>
+      <span class="legend-item"><span>🚪</span>Exit</span>
+      <span class="legend-item"><span>🧱</span>Wall</span>
+    </div>
+    <div id="message-log"></div>
+    <div id="controls-info">WASD / Arrow keys: Move &nbsp;|&nbsp; Space: Ready &nbsp;|&nbsp; R: Restart</div>
+  </div>
+
+  <!-- localized comment -->
+  <div id="end-screen">
+    <h2 id="end-title"></h2>
+    <div class="end-subtitle" id="end-subtitle"></div>
+    <div id="end-stats"></div>
+    <button class="btn" id="btn-restart">🔄 Try Again</button>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// localized comment
+// ══════════════════════════════════════════
+
+// localized comment
+const SIZE = 8;
+const VIS_RADIUS = 2;     // vision radius (Chebyshev distance)
+const WALL_TARGET = 12;   // target wall count
+const ENEMY_COUNT = 3;
+const ITEM_COUNT = 2;
+const PLAYER_MAX_HP = 12;
+const PLAYER_ATK = 3;
+const ENEMY_HP = 4;
+const ENEMY_ATK = 2;
+const ITEM_HEAL = 5;
+const ENEMY_DETECT = 6;   // enemy detection range
+
+// localized comment
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playTone(freq, dur, type = 'square', vol = 0.08) {
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    g.gain.value = vol;
+    osc.connect(g);
+    g.connect(audioCtx.destination);
+    osc.start();
+    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    osc.stop(audioCtx.currentTime + dur);
+  } catch(e) {}
+}
+function sfxMove()    { playTone(220, 0.05, 'sine', 0.04); }
+function sfxHit()     { playTone(120, 0.15, 'sawtooth', 0.1); }
+function sfxHeal()    { playTone(520, 0.1, 'sine', 0.08); playTone(660, 0.1, 'sine', 0.06); }
+function sfxKill()    { playTone(300, 0.1, 'square', 0.08); playTone(450, 0.15, 'square', 0.06); }
+function sfxWin()     { playTone(440, 0.15, 'sine', 0.1); playTone(550, 0.15, 'sine', 0.1); playTone(660, 0.2, 'sine', 0.1); }
+function sfxLose()    { playTone(200, 0.3, 'sawtooth', 0.1); playTone(150, 0.4, 'sawtooth', 0.08); }
+
+// localized comment
+let G = {};
+
+function resetGame() {
+  G = {
+    phase: 'START',
+    grid: [],          // 0=floor, 1=Wall
+    player: { x: 0, y: 0, hp: PLAYER_MAX_HP, atk: PLAYER_ATK },
+    enemies: [],
+    items: [],
+    exit: { x: 0, y: 0 },
+    explored: [],
+    messages: [],
+    score: 0,
+    kills: 0,
+    turn: 0
+  };
+}
+
+// localized comment
+function hasPath(grid, sx, sy, ex, ey) {
+  const visited = Array.from({length: SIZE}, () => Array(SIZE).fill(false));
+  const queue = [{x: sx, y: sy}];
+  visited[sy][sx] = true;
+  const dirs = [{dx:0,dy:-1},{dx:0,dy:1},{dx:-1,dy:0},{dx:1,dy:0}];
+  while (queue.length > 0) {
+    const {x, y} = queue.shift();
+    if (x === ex && y === ey) return true;
+    for (const {dx, dy} of dirs) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE && !visited[ny][nx] && grid[ny][nx] === 0) {
+        visited[ny][nx] = true;
+        queue.push({x: nx, y: ny});
+      }
+    }
+  }
+  return false;
+}
+
+// localized comment
+function generateMap() {
+  let attempts = 0;
+  while (attempts < 500) {
+    attempts++;
+    // localized comment
+    const grid = Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+
+    // localized comment
+    const px = Math.floor(Math.random() * 2);
+    const py = Math.floor(Math.random() * 2);
+
+    // localized comment
+    const ex = SIZE - 1 - Math.floor(Math.random() * 2);
+    const ey = SIZE - 1 - Math.floor(Math.random() * 2);
+
+    // localized comment
+    let wallsPlaced = 0;
+    const wallCandidates = [];
+    for (let y = 0; y < SIZE; y++)
+      for (let x = 0; x < SIZE; x++)
+        if (!(x === px && y === py) && !(x === ex && y === ey))
+          wallCandidates.push({x, y});
+
+    // localized comment
+    for (let i = wallCandidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [wallCandidates[i], wallCandidates[j]] = [wallCandidates[j], wallCandidates[i]];
+    }
+
+    for (const {x, y} of wallCandidates) {
+      if (wallsPlaced >= WALL_TARGET) break;
+      grid[y][x] = 1;
+      // localized comment
+      if (!hasPath(grid, px, py, ex, ey)) {
+        grid[y][x] = 0; // remove wall if it blocks path
+      } else {
+        wallsPlaced++;
+      }
+    }
+
+    // localized comment
+    const emptyTiles = [];
+    for (let y = 0; y < SIZE; y++)
+      for (let x = 0; x < SIZE; x++)
+        if (grid[y][x] === 0 && !(x === px && y === py) && !(x === ex && y === ey))
+          emptyTiles.push({x, y});
+
+    // localized comment
+    for (let i = emptyTiles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [emptyTiles[i], emptyTiles[j]] = [emptyTiles[j], emptyTiles[i]];
+    }
+
+    // localized comment
+    if (emptyTiles.length < ENEMY_COUNT + ITEM_COUNT) continue;
+
+    // localized comment
+    const enemies = [];
+    for (let i = 0; i < ENEMY_COUNT && i < emptyTiles.length; i++) {
+      const t = emptyTiles[i];
+      enemies.push({x: t.x, y: t.y, hp: ENEMY_HP, maxHp: ENEMY_HP, atk: ENEMY_ATK});
+    }
+
+    // localized comment
+    const items = [];
+    for (let i = ENEMY_COUNT; i < ENEMY_COUNT + ITEM_COUNT && i < emptyTiles.length; i++) {
+      const t = emptyTiles[i];
+      items.push({x: t.x, y: t.y});
+    }
+
+    // localized comment
+
+    G.grid = grid;
+    G.player = {x: px, y: py, hp: PLAYER_MAX_HP, atk: PLAYER_ATK};
+    G.enemies = enemies;
+    G.items = items;
+    G.exit = {x: ex, y: ey};
+    G.explored = Array.from({length: SIZE}, () => Array(SIZE).fill(false));
+    G.messages = [];
+    G.score = 0;
+    G.kills = 0;
+    G.turn = 0;
+    return;
+  }
+}
+
+// localized comment
+function isVisible(x, y) {
+  const dx = Math.abs(x - G.player.x);
+  const dy = Math.abs(y - G.player.y);
+  return Math.max(dx, dy) <= VIS_RADIUS;
+}
+
+// localized comment
+function getEntityAt(x, y) {
+  if (G.player.x === x && G.player.y === y) return 'player';
+  if (G.exit.x === x && G.exit.y === y) return 'exit';
+  if (G.enemies.some(e => e.x === x && e.y === y)) return 'enemy';
+  if (G.items.some(i => i.x === x && i.y === y)) return 'item';
+  if (G.grid[y][x] === 1) return 'wall';
+  return 'floor';
+}
+
+// localized comment
+function render() {
+  const gridEl = document.getElementById('grid');
+  gridEl.innerHTML = '';
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const cell = document.createElement('div');
+      cell.classList.add('cell');
+      cell.id = `cell-${x}-${y}`;
+
+      const vis = isVisible(x, y);
+      const exp = G.explored[y][x];
+
+      // localized comment
+      if (vis) {
+        cell.classList.add('visible');
+        G.explored[y][x] = true;
+      } else if (exp) {
+        cell.classList.add('explored');
+      } else {
+        cell.classList.add('hidden');
+        gridEl.appendChild(cell);
+        continue;
+      }
+
+      // localized comment
+      const entity = getEntityAt(x, y);
+      switch (entity) {
+        case 'player':
+          cell.classList.add('cell-player');
+          cell.textContent = '🧙';
+          break;
+        case 'enemy':
+          cell.classList.add('cell-enemy');
+          cell.textContent = '👹';
+          // localized comment
+          if (vis) {
+            const enemy = G.enemies.find(e => e.x === x && e.y === y);
+            if (enemy) {
+              const hpInd = document.createElement('div');
+              hpInd.style.cssText = 'position:absolute;bottom:2px;left:50%;transform:translateX(-50%);font-size:0.5rem;color:#e04040;';
+              hpInd.textContent = '♥'.repeat(Math.ceil(enemy.hp / 2));
+              cell.appendChild(hpInd);
+            }
+          }
+          break;
+        case 'item':
+          cell.classList.add('cell-item');
+          cell.textContent = '❤️';
+          break;
+        case 'exit':
+          cell.classList.add('cell-exit');
+          cell.textContent = '🚪';
+          break;
+        case 'wall':
+          cell.classList.add('cell-wall');
+          cell.textContent = '🧱';
+          break;
+        default:
+          cell.classList.add('cell-floor');
+      }
+
+      gridEl.appendChild(cell);
+    }
+  }
+
+  // localized comment
+  document.getElementById('hp-text').textContent = `${G.player.hp}/${PLAYER_MAX_HP}`;
+  document.getElementById('score-text').textContent = G.score;
+  document.getElementById('turn-text').textContent = G.turn;
+  document.getElementById('kill-text').textContent = G.kills;
+  const hpPct = Math.max(0, (G.player.hp / PLAYER_MAX_HP) * 100);
+  document.getElementById('hp-bar').style.width = hpPct + '%';
+  if (hpPct <= 30) document.getElementById('hp-bar').style.background = 'linear-gradient(90deg,#880000,#aa2020)';
+  else if (hpPct <= 60) document.getElementById('hp-bar').style.background = 'linear-gradient(90deg,#aa6600,#cc8800)';
+  else document.getElementById('hp-bar').style.background = 'linear-gradient(90deg,#cc2020,#e04040)';
+}
+
+// localized comment
+function addMsg(text, type = 'info') {
+  G.messages.push({text, type});
+  if (G.messages.length > 50) G.messages.shift();
+  const log = document.getElementById('message-log');
+  const div = document.createElement('div');
+  div.className = 'msg-' + type;
+  div.textContent = `› ${text}`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+// localized comment
+function flashCell(x, y, color) {
+  const cell = document.getElementById(`cell-${x}-${y}`);
+  if (cell) {
+    cell.classList.add(`cell-flash-${color}`);
+    setTimeout(() => cell.classList.remove(`cell-flash-${color}`), 300);
+  }
+}
+
+// localized comment
+function combat(enemy) {
+  // localized comment
+  const dmg = G.player.atk;
+  enemy.hp -= dmg;
+  addMsg(`👹 Deal ${dmg} damage! (HP left: ${Math.max(0, enemy.hp)})`, 'combat');
+  sfxHit();
+  flashCell(enemy.x, enemy.y, 'red');
+
+  if (enemy.hp <= 0) {
+    // localized comment
+    G.enemies = G.enemies.filter(e => e !== enemy);
+    G.kills++;
+    G.score += 10;
+    addMsg(`💀 Monster Defeated! (+10 pts)`, 'combat');
+    sfxKill();
+    return true; // Enemy Defeated → Player Move Progress
+  }
+
+  // localized comment
+  const eDmg = enemy.atk;
+  G.player.hp -= eDmg;
+  addMsg(`👹 Monster counterattack! ${eDmg} damage! (HP: ${G.player.hp}/${PLAYER_MAX_HP})`, 'combat');
+  flashCell(G.player.x, G.player.y, 'red');
+
+  if (G.player.hp <= 0) {
+    gameOver();
+  }
+  return false; // enemy survived, cannot move
+}
+
+// ── Enemy Turn (AI Move) ──
+function enemyTurn() {
+  const dirs = [{dx:0,dy:-1},{dx:0,dy:1},{dx:-1,dy:0},{dx:1,dy:0}];
+
+  for (const enemy of [...G.enemies]) {
+    if (G.phase !== 'PLAYING') return;
+
+    const dist = Math.abs(enemy.x - G.player.x) + Math.abs(enemy.y - G.player.y);
+
+    // localized comment
+    if (dist === 1) {
+      const eDmg = enemy.atk;
+      G.player.hp -= eDmg;
+      addMsg(`👹 Monster attacks! ${eDmg} damage! (HP: ${Math.max(0, G.player.hp)}/${PLAYER_MAX_HP})`, 'combat');
+      sfxHit();
+      flashCell(G.player.x, G.player.y, 'red');
+      if (G.player.hp <= 0) { gameOver(); return; }
+      continue;
+    }
+
+    // localized comment
+    let bestDir = null;
+    if (dist <= ENEMY_DETECT) {
+      // localized comment
+      let minDist = dist;
+      const shuffled = dirs.slice().sort(() => Math.random() - 0.5);
+      for (const {dx, dy} of shuffled) {
+        const nx = enemy.x + dx, ny = enemy.y + dy;
+        if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) continue;
+        if (G.grid[ny][nx] === 1) continue;
+        if (G.enemies.some(e => e !== enemy && e.x === nx && e.y === ny)) continue;
+        if (nx === G.player.x && ny === G.player.y) continue; // player position is handled after movement
+        const nd = Math.abs(nx - G.player.x) + Math.abs(ny - G.player.y);
+        if (nd < minDist) {
+          minDist = nd;
+          bestDir = {dx, dy};
+        }
+      }
+    } else {
+      // localized comment
+      if (Math.random() < 0.3) {
+        const rDir = dirs[Math.floor(Math.random() * dirs.length)];
+        const nx = enemy.x + rDir.dx, ny = enemy.y + rDir.dy;
+        if (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE && G.grid[ny][nx] === 0
+            && !G.enemies.some(e => e !== enemy && e.x === nx && e.y === ny)
+            && !(nx === G.player.x && ny === G.player.y)) {
+          bestDir = rDir;
+        }
+      }
+    }
+
+    if (bestDir) {
+      enemy.x += bestDir.dx;
+      enemy.y += bestDir.dy;
+    }
+  }
+}
+
+// localized comment
+function movePlayer(dx, dy) {
+  if (G.phase !== 'PLAYING') return;
+
+  const nx = G.player.x + dx;
+  const ny = G.player.y + dy;
+
+  // localized comment
+  if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE) return;
+
+  // localized comment
+  if (G.grid[ny][nx] === 1) return;
+
+  // localized comment
+  const enemy = G.enemies.find(e => e.x === nx && e.y === ny);
+  if (enemy) {
+    const killed = combat(enemy);
+    if (killed) {
+      // localized comment
+      G.player.x = nx;
+      G.player.y = ny;
+    }
+    // localized comment
+  } else {
+    // Move
+    G.player.x = nx;
+    G.player.y = ny;
+    sfxMove();
+
+    // localized comment
+    const itemIdx = G.items.findIndex(i => i.x === nx && i.y === ny);
+    if (itemIdx !== -1) {
+      G.items.splice(itemIdx, 1);
+      const healed = Math.min(ITEM_HEAL, PLAYER_MAX_HP - G.player.hp);
+      G.player.hp = Math.min(PLAYER_MAX_HP, G.player.hp + ITEM_HEAL);
+      G.score += 5;
+      addMsg(`❤️ Healing Item! HP +${healed} (${G.player.hp}/${PLAYER_MAX_HP}) (+5 pts)`, 'item');
+      sfxHeal();
+      flashCell(nx, ny, 'green');
+    }
+
+    // localized comment
+    if (nx === G.exit.x && ny === G.exit.y) {
+      winGame();
+      return;
+    }
+  }
+
+  // Turn Progress
+  G.turn++;
+
+  // Enemy Turn
+  enemyTurn();
+
+  // localized comment
+  render();
+
+  // localized comment
+  if (G.phase === 'PLAYING' && G.player.hp <= 0) {
+    gameOver();
+  }
+}
+
+// ── Ready (Space) ──
+function waitTurn() {
+  if (G.phase !== 'PLAYING') return;
+  G.turn++;
+  addMsg('⏳ Waiting...', 'system');
+  enemyTurn();
+  render();
+}
+
+// ── Victory ──
+function winGame() {
+  G.phase = 'WIN';
+  G.score += 50 + G.player.hp * 3;
+  sfxWin();
+  addMsg(`🚪 Escape Successful!! Final Score: ${G.score}`, 'info');
+
+  setTimeout(() => {
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('end-screen').style.display = 'block';
+    document.getElementById('end-title').className = 'win-title';
+    document.getElementById('end-title').textContent = '🎉 Escape Successful! 🎉';
+    document.getElementById('end-subtitle').textContent = 'You escaped the dungeon!';
+    document.getElementById('end-stats').innerHTML =
+      `⭐ Final Score: <b style="color:#f0c040">${G.score}</b><br>` +
+      `🔄 Total turns: ${G.turn}<br>` +
+      `👹 Monsters defeated: ${G.kills}<br>` +
+      `❤️ Remaining Health: ${G.player.hp}/${PLAYER_MAX_HP}`;
+  }, 500);
+}
+
+// ── Defeat ──
+function gameOver() {
+  G.phase = 'LOSE';
+  G.player.hp = 0;
+  sfxLose();
+  addMsg('💀 You died...', 'combat');
+
+  setTimeout(() => {
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('end-screen').style.display = 'block';
+    document.getElementById('end-title').className = 'lose-title';
+    document.getElementById('end-title').textContent = '💀 You died... 💀';
+    document.getElementById('end-subtitle').textContent = 'You were swallowed by the dungeon darkness.';
+    document.getElementById('end-stats').innerHTML =
+      `⭐ Score: <b style="color:#f0c040">${G.score}</b><br>` +
+      `🔄 Progress Turn: ${G.turn}<br>` +
+      `👹 Monsters defeated: ${G.kills}<br>` +
+      `❤️ Remaining Health: 0/${PLAYER_MAX_HP}`;
+  }, 600);
+}
+
+// ── Start Game ──
+function startGame() {
+  initAudio();
+  resetGame();
+  G.phase = 'PLAYING';
+  generateMap();
+
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('end-screen').style.display = 'none';
+  document.getElementById('game-screen').style.display = 'block';
+  document.getElementById('message-log').innerHTML = '';
+
+  addMsg('🏰 Entered the dungeon. Find the exit!', 'info');
+  addMsg('💡 WASD or Arrow keys to move, Space to wait', 'system');
+  render();
+}
+
+// ── Restart ──
+function restartGame() {
+  document.getElementById('end-screen').style.display = 'none';
+  startGame();
+}
+
+// localized comment
+document.addEventListener('keydown', (e) => {
+  // localized comment
+  if (G.phase === 'START' || !G.phase) {
+    if (e.key === 'Enter') { startGame(); return; }
+  }
+
+  if (G.phase !== 'PLAYING') {
+    if (e.key === 'r' || e.key === 'R') { restartGame(); }
+    return;
+  }
+
+  switch (e.key) {
+    case 'ArrowUp':    case 'w': case 'W': e.preventDefault(); movePlayer(0, -1); break;
+    case 'ArrowDown':  case 's': case 'S': e.preventDefault(); movePlayer(0, 1);  break;
+    case 'ArrowLeft':  case 'a': case 'A': e.preventDefault(); movePlayer(-1, 0); break;
+    case 'ArrowRight': case 'd': case 'D': e.preventDefault(); movePlayer(1, 0);  break;
+    case ' ':                         e.preventDefault(); waitTurn();              break;
+    case 'r':         case 'R':        restartGame(); return;
+  }
+});
+
+// localized comment
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-restart').addEventListener('click', restartGame);
+
+// localized comment
+resetGame();
+</script>
+</body>
+</html>

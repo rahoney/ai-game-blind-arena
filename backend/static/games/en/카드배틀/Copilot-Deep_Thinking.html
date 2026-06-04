@@ -334,11 +334,11 @@ function endPlayerTurn(){
 
 /* ====== 몬스터 AI ====== */
 function monsterAct(){
-  // 간단한 랜덤 공격 또는 약한 회복
+  // 간단한 랜덤 attack 또는 약한 회복
   const m = state.monster;
   const choice = Math.random();
   if(choice < 0.85){
-    // 공격
+    // attack
     const dmg = randInt(6,12);
     // 방어 적용
     let actual = dmg;

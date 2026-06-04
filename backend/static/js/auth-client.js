@@ -24,6 +24,7 @@ function setSignedOutState() {
     state.authUser = null;
     state.account = null;
     state.isAdmin = false;
+    clearBlindSeed();
 }
 
 function setAuthMode(mode) {
@@ -395,6 +396,7 @@ async function initializeFirebaseAuth() {
                         setSignedOutState();
                     } else {
                         state.authUser = user;
+                        syncBlindSeedForAuthUser(user.uid);
                         const token = await user.getIdToken();
                         state.account = await apiFetchAuthMe(token);
                         state.isAdmin = !!state.account?.is_admin;
@@ -423,10 +425,24 @@ async function initializeFirebaseAuth() {
 async function refreshAccountFromFirebaseUser() {
     if (!firebaseAuth?.currentUser) return null;
     const token = await firebaseAuth.currentUser.getIdToken(true);
+    syncBlindSeedForAuthUser(firebaseAuth.currentUser.uid);
     state.account = await apiFetchAuthMe(token);
     state.isAdmin = !!state.account?.is_admin;
     renderSidebar();
     return state.account;
+}
+
+async function refreshSignedInGameState() {
+    try {
+        await apiFetchGames();
+    } catch (e) {
+        console.error('Game data load failed', e);
+    }
+    try {
+        await apiFetchUserEvals();
+    } catch (e) {
+        console.error('User evaluation load failed', e);
+    }
 }
 
 async function handleEmailAuth(mode) {
@@ -483,6 +499,7 @@ async function handleEmailAuth(mode) {
             renderLogin();
             return;
         }
+        await refreshSignedInGameState();
         navigateTo('category', renderCategorySelection);
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, mode), { tone: 'error' });
@@ -584,6 +601,7 @@ async function handleVerifyEmailRefresh() {
             renderLogin();
             return;
         }
+        await refreshSignedInGameState();
         navigateTo('category', renderCategorySelection);
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, 'login'), { tone: 'error' });
@@ -604,6 +622,7 @@ async function handleGoogleLogin() {
             navigateTo('login', renderLogin);
             return;
         }
+        await refreshSignedInGameState();
         navigateTo('category', renderCategorySelection);
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, 'login'), { tone: 'error' });
@@ -720,6 +739,7 @@ async function handleDisplayNameSubmit() {
         await firebaseAuth.currentUser.updateProfile({ displayName });
         await saveDisplayName(displayName);
         state.authMode = 'login';
+        await refreshSignedInGameState();
         renderSidebar();
         navigateTo('category', renderCategorySelection);
     } catch (e) {

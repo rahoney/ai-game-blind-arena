@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>🐱 귀여운 카드 전투! 🐉</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: linear-gradient(145deg, #fce4ec 0%, #f8bbd0 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Segoe UI', 'Neucha', 'Comic Sans MS', 'system-ui', cursive, sans-serif;
+      padding: 20px;
+      margin: 0;
+    }
+
+    .game-container {
+      max-width: 600px;
+      width: 100%;
+      background: rgba(255, 241, 245, 0.85);
+      backdrop-filter: blur(18px);
+      border-radius: 55px;
+      padding: 25px 20px 30px;
+      box-shadow: 0 25px 45px rgba(190, 100, 120, 0.25),
+                  0 10px 20px rgba(0, 0, 0, 0.1),
+                  inset 0 2px 8px rgba(255, 255, 255, 0.7);
+      border: 2px solid #ffe0e5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      transition: all 0.2s ease;
+    }
+
+    .battle-stage {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      width: 100%;
+      gap: 20px;
+      position: relative;
+      margin-top: 5px;
+    }
+
+    .character {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      background: #fff6f9;
+      border-radius: 40px;
+      padding: 15px 12px 12px;
+      box-shadow: 0 12px 18px rgba(180, 130, 140, 0.2);
+      border: 2px solid #ffd9e2;
+      min-width: 130px;
+      transition: transform 0.2s;
+    }
+
+    .character:hover {
+      transform: translateY(-4px);
+    }
+
+    .avatar {
+      font-size: 4rem;
+      filter: drop-shadow(0 10px 10px rgba(255, 150, 150, 0.4));
+      transition: transform 0.15s;
+    }
+
+    .monster .avatar {
+      font-size: 4.2rem;
+    }
+
+    .health-bar-bg {
+      background: #ffdae0;
+      width: 110px;
+      height: 16px;
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid #ffb7c5;
+      box-shadow: inset 0 2px 5px rgba(180, 100, 100, 0.2);
+    }
+
+    .health-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #ff8a9a, #ff5266);
+      border-radius: 20px;
+      transition: width 0.25s cubic-bezier(0.34, 1.2, 0.64, 1);
+      box-shadow: 0 0 8px #ff7b8b;
+    }
+
+    .monster .health-fill {
+      background: linear-gradient(90deg, #bc8bff, #8a5cf6);
+    }
+
+    .defense-badge {
+      background: #d4eafc;
+      color: #2d5f8a;
+      font-weight: bold;
+      font-size: 0.9rem;
+      padding: 4px 12px;
+      border-radius: 30px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border: 1px solid #b3d9ff;
+      background: #e3f2fd;
+    }
+
+    .energy-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #fffae6;
+      padding: 5px 14px;
+      border-radius: 30px;
+      border: 1px solid #ffe082;
+    }
+
+    .energy-icon {
+      font-size: 1.1rem;
+      filter: drop-shadow(0 2px 3px gold);
+    }
+
+    .battle-info {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      font-weight: bold;
+      color: #b34159;
+    }
+
+    .hand-area {
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      min-height: 100px;
+      background: rgba(255, 230, 240, 0.6);
+      border-radius: 40px;
+      padding: 18px 12px;
+      margin: 8px 0 5px;
+      border: 2px dashed #ffc1cc;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 2px solid #ffcad4;
+      border-radius: 24px;
+      padding: 12px 14px;
+      min-width: 80px;
+      max-width: 100px;
+      box-shadow: 0 8px 14px rgba(200, 100, 120, 0.25);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-weight: bold;
+      color: #4a2c3a;
+      background: linear-gradient(150deg, #fff0f5, #ffe4ec);
+      position: relative;
+      user-select: none;
+    }
+
+    .card:hover:not(.disabled-card) {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 0 18px 22px rgba(220, 100, 130, 0.35);
+      border-color: #ff98b2;
+      background: #fff5f8;
+    }
+
+    .card.disabled-card {
+      opacity: 0.5;
+      filter: grayscale(0.3);
+      cursor: not-allowed;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.08);
+      transform: none;
+    }
+
+    .card-cost {
+      background: #fbe4ed;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: bold;
+      color: #b3446c;
+      border: 1px solid #f3b0c2;
+    }
+
+    .card-name {
+      font-size: 0.9rem;
+      text-align: center;
+      word-break: keep-all;
+    }
+
+    .card-desc {
+      font-size: 0.65rem;
+      color: #6d4b5e;
+      text-align: center;
+    }
+
+    .actions {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: #fee1e8;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 50px;
+      font-weight: bold;
+      font-size: 1rem;
+      color: #b33b5c;
+      border: 2px solid #ffb7c5;
+      background: #ffeef2;
+      cursor: pointer;
+      transition: 0.15s;
+      box-shadow: 0 5px 10px rgba(180, 80, 100, 0.2);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover {
+      background: #ffdae2;
+      border-color: #ff8da1;
+      transform: scale(1.02);
+    }
+
+    .btn:active {
+      transform: scale(0.96);
+    }
+
+    .restart-btn {
+      background: #fde8f0;
+      border-color: #e9b2c9;
+    }
+
+    .game-message {
+      font-size: 1rem;
+      font-weight: bold;
+      color: #c94b6c;
+      background: #fff1f5;
+      padding: 6px 22px;
+      border-radius: 30px;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+    }
+
+    .turn-indicator {
+      background: #ffecf0;
+      border-radius: 30px;
+      padding: 3px 18px;
+      font-weight: bold;
+      color: #aa4465;
+    }
+
+    @media (max-width: 450px) {
+      .card {
+        min-width: 68px;
+        padding: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="game-container" id="gameApp">
+  <div class="turn-indicator" id="turnDisplay">🐱 당신의 턴!</div>
+
+  <div class="battle-stage">
+    <!-- 몬스터 -->
+    <div class="character monster">
+      <span class="avatar">🐉</span>
+      <div class="health-bar-bg">
+        <div id="monsterHpFill" class="health-fill" style="width: 100%;"></div>
+      </div>
+      <span id="monsterHpText">❤️ 20 / 20</span>
+      <span id="monsterDefenseDisplay" class="defense-badge" style="display: none;">🛡️ 0</span>
+    </div>
+
+    <!-- 플레이어 -->
+    <div class="character player">
+      <span class="avatar">🐱</span>
+      <div class="health-bar-bg">
+        <div id="playerHpFill" class="health-fill" style="width: 100%;"></div>
+      </div>
+      <span id="playerHpText">❤️ 20 / 20</span>
+      <span id="playerDefenseDisplay" class="defense-badge">🛡️ 0</span>
+      <div class="energy-bar">
+        <span class="energy-icon">⚡</span>
+        <span id="energyText">3 / 3</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="game-message" id="messageBox">✨ 카드를 사용해 공격하거나 방어하세요!</div>
+
+  <!-- 손패 영역 -->
+  <div id="handContainer" class="hand-area"></div>
+
+  <div class="actions">
+    <button class="btn" id="endTurnBtn">⏳ 턴 종료</button>
+    <button class="btn restart-btn" id="restartBtn">🔄 다시 시작</button>
+  </div>
+</div>
+
+<script>
+  (function() {
+    // ---------- 게임 상태 ----------
+    const MAX_HP = 20;
+    const MAX_ENERGY = 3;
+
+    // 초기 상태 반환 (완전 초기화 보장)
+    function getInitialState() {
+      return {
+        player: {
+          hp: MAX_HP,
+          maxHp: MAX_HP,
+          defense: 0,
+          energy: MAX_ENERGY,
+          maxEnergy: MAX_ENERGY,
+        },
+        monster: {
+          hp: MAX_HP,
+          maxHp: MAX_HP,
+          defense: 0,
+        },
+        hand: [],            // 현재 손패 카드 객체 배열
+        drawPile: [],        // 뽑을 덱
+        discardPile: [],     // 버린 카드 더미
+        gameOver: false,
+        winner: null,        // 'player' or 'monster'
+        turn: 'player',      // 'player' | 'monster'
+      };
+    }
+
+    let state = getInitialState();
+
+    // ---------- 카드 정의 ----------
+    const CARD_LIBRARY = [
+      { id: 'slash', name: '🐾 베기', cost: 1, desc: '피해 4', type: 'attack', value: 4 },
+      { id: 'strong_slash', name: '💥 강한 베기', cost: 2, desc: '피해 8', type: 'attack', value: 8 },
+      { id: 'shield', name: '🛡️ 방패', cost: 1, desc: '방어 +6', type: 'defense', value: 6 },
+      { id: 'heal', name: '🌿 치유', cost: 1, desc: '체력 +4', type: 'heal', value: 4 },
+      { id: 'poke', name: '🍃 찌르기', cost: 0, desc: '피해 2', type: 'attack', value: 2 },
+      { id: 'parry', name: '🤺 반격 준비', cost: 1, desc: '방어 +3 / 피해2', type: 'special', defense: 3, attack: 2 },
+    ];
+
+    // 초기 덱 구성 (랜덤하게 10장 정도 섞어서 재미 요소)
+    function buildDeck() {
+      const deck = [];
+      // 각 카드 2~3장씩 추가
+      deck.push(...Array(2).fill({...CARD_LIBRARY[0]}));
+      deck.push(...Array(2).fill({...CARD_LIBRARY[1]}));
+      deck.push(...Array(3).fill({...CARD_LIBRARY[2]}));
+      deck.push(...Array(2).fill({...CARD_LIBRARY[3]}));
+      deck.push(...Array(2).fill({...CARD_LIBRARY[4]}));
+      deck.push(...Array(2).fill({...CARD_LIBRARY[5]}));
+      return shuffleArray(deck);
+    }
+
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    // ---------- 유틸리티 ----------
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    // 드로우 파일에서 카드 뽑기 (부족하면 버린 카드 섞어서 합치기)
+    function drawCards(count) {
+      const drawn = [];
+      for (let i = 0; i < count; i++) {
+        if (state.drawPile.length === 0) {
+          if (state.discardPile.length === 0) break; // 더 이상 카드 없음
+          state.drawPile = shuffleArray([...state.discardPile]);
+          state.discardPile = [];
+        }
+        drawn.push(state.drawPile.pop());
+      }
+      return drawn;
+    }
+
+    // 손패에 카드 추가 후 UI 갱신
+    function fillHandTo(count = 3) {
+      if (state.gameOver) return;
+      const needed = count - state.hand.length;
+      if (needed > 0) {
+        const newCards = drawCards(needed);
+        state.hand.push(...newCards);
+      }
+      render();
+    }
+
+    // 플레이어 턴 시작 처리
+    function startPlayerTurn() {
+      if (state.gameOver) return;
+      state.turn = 'player';
+      // 방어력 초기화 (플레이어 턴 시작 시)
+      state.player.defense = 0;
+      state.player.energy = state.player.maxEnergy;
+      // 손패 비우고 버리기 (이전 턴 잔여 카드 처리)
+      if (state.hand.length > 0) {
+        state.discardPile.push(...state.hand);
+        state.hand = [];
+      }
+      fillHandTo(3);
+      updateTurnDisplay();
+      setMessage('✨ 새로운 턴! 카드를 선택하세요.');
+    }
+
+    // 몬스터 턴 진행
+    function executeMonsterTurn() {
+      if (state.gameOver) return;
+      state.turn = 'monster';
+      // 몬스터 방어력 초기화 (몬스터 턴 시작 시)
+      state.monster.defense = 0;
+      updateTurnDisplay();
+      render();
+
+      // 몬스터 행동 결정 (간단한 AI)
+      setTimeout(() => {
+        if (state.gameOver) return;
+        const action = chooseMonsterAction();
+        applyMonsterAction(action);
+        render();
+        // 승패 체크
+        if (checkGameOver()) {
+          render();
+          return;
+        }
+        // 몬스터 턴 종료 후 플레이어 턴 시작
+        setTimeout(() => {
+          if (!state.gameOver) {
+            startPlayerTurn();
+          }
+        }, 400);
+      }, 500);
+    }
+
+    function chooseMonsterAction() {
+      const hpPercent = state.monster.hp / state.monster.maxHp;
+      // 체력이 40% 이하일 때 힐 확률 증가
+      if (hpPercent <= 0.4 && Math.random() < 0.45) {
+        return 'heal';
+      }
+      const rand = Math.random();
+      if (rand < 0.25) return 'defend';  // 방어
+      if (rand < 0.50 && hpPercent < 0.7) return 'heal'; 
+      return 'attack';                   // 기본 공격
+    }
+
+    function applyMonsterAction(action) {
+      let msg = '';
+      if (action === 'attack') {
+        let damage = 5 + Math.floor(Math.random() * 3); // 5~7
+        // 플레이어 방어력 차감
+        const blocked = Math.min(state.player.defense, damage);
+        state.player.defense -= blocked;
+        damage -= blocked;
+        state.player.hp = clamp(state.player.hp - damage, 0, state.player.maxHp);
+        msg = `🐉 몬스터 공격! (${damage} 피해)`;
+        if (blocked > 0) msg += ` 🛡️ ${blocked} 방어`;
+      } else if (action === 'defend') {
+        state.monster.defense += 4;
+        msg = '🐉 몬스터가 방어 태세를 취했다! (+4 방어)';
+      } else if (action === 'heal') {
+        const healAmount = 3 + Math.floor(Math.random() * 2); // 3~4
+        state.monster.hp = clamp(state.monster.hp + healAmount, 0, state.monster.maxHp);
+        msg = `🐉 몬스터가 회복! (+${healAmount} 체력)`;
+      }
+      setMessage(msg);
+    }
+
+    // 플레이어 카드 사용 처리
+    function playCard(card, index) {
+      if (state.gameOver) return;
+      if (state.turn !== 'player') {
+        setMessage('⏳ 지금은 플레이어 턴이 아니에요!');
+        return;
+      }
+      if (state.player.energy < card.cost) {
+        setMessage('⚡ 에너지가 부족해요!');
+        return;
+      }
+
+      // 카드 사용 애니메이션을 위해 클래스 추가 후 제거 (간단히 효과)
+      const handEl = document.getElementById('handContainer');
+      const cardElements = handEl?.children;
+      if (cardElements && cardElements[index]) {
+        cardElements[index].style.transform = 'scale(0.9) translateY(-12px)';
+        cardElements[index].style.transition = '0.15s';
+        setTimeout(() => {
+          if (cardElements[index]) {
+            cardElements[index].style.transform = '';
+          }
+        }, 150);
+      }
+
+      // 에너지 차감
+      state.player.energy -= card.cost;
+      // 손패에서 제거
+      state.hand.splice(index, 1);
+      // 사용한 카드는 버리는 더미로
+      state.discardPile.push(card);
+
+      // 카드 효과 적용
+      applyCardEffect(card);
+      render();
+
+      // 승패 체크
+      if (checkGameOver()) {
+        render();
+        return;
+      }
+
+      // 손패가 0장이면 자동으로 턴 종료하지 않고 플레이어가 직접 턴 종료 버튼 누를 수 있음 (또는 자동 종료)
+      if (state.hand.length === 0 && state.player.energy === 0) {
+        setMessage('🃏 손패와 에너지 소진! 턴 종료를 눌러주세요.');
+      }
+    }
+
+    function applyCardEffect(card) {
+      let msg = '';
+      switch (card.type) {
+        case 'attack':
+          let damage = card.value;
+          // 몬스터 방어력 적용
+          const blocked = Math.min(state.monster.defense, damage);
+          state.monster.defense -= blocked;
+          damage -= blocked;
+          state.monster.hp = clamp(state.monster.hp - damage, 0, state.monster.maxHp);
+          msg = `⚔️ ${card.name} 사용! ${damage} 피해`;
+          if (blocked > 0) msg += ` (🛡️ ${blocked} 방어)`;
+          break;
+        case 'defense':
+          state.player.defense += card.value;
+          msg = `🛡️ ${card.name}! 방어 +${card.value}`;
+          break;
+        case 'heal':
+          const healAmount = card.value;
+          state.player.hp = clamp(state.player.hp + healAmount, 0, state.player.maxHp);
+          msg = `💚 ${card.name}! 체력 +${healAmount}`;
+          break;
+        case 'special': // 반격 준비: 방어 + 공격
+          state.player.defense += card.defense;
+          let atkDmg = card.attack;
+          const mBlock = Math.min(state.monster.defense, atkDmg);
+          state.monster.defense -= mBlock;
+          atkDmg -= mBlock;
+          state.monster.hp = clamp(state.monster.hp - atkDmg, 0, state.monster.maxHp);
+          msg = `🤺 ${card.name}! 방어 +${card.defense} & ${atkDmg} 피해`;
+          break;
+        default: break;
+      }
+      setMessage(msg);
+    }
+
+    // 턴 종료 버튼
+    function endPlayerTurn() {
+      if (state.gameOver) return;
+      if (state.turn !== 'player') {
+        setMessage('🐉 몬스터 턴 진행 중...');
+        return;
+      }
+      // 남은 손패 버리기
+      if (state.hand.length > 0) {
+        state.discardPile.push(...state.hand);
+        state.hand = [];
+      }
+      render();
+      executeMonsterTurn();
+    }
+
+    // 게임 종료 체크
+    function checkGameOver() {
+      if (state.player.hp <= 0) {
+        state.gameOver = true;
+        state.winner = 'monster';
+        state.turn = 'monster';
+        setMessage('💔 패배... 몬스터가 이겼어요. 다시 도전!');
+        updateTurnDisplay();
+        return true;
+      }
+      if (state.monster.hp <= 0) {
+        state.gameOver = true;
+        state.winner = 'player';
+        state.turn = 'player';
+        setMessage('🎉 승리! 귀여운 고양이가 몬스터를 물리쳤어요!');
+        updateTurnDisplay();
+        return true;
+      }
+      return false;
+    }
+
+    function updateTurnDisplay() {
+      const turnEl = document.getElementById('turnDisplay');
+      if (!turnEl) return;
+      if (state.gameOver) {
+        turnEl.textContent = state.winner === 'player' ? '🏆 승리! 🏆' : '😿 패배...';
+      } else {
+        turnEl.textContent = state.turn === 'player' ? '🐱 당신의 턴!' : '🐉 몬스터 턴...';
+      }
+    }
+
+    function setMessage(text) {
+      const msgBox = document.getElementById('messageBox');
+      if (msgBox) msgBox.textContent = text;
+    }
+
+    // ---------- UI 렌더링 ----------
+    function render() {
+      // 플레이어 체력
+      const playerHpPercent = (state.player.hp / state.player.maxHp) * 100;
+      document.getElementById('playerHpFill').style.width = `${playerHpPercent}%`;
+      document.getElementById('playerHpText').textContent = `❤️ ${state.player.hp} / ${state.player.maxHp}`;
+      
+      // 몬스터 체력
+      const monsterHpPercent = (state.monster.hp / state.monster.maxHp) * 100;
+      document.getElementById('monsterHpFill').style.width = `${monsterHpPercent}%`;
+      document.getElementById('monsterHpText').textContent = `❤️ ${state.monster.hp} / ${state.monster.maxHp}`;
+
+      // 방어력 표시
+      const playerDefEl = document.getElementById('playerDefenseDisplay');
+      playerDefEl.textContent = `🛡️ ${state.player.defense}`;
+      playerDefEl.style.display = state.player.defense > 0 ? 'inline-flex' : 'none';
+
+      const monsterDefEl = document.getElementById('monsterDefenseDisplay');
+      monsterDefEl.textContent = `🛡️ ${state.monster.defense}`;
+      monsterDefEl.style.display = state.monster.defense > 0 ? 'inline-flex' : 'none';
+
+      // 에너지
+      document.getElementById('energyText').textContent = `${state.player.energy} / ${state.player.maxEnergy}`;
+
+      // 손패 렌더링
+      const handContainer = document.getElementById('handContainer');
+      if (!handContainer) return;
+      handContainer.innerHTML = '';
+
+      if (state.gameOver && state.hand.length === 0) {
+        handContainer.innerHTML = '<div style="color:#b34e6b; padding:10px;">게임 종료</div>';
+      } else if (state.turn === 'player' || state.hand.length > 0) {
+        state.hand.forEach((card, idx) => {
+          const cardEl = document.createElement('div');
+          cardEl.className = 'card';
+          if (state.turn !== 'player' || state.player.energy < card.cost || state.gameOver) {
+            cardEl.classList.add('disabled-card');
+          }
+          cardEl.innerHTML = `
+            <span class="card-cost">${card.cost}</span>
+            <span class="card-name">${card.name}</span>
+            <span class="card-desc">${card.desc || ''}</span>
+          `;
+          cardEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (state.turn === 'player' && !state.gameOver && state.player.energy >= card.cost) {
+              playCard(card, idx);
+            } else if (state.turn !== 'player') {
+              setMessage('⏳ 지금은 행동할 수 없어요!');
+            } else if (state.player.energy < card.cost) {
+              setMessage('⚡ 에너지 부족!');
+            }
+          });
+          handContainer.appendChild(cardEl);
+        });
+      }
+
+      // 턴 종료 버튼 상태
+      const endBtn = document.getElementById('endTurnBtn');
+      if (endBtn) {
+        endBtn.disabled = (state.turn !== 'player' || state.gameOver);
+        endBtn.style.opacity = (state.turn === 'player' && !state.gameOver) ? '1' : '0.6';
+      }
+    }
+
+    // ---------- 재시작 ----------
+    function restartGame() {
+      // 완전 초기화
+      state = getInitialState();
+      state.drawPile = buildDeck();
+      state.discardPile = [];
+      state.hand = [];
+      state.gameOver = false;
+      state.winner = null;
+      // 플레이어 턴 시작 (방어력 0, 에너지 3, 손패 3장)
+      startPlayerTurn();
+      render();
+    }
+
+    // ---------- 이벤트 바인딩 및 초기 실행 ----------
+    window.addEventListener('load', () => {
+      // 초기 덱 생성 및 게임 시작
+      state = getInitialState();
+      state.drawPile = buildDeck();
+      startPlayerTurn();
+      render();
+
+      document.getElementById('endTurnBtn').addEventListener('click', endPlayerTurn);
+      document.getElementById('restartBtn').addEventListener('click', restartGame);
+    });
+
+  })();
+</script>
+</body>
+</html>

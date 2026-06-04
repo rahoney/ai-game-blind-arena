@@ -828,7 +828,7 @@
             
             // A 버튼 (점프)
             gamepadButtons.jump = gamepad.buttons[0].pressed;
-            // X 버튼 (공격)
+            // X 버튼 (attack)
             gamepadButtons.attack = gamepad.buttons[2].pressed;
         }
         
@@ -937,14 +937,14 @@
                 player.velocityY = 20;
             }
             
-            // 공격 처리
+            // attack 처리
             const attackPressed = keys.KeyS || keys.ArrowDown || gamepadButtons.attack;
             if (attackPressed && player.attackCooldown <= 0) {
                 attack();
-                player.attackCooldown = 20; // 공격 쿨다운
+                player.attackCooldown = 20; // attack 쿨다운
             }
             
-            // 공격 쿨다운 감소
+            // attack 쿨다운 감소
             if (player.attackCooldown > 0) {
                 player.attackCooldown--;
             }
@@ -1145,15 +1145,15 @@
             cameraX = Math.max(0, Math.min(cameraX, canvas.width * 4 - canvas.width));
         }
         
-        // 공격 함수
+        // attack 함수
         function attack() {
-            // 공격 범위 생성 (플레이어가 바라보는 방향으로)
+            // attack 범위 생성 (플레이어가 바라보는 방향으로)
             const attackWidth = 40;
             const attackHeight = 20;
             const attackX = player.facingRight ? player.x + player.width : player.x - attackWidth;
             const attackY = player.y + player.height / 2 - attackHeight / 2;
             
-            // 적 공격 처리
+            // 적 attack 처리
             for (let i = enemies.length - 1; i >= 0; i--) {
                 let enemy = enemies[i];
                 
@@ -1545,7 +1545,7 @@
             ctx.fillRect(player.x, player.y + player.height - 15, 10, 15); // 왼쪽 다리
             ctx.fillRect(player.x + player.width - 10, player.y + player.height - 15, 10, 15); // 오른쪽 다리
             
-            // 공격 중이면 공격 효과 표시
+            // attack 중이면 attack 효과 표시
             if (player.attackCooldown > 15) {
                 ctx.fillStyle = 'rgba(255, 255, 0, 0.7)';
                 const attackX = player.facingRight ? player.x + player.width : player.x - 40;

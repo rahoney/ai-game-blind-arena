@@ -1,0 +1,1756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Survival Defense</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: radial-gradient(circle at center, #15152a 0%, #05050d 100%);
+    color: #fff;
+    font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  #gameContainer {
+    position: relative;
+    width: 900px;
+    height: 650px;
+    max-width: 100vw;
+    max-height: 100vh;
+    box-shadow: 0 0 40px rgba(80, 120, 255, 0.25);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #0f0f1f;
+    image-rendering: optimizeSpeed;
+  }
+  /* HUD */
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 12px 16px;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 5;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  }
+  .bar-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .bar-label {
+    width: 56px;
+    color: #cdd;
+  }
+  .bar-outer {
+    flex: 1;
+    height: 14px;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 7px;
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-inner {
+    height: 100%;
+    transition: width 0.15s ease-out;
+    border-radius: 6px;
+  }
+  #hpBarInner { background: linear-gradient(90deg, #ff5555, #ff9999); }
+  #xpBarInner { background: linear-gradient(90deg, #44ddff, #88f0ff); }
+  .bar-text {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #fff;
+    text-shadow: 0 1px 2px #000;
+  }
+  #infoRow {
+    display: flex;
+    gap: 14px;
+    font-size: 13px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+    color: #e8e8ff;
+  }
+  .info-item { background: rgba(20,20,40,0.55); padding: 3px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); }
+  .info-item b { color: #ffeb88; margin-left: 4px; }
+
+  /* Overlays */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(5, 5, 15, 0.86);
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    padding: 20px;
+    text-align: center;
+  }
+  .overlay.hidden { display: none; }
+  .overlay h1 {
+    font-size: 48px;
+    margin-bottom: 10px;
+    color: #ffeb88;
+    text-shadow: 0 0 20px rgba(255,235,136,0.4);
+    letter-spacing: 2px;
+  }
+  .overlay h2 {
+    font-size: 38px;
+    margin-bottom: 14px;
+    letter-spacing: 1px;
+  }
+  .overlay p {
+    font-size: 16px;
+    line-height: 1.6;
+    margin-bottom: 18px;
+    color: #cfd2e0;
+    white-space: pre-line;
+  }
+  .overlay button {
+    background: linear-gradient(180deg, #4fa3ff, #2563d8);
+    border: none;
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    padding: 12px 32px;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.2s;
+    box-shadow: 0 4px 14px rgba(79,163,255,0.4);
+    margin-top: 8px;
+    font-family: inherit;
+  }
+  .overlay button:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(79,163,255,0.6); }
+  .overlay button:active { transform: translateY(0); }
+  .stats-block {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    padding: 16px 24px;
+    margin-bottom: 18px;
+    font-size: 15px;
+    line-height: 1.9;
+    min-width: 240px;
+  }
+  .stats-block .stat-line { display: flex; justify-content: space-between; gap: 20px; }
+  .stats-block .stat-line span:last-child { color: #ffeb88; font-weight: 700; }
+
+  /* Upgrade choices */
+  #upgradeChoices {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 760px;
+  }
+  .upgrade-card {
+    background: linear-gradient(180deg, #2a2a4a, #1a1a30);
+    border: 2px solid #555;
+    border-radius: 12px;
+    padding: 18px 16px;
+    width: 200px;
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.2s, box-shadow 0.2s;
+    text-align: center;
+  }
+  .upgrade-card:hover {
+    transform: translateY(-4px);
+    border-color: #ffeb88;
+    box-shadow: 0 8px 24px rgba(255,235,136,0.2);
+  }
+  .upgrade-card .icon {
+    font-size: 38px;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .upgrade-card .name {
+    font-size: 17px;
+    font-weight: 700;
+    color: #ffeb88;
+    margin-bottom: 6px;
+  }
+  .upgrade-card .desc {
+    font-size: 13px;
+    color: #cfd2e0;
+    line-height: 1.4;
+    min-height: 36px;
+  }
+  .upgrade-card .level-tag {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #88aaff;
+  }
+
+  /* Boss warning */
+  #bossWarning {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 48px;
+    font-weight: 900;
+    color: #ff3344;
+    text-shadow: 0 0 24px #ff0000, 0 0 8px #fff;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 6;
+    letter-spacing: 4px;
+  }
+  #bossWarning.show {
+    animation: warn 2s ease-out;
+  }
+  @keyframes warn {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+    20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+    80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); }
+  }
+
+  /* Wave banner */
+  #waveBanner {
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 36px;
+    font-weight: 800;
+    color: #ffeb88;
+    text-shadow: 0 0 16px rgba(255,235,136,0.6), 0 2px 4px #000;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 6;
+  }
+  #waveBanner.show { animation: wave 2.2s ease-out; }
+  @keyframes wave {
+    0% { opacity: 0; transform: translate(-50%, -100%); }
+    20% { opacity: 1; transform: translate(-50%, -50%); }
+    80% { opacity: 1; transform: translate(-50%, -50%); }
+    100% { opacity: 0; transform: translate(-50%, 0%); }
+  }
+
+  /* Pause overlay */
+  #pauseScreen {
+    background: rgba(5, 5, 15, 0.6);
+  }
+  #pauseScreen h2 { color: #88f0ff; }
+
+  .controls-hint {
+    position: absolute;
+    bottom: 8px;
+    right: 12px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+    pointer-events: none;
+    z-index: 5;
+  }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+  <canvas id="game" width="900" height="650"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="bar-wrapper">
+      <span class="bar-label" id="hpLabel">Health</span>
+      <div class="bar-outer">
+        <div class="bar-inner" id="hpBarInner" style="width: 100%"></div>
+        <div class="bar-text" id="hpBarText">100 / 100</div>
+      </div>
+    </div>
+    <div class="bar-wrapper">
+      <span class="bar-label" id="xpLabel">XP</span>
+      <div class="bar-outer">
+        <div class="bar-inner" id="xpBarInner" style="width: 0%"></div>
+        <div class="bar-text" id="xpBarText">Lv.1 0/5</div>
+      </div>
+    </div>
+    <div id="infoRow">
+      <div class="info-item"><span id="waveLabelText">Wave</span><b id="waveValue">1</b></div>
+      <div class="info-item"><span id="killsLabelText">Defeated</span><b id="killsValue">0</b></div>
+      <div class="info-item"><span id="scoreLabelText">Score</span><b id="scoreValue">0</b></div>
+      <div class="info-item"><span id="bestLabelText">Best Score</span><b id="bestValue">0</b></div>
+      <div class="info-item"><span id="timeLabelText">Time Left</span><b id="timeValue">30</b></div>
+    </div>
+  </div>
+
+  <div id="waveBanner"></div>
+  <div id="bossWarning"></div>
+
+  <!-- Start screen -->
+  <div id="startScreen" class="overlay">
+    <h1 id="titleText">Survival Defense</h1>
+    <p id="instructionsText"></p>
+    <div class="stats-block" id="bestRecordBlock">
+      <div class="stat-line"><span id="bestRecLabel">Best Score</span><span id="bestRecValue">0</span></div>
+    </div>
+    <button id="startBtn">Start Game</button>
+  </div>
+
+  <!-- Upgrade screen -->
+  <div id="upgradeScreen" class="overlay hidden">
+    <h2 id="levelUpText">Level Up!</h2>
+    <p id="chooseUpgradeText">Choose an upgrade</p>
+    <div id="upgradeChoices"></div>
+  </div>
+
+  <!-- Game over screen -->
+  <div id="gameOverScreen" class="overlay hidden">
+    <h2 id="gameOverText" style="color:#ff5566">Game Over</h2>
+    <div class="stats-block">
+      <div class="stat-line"><span id="goWaveLabel">Reached Wave</span><span id="goWaveValue">1</span></div>
+      <div class="stat-line"><span id="goKillsLabel">Final Kills</span><span id="goKillsValue">0</span></div>
+      <div class="stat-line"><span id="goScoreLabel">Final Score</span><span id="goScoreValue">0</span></div>
+      <div class="stat-line"><span id="goBestLabel">Best Score</span><span id="goBestValue">0</span></div>
+    </div>
+    <button id="restartBtn1">Restart</button>
+  </div>
+
+  <!-- Victory screen -->
+  <div id="victoryScreen" class="overlay hidden">
+    <h2 id="victoryText" style="color:#ffeb88">Victory!</h2>
+    <p id="victoryDescText"></p>
+    <div class="stats-block">
+      <div class="stat-line"><span id="vWaveLabel">Reached Wave</span><span id="vWaveValue">20</span></div>
+      <div class="stat-line"><span id="vKillsLabel">Final Kills</span><span id="vKillsValue">0</span></div>
+      <div class="stat-line"><span id="vScoreLabel">Final Score</span><span id="vScoreValue">0</span></div>
+      <div class="stat-line"><span id="vBestLabel">Best Score</span><span id="vBestValue">0</span></div>
+    </div>
+    <button id="restartBtn2">Restart</button>
+  </div>
+
+  <!-- Pause overlay -->
+  <div id="pauseScreen" class="overlay hidden">
+    <h2 id="pauseText">Paused</h2>
+    <p id="pauseHintText">Press P to resume</p>
+  </div>
+
+  <div class="controls-hint" id="controlsHint">WASD/Arrow keys Move · P: Paused</div>
+</div>
+
+<script>
+/* =========================================================
+   LANG_DATA: All game strings are centralized in this object.
+   It can be easily translated to another language.
+   ========================================================= */
+const LANG_DATA = {
+  ko: {
+    gameTitle: "Survival Defense",
+    instructions:
+      "Move with WASD or arrow keys\nEnemies attack automatically\nCollect XP crystals, level up, and choose upgrades\nSurvive wave 20 and defeat the boss to win!",
+    startBtn: "Start Game",
+    restartBtn: "Restart",
+    hp: "Health",
+    xp: "XP",
+    level: "Lv.",
+    wave: "Wave",
+    score: "Score",
+    kills: "Defeated",
+    best: "Best Score",
+    timeLeft: "Time Left",
+    levelUp: "Level Up!",
+    chooseUpgrade: "Choose an upgrade",
+    gameOver: "Game Over",
+    victory: "Victory!",
+    victoryDesc: "You survived and defeated the final boss!!",
+    finalScore: "Final Score",
+    finalKills: "Final Kills",
+    finalWave: "Reached Wave",
+    paused: "Paused",
+    pauseHint: "Press P to resume",
+    waveBannerPrefix: "WAVE ",
+    bossWarning: "⚠ Boss Appears ⚠",
+    controlsHint: "WASD/Arrow keys Move · P: Paused",
+    upgrades: {
+      damage:    { name: "Firepower Boost",  desc: "Attack +6",            icon: "⚔" },
+      fireRate:  { name: "Fire Rate",  desc: "Attack speed +18%",       icon: "🔥" },
+      moveSpeed: { name: "Swiftness",      desc: "Move speed +12%",       icon: "👟" },
+      maxHp:     { name: "Toughness",      desc: "Max Health +25, Heal",  icon: "❤" },
+      multishot: { name: "Multishot",  desc: "Projectile +1",            icon: "✦" },
+      pierce:    { name: "Piercing Shot",      desc: "Pierce +1",              icon: "➹" },
+      projSpeed: { name: "Projectile Speed",  desc: "Projectile speed +25%",     icon: "➤" },
+      xpGain:    { name: "Wisdom",        desc: "XP gain +25%",     icon: "✧" },
+      regen:     { name: "Regeneration",        desc: "Health regen/sec +0.6", icon: "✚" },
+      bulletSize:{ name: "Giant Bullet",  desc: "Bullet size +30%",       icon: "●" },
+      pickup:    { name: "Magnetism",        desc: "Pickup range +35",        icon: "◎" }
+    },
+    upgradeLevel: "Upgrade level"
+  }
+};
+
+const L = LANG_DATA.ko; // current language
+const T = L.upgrades;
+
+/* =========================================================
+   DOM references and static text injection
+   ========================================================= */
+const $ = id => document.getElementById(id);
+function applyStaticText() {
+  $('titleText').textContent = L.gameTitle;
+  $('instructionsText').textContent = L.instructions;
+  $('startBtn').textContent = L.startBtn;
+  $('restartBtn1').textContent = L.restartBtn;
+  $('restartBtn2').textContent = L.restartBtn;
+  $('hpLabel').textContent = L.hp;
+  $('xpLabel').textContent = L.xp;
+  $('waveLabelText').textContent = L.wave + ' ';
+  $('killsLabelText').textContent = L.kills + ' ';
+  $('scoreLabelText').textContent = L.score + ' ';
+  $('bestLabelText').textContent = L.best + ' ';
+  $('timeLabelText').textContent = L.timeLeft + ' ';
+  $('bestRecLabel').textContent = L.best;
+  $('levelUpText').textContent = L.levelUp;
+  $('chooseUpgradeText').textContent = L.chooseUpgrade;
+  $('gameOverText').textContent = L.gameOver;
+  $('victoryText').textContent = L.victory;
+  $('victoryDescText').textContent = L.victoryDesc;
+  $('goWaveLabel').textContent = L.finalWave;
+  $('goKillsLabel').textContent = L.finalKills;
+  $('goScoreLabel').textContent = L.finalScore;
+  $('goBestLabel').textContent = L.best;
+  $('vWaveLabel').textContent = L.finalWave;
+  $('vKillsLabel').textContent = L.finalKills;
+  $('vScoreLabel').textContent = L.finalScore;
+  $('vBestLabel').textContent = L.best;
+  $('pauseText').textContent = L.paused;
+  $('pauseHintText').textContent = L.pauseHint;
+  $('controlsHint').textContent = L.controlsHint;
+  $('bossWarning').textContent = L.bossWarning;
+}
+
+/* =========================================================
+   Canvas and input
+   ========================================================= */
+const canvas = $('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+
+const keys = Object.create(null);
+window.addEventListener('keydown', (e) => {
+  // localized comment
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === 'p' || e.key === 'P') togglePause();
+}, { passive: false });
+window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+/* =========================================================
+   Audio generated with Web Audio API
+   ========================================================= */
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { audioCtx = null; }
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+function beep(freq, dur = 0.08, type = 'square', vol = 0.06, slideTo = null) {
+  if (!audioCtx) return;
+  try {
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    if (slideTo !== null) osc.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + dur);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  } catch (e) {}
+}
+function sfxShoot()  { beep(820, 0.05, 'square', 0.03, 600); }
+function sfxHit()    { beep(220, 0.06, 'sawtooth', 0.05, 120); }
+function sfxKill()   { beep(380, 0.10, 'triangle', 0.06, 180); }
+function sfxXp()     { beep(1200, 0.06, 'sine', 0.04, 1600); }
+function sfxLvlUp()  { beep(660, 0.18, 'sine', 0.1, 1320); setTimeout(() => beep(990, 0.22, 'sine', 0.1, 1480), 90); }
+function sfxHurt()   { beep(140, 0.18, 'sawtooth', 0.1, 60); }
+function sfxBoss()   { beep(80, 0.6, 'sawtooth', 0.12, 40); }
+function sfxVictory(){ beep(523, 0.18, 'square', 0.08); setTimeout(()=>beep(659, 0.18, 'square', 0.08), 150); setTimeout(()=>beep(784, 0.30, 'square', 0.1), 300); }
+function sfxDeath()  { beep(220, 0.4, 'sawtooth', 0.1, 60); setTimeout(()=>beep(110, 0.6, 'sawtooth', 0.12, 40), 200); }
+
+/* =========================================================
+   Utilities
+   ========================================================= */
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const dist2 = (ax, ay, bx, by) => { const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; };
+const rand = (a, b) => a + Math.random() * (b - a);
+const rndInt = (a, b) => Math.floor(rand(a, b + 1));
+const choice = arr => arr[Math.floor(Math.random() * arr.length)];
+
+/* =========================================================
+   Spatial hash for collision and proximity queries
+   ========================================================= */
+class SpatialHash {
+  constructor(cellSize = 64) {
+    this.cellSize = cellSize;
+    this.map = new Map();
+  }
+  clear() { this.map.clear(); }
+  _key(cx, cy) { return cx + ',' + cy; }
+  insert(obj) {
+    const cx = Math.floor(obj.x / this.cellSize);
+    const cy = Math.floor(obj.y / this.cellSize);
+    const k = this._key(cx, cy);
+    let bucket = this.map.get(k);
+    if (!bucket) { bucket = []; this.map.set(k, bucket); }
+    bucket.push(obj);
+  }
+  query(x, y, r) {
+    const out = [];
+    const min = Math.floor((x - r) / this.cellSize);
+    const max = Math.floor((x + r) / this.cellSize);
+    const minY = Math.floor((y - r) / this.cellSize);
+    const maxY = Math.floor((y + r) / this.cellSize);
+    for (let cx = min; cx <= max; cx++) {
+      for (let cy = minY; cy <= maxY; cy++) {
+        const b = this.map.get(this._key(cx, cy));
+        if (b) for (let i = 0; i < b.length; i++) out.push(b[i]);
+      }
+    }
+    return out;
+  }
+}
+
+/* =========================================================
+   Entity classes
+   ========================================================= */
+class Player {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    this.r = 14;
+    this.maxHp = 100;
+    this.hp = 100;
+    this.speed = 3.0;
+    this.damage = 10;
+    this.fireInterval = 520;     // ms
+    this.fireCooldown = 0;
+    this.projSpeed = 7;
+    this.projRadius = 5;
+    this.projCount = 1;
+    this.pierce = 0;
+    this.xp = 0;
+    this.level = 1;
+    this.xpToNext = 5;
+    this.xpGainMul = 1;
+    this.regen = 0;              // hp/sec
+    this.pickupRange = 70;
+    this.aimAngle = 0;
+    this.invul = 0;              // invulnerability time(on hit)
+    this.flash = 0;              // hit flash
+    this.lastDir = { x: 0, y: -1 };
+    // localized comment
+    this.upgradeLevels = {};
+  }
+  get xpRatio() { return this.xp / this.xpToNext; }
+  takeDamage(dmg) {
+    if (this.invul > 0) return;
+    this.hp -= dmg;
+    this.invul = 700; // ms
+    this.flash = 1;
+    sfxHurt();
+    spawnParticles(this.x, this.y, '#ff5566', 8, 3);
+    game.shake = Math.min(20, game.shake + 8);
+  }
+  heal(v) {
+    this.hp = Math.min(this.maxHp, this.hp + v);
+  }
+}
+
+class Enemy {
+  constructor(x, y, type, waveScale) {
+    this.x = x; this.y = y;
+    this.type = type;
+    this.dead = false;
+    this.hitFlash = 0;
+    this.knockbackX = 0; this.knockbackY = 0;
+    this.shootTimer = rand(800, 1600);
+    this.applyType(waveScale);
+  }
+  applyType(s) {
+    // localized comment
+    switch (this.type) {
+      case 'grunt':
+        this.r = 13;
+        this.maxHp = 22 * s;
+        this.speed = 1.4 + s * 0.05;
+        this.damage = 8;
+        this.color = '#c44';
+        this.outline = '#7a1a1a';
+        this.xpDrop = 4;
+        this.scoreDrop = 10;
+        break;
+      case 'fast':
+        this.r = 11;
+        this.maxHp = 14 * s;
+        this.speed = 2.6 + s * 0.05;
+        this.damage = 7;
+        this.color = '#ffb14b';
+        this.outline = '#a05c00';
+        this.xpDrop = 5;
+        this.scoreDrop = 14;
+        break;
+      case 'tank':
+        this.r = 20;
+        this.maxHp = 70 * s;
+        this.speed = 0.85 + s * 0.02;
+        this.damage = 16;
+        this.color = '#888';
+        this.outline = '#333';
+        this.xpDrop = 12;
+        this.scoreDrop = 35;
+        break;
+      case 'shooter':
+        this.r = 13;
+        this.maxHp = 26 * s;
+        this.speed = 1.0 + s * 0.03;
+        this.damage = 0; // ranged only
+        this.color = '#a26bff';
+        this.outline = '#4d2a99';
+        this.xpDrop = 8;
+        this.scoreDrop = 22;
+        this.range = 280;
+        this.shootInterval = 1700;
+        this.bulletSpeed = 3.6;
+        this.bulletDamage = 9;
+        break;
+      case 'boss':
+        this.r = 42;
+        this.maxHp = 600 + 200 * s;
+        this.speed = 0.85;
+        this.damage = 25;
+        this.color = '#ff2a4f';
+        this.outline = '#5a0010';
+        this.xpDrop = 80;
+        this.scoreDrop = 500;
+        this.shootInterval = 1100;
+        this.bulletSpeed = 4.0;
+        this.bulletDamage = 12;
+        break;
+    }
+    this.hp = this.maxHp;
+  }
+  takeDamage(dmg) {
+    this.hp -= dmg;
+    this.hitFlash = 1;
+    if (this.hp <= 0) {
+      this.dead = true;
+    }
+  }
+}
+
+class Projectile {
+  constructor(x, y, vx, vy, damage, radius, pierce) {
+    this.x = x; this.y = y;
+    this.vx = vx; this.vy = vy;
+    this.damage = damage;
+    this.r = radius;
+    this.pierce = pierce;
+    this.hits = new Set(); // only once per enemy
+    this.life = 1.6; // sec
+    this.dead = false;
+  }
+}
+
+class EnemyProjectile {
+  constructor(x, y, vx, vy, damage) {
+    this.x = x; this.y = y;
+    this.vx = vx; this.vy = vy;
+    this.damage = damage;
+    this.r = 6;
+    this.life = 4.0;
+    this.dead = false;
+  }
+}
+
+class XpOrb {
+  constructor(x, y, value) {
+    this.x = x; this.y = y;
+    this.vx = rand(-1.5, 1.5);
+    this.vy = rand(-1.5, 1.5);
+    this.value = value;
+    this.r = 4 + Math.min(6, value * 0.4);
+    this.life = 25; // sec
+    this.dead = false;
+    this.attracted = false;
+  }
+}
+
+class Particle {
+  constructor(x, y, color, vx, vy, life, size) {
+    this.x = x; this.y = y;
+    this.color = color;
+    this.vx = vx; this.vy = vy;
+    this.life = life;
+    this.maxLife = life;
+    this.size = size;
+    this.dead = false;
+  }
+}
+
+class Obstacle {
+  constructor(x, y, r) {
+    this.x = x; this.y = y;
+    this.r = r;
+  }
+}
+
+/* =========================================================
+   Global game state
+   ========================================================= */
+const STATE = {
+  START: 'start',
+  PLAYING: 'playing',
+  LEVELUP: 'levelup',
+  GAMEOVER: 'gameover',
+  VICTORY: 'victory',
+  PAUSED: 'paused'
+};
+
+let game = null;
+
+class Game {
+  constructor() { this.reset(); }
+  reset() {
+    // localized comment
+    this.player = new Player(W / 2, H / 2);
+    this.enemies = [];
+    this.projectiles = [];
+    this.enemyProjectiles = [];
+    this.xpOrbs = [];
+    this.particles = [];
+    this.obstacles = [];
+
+    this.wave = 1;
+    this.maxWave = 20;
+    this.waveTimer = 30; // wave duration (seconds)
+    this.spawnTimer = 1.2;
+    this.waveActive = true;
+    this.bossSpawnedThisWave = false;
+
+    this.kills = 0;
+    this.score = 0;
+    this.elapsed = 0;
+    this.shake = 0;
+
+    this.upgradeChoices = [];
+    this.state = STATE.START;
+    this.previousState = STATE.START;
+
+    this.bestScore = parseInt(localStorage.getItem('survDef_best') || '0', 10) || 0;
+
+    this.generateObstacles();
+    this.showWaveBanner(this.wave);
+  }
+  generateObstacles() {
+    this.obstacles = [];
+    const count = 7;
+    let attempts = 0;
+    while (this.obstacles.length < count && attempts < 200) {
+      attempts++;
+      const x = rand(50, W - 50);
+      const y = rand(50, H - 50);
+      const r = rand(20, 38);
+      if (Math.hypot(x - W / 2, y - H / 2) < 130) continue; // avoid player spawn area
+      let overlap = false;
+      for (const o of this.obstacles) {
+        if (Math.hypot(o.x - x, o.y - y) < o.r + r + 30) { overlap = true; break; }
+      }
+      if (!overlap) this.obstacles.push(new Obstacle(x, y, r));
+    }
+  }
+  showWaveBanner(n) {
+    const el = $('waveBanner');
+    el.textContent = L.waveBannerPrefix + n;
+    el.classList.remove('show'); void el.offsetWidth; // retrigger
+    el.classList.add('show');
+  }
+  showBossWarning() {
+    const el = $('bossWarning');
+    el.classList.remove('show'); void el.offsetWidth;
+    el.classList.add('show');
+    sfxBoss();
+  }
+}
+
+/* =========================================================
+   Particle helpers
+   ========================================================= */
+function spawnParticles(x, y, color, count, speed) {
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * TAU;
+    const sp = rand(speed * 0.3, speed);
+    game.particles.push(new Particle(
+      x, y, color,
+      Math.cos(a) * sp, Math.sin(a) * sp,
+      rand(0.3, 0.7), rand(2, 4)
+    ));
+  }
+}
+
+/* =========================================================
+   Wave/spawn system
+   ========================================================= */
+function getWaveScaling(wave) {
+  // localized comment
+  return 1 + (wave - 1) * 0.18;
+}
+function getEnemyTypePoolForWave(wave) {
+  const pool = ['grunt'];
+  if (wave >= 2) pool.push('fast');
+  if (wave >= 4) pool.push('grunt'); // weight
+  if (wave >= 5) pool.push('tank');
+  if (wave >= 6) pool.push('fast');
+  if (wave >= 7) pool.push('shooter');
+  if (wave >= 9) pool.push('tank');
+  if (wave >= 11) pool.push('shooter');
+  return pool;
+}
+function spawnEnemyAtEdge(type, scale) {
+  // localized comment
+  const margin = 30;
+  let x, y;
+  const side = rndInt(0, 3);
+  if (side === 0)      { x = rand(margin, W - margin); y = -margin; }
+  else if (side === 1) { x = rand(margin, W - margin); y = H + margin; }
+  else if (side === 2) { x = -margin; y = rand(margin, H - margin); }
+  else                 { x = W + margin; y = rand(margin, H - margin); }
+  // localized comment
+  x = clamp(x, 5, W - 5);
+  y = clamp(y, 5, H - 5);
+  const e = new Enemy(x, y, type, scale);
+  game.enemies.push(e);
+}
+function spawnBoss(scale) {
+  const x = W / 2;
+  const y = -60;
+  const b = new Enemy(x, y, 'boss', scale);
+  game.enemies.push(b);
+  game.showBossWarning();
+}
+function getSpawnInterval(wave) {
+  // localized comment
+  return Math.max(0.18, 1.4 - wave * 0.05);
+}
+function getSpawnBatchSize(wave) {
+  return 1 + Math.floor(wave / 4);
+}
+
+/* =========================================================
+   Upgrade system
+   ========================================================= */
+const UPGRADES = [
+  { id: 'damage',     maxLevel: 12, apply: p => { p.damage += 6; } },
+  { id: 'fireRate',   maxLevel: 10, apply: p => { p.fireInterval = Math.max(80, p.fireInterval * 0.82); } },
+  { id: 'moveSpeed',  maxLevel: 8,  apply: p => { p.speed *= 1.12; } },
+  { id: 'maxHp',      maxLevel: 10, apply: p => { p.maxHp += 25; p.hp = Math.min(p.maxHp, p.hp + 25); } },
+  { id: 'multishot',  maxLevel: 4,  apply: p => { p.projCount += 1; } },
+  { id: 'pierce',     maxLevel: 4,  apply: p => { p.pierce += 1; } },
+  { id: 'projSpeed',  maxLevel: 6,  apply: p => { p.projSpeed *= 1.25; } },
+  { id: 'xpGain',     maxLevel: 6,  apply: p => { p.xpGainMul *= 1.25; } },
+  { id: 'regen',      maxLevel: 6,  apply: p => { p.regen += 0.6; } },
+  { id: 'bulletSize', maxLevel: 5,  apply: p => { p.projRadius *= 1.30; } },
+  { id: 'pickup',     maxLevel: 5,  apply: p => { p.pickupRange += 35; } }
+];
+
+function pickUpgradeChoices(player) {
+  // localized comment
+  const available = UPGRADES.filter(u => (player.upgradeLevels[u.id] || 0) < u.maxLevel);
+  // localized comment
+  const out = [];
+  const pool = available.slice();
+  for (let i = 0; i < 3 && pool.length > 0; i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    out.push(pool.splice(idx, 1)[0]);
+  }
+  return out;
+}
+function applyUpgrade(player, upg) {
+  upg.apply(player);
+  player.upgradeLevels[upg.id] = (player.upgradeLevels[upg.id] || 0) + 1;
+}
+function showUpgradeUI() {
+  const choices = pickUpgradeChoices(game.player);
+  game.upgradeChoices = choices;
+  const container = $('upgradeChoices');
+  container.innerHTML = '';
+  if (choices.length === 0) {
+    // localized comment
+    closeUpgradeUI();
+    return;
+  }
+  for (const upg of choices) {
+    const data = T[upg.id];
+    const card = document.createElement('div');
+    card.className = 'upgrade-card';
+    const lvl = (game.player.upgradeLevels[upg.id] || 0) + 1;
+    card.innerHTML = `
+      <span class="icon">${data.icon}</span>
+      <div class="name">${data.name}</div>
+      <div class="desc">${data.desc}</div>
+      <div class="level-tag">${L.upgradeLevel}: ${lvl} / ${upg.maxLevel}</div>
+    `;
+    card.addEventListener('click', () => {
+      applyUpgrade(game.player, upg);
+      sfxLvlUp();
+      closeUpgradeUI();
+    });
+    container.appendChild(card);
+  }
+  $('upgradeScreen').classList.remove('hidden');
+  game.previousState = game.state;
+  game.state = STATE.LEVELUP;
+}
+function closeUpgradeUI() {
+  $('upgradeScreen').classList.add('hidden');
+  game.state = STATE.PLAYING;
+}
+
+/* =========================================================
+   Update loop
+   ========================================================= */
+let lastTime = 0;
+function loop(t) {
+  const dtMs = Math.min(50, t - lastTime); // prevent large jump
+  const dt = dtMs / 1000;
+  lastTime = t;
+  if (game) {
+    if (game.state === STATE.PLAYING) update(dt, dtMs);
+    draw();
+  }
+  requestAnimationFrame(loop);
+}
+
+function update(dt, dtMs) {
+  game.elapsed += dt;
+
+  updatePlayer(dt, dtMs);
+  updateEnemies(dt);
+  updateProjectiles(dt);
+  updateEnemyProjectiles(dt);
+  updateXpOrbs(dt);
+  updateParticles(dt);
+  handleWave(dt);
+
+  // localized comment
+  if (game.shake > 0) game.shake = Math.max(0, game.shake - dt * 30);
+
+  // localized comment
+  if (game.player.hp <= 0) {
+    triggerGameOver();
+    return;
+  }
+
+  updateHUD();
+}
+
+function updatePlayer(dt, dtMs) {
+  const p = game.player;
+  // localized comment
+  let dx = 0, dy = 0;
+  if (keys['w'] || keys['arrowup'])    dy -= 1;
+  if (keys['s'] || keys['arrowdown'])  dy += 1;
+  if (keys['a'] || keys['arrowleft'])  dx -= 1;
+  if (keys['d'] || keys['arrowright']) dx += 1;
+  const len = Math.hypot(dx, dy);
+  if (len > 0) {
+    dx /= len; dy /= len;
+    p.lastDir.x = dx;
+    p.lastDir.y = dy;
+  }
+  const moveSpeed = p.speed * (dtMs / 16.667); // normalized for 60fps
+  let nx = p.x + dx * moveSpeed;
+  let ny = p.y + dy * moveSpeed;
+
+  // localized comment
+  for (const o of game.obstacles) {
+    const ddx = nx - o.x, ddy = ny - o.y;
+    const d = Math.hypot(ddx, ddy);
+    const minD = o.r + p.r;
+    if (d < minD && d > 0.0001) {
+      nx = o.x + (ddx / d) * minD;
+      ny = o.y + (ddy / d) * minD;
+    }
+  }
+  p.x = clamp(nx, p.r, W - p.r);
+  p.y = clamp(ny, p.r, H - p.r);
+
+  // localized comment
+  if (p.invul > 0) p.invul = Math.max(0, p.invul - dtMs);
+  if (p.flash > 0) p.flash = Math.max(0, p.flash - dt * 4);
+
+  // Health Regen
+  if (p.regen > 0 && p.hp < p.maxHp) {
+    p.hp = Math.min(p.maxHp, p.hp + p.regen * dt);
+  }
+
+  // Auto Attack
+  p.fireCooldown -= dtMs;
+  if (p.fireCooldown <= 0) {
+    const target = findNearestEnemy(p.x, p.y, 800);
+    if (target) {
+      const ang = Math.atan2(target.y - p.y, target.x - p.x);
+      p.aimAngle = ang;
+      fireProjectiles(ang);
+      p.fireCooldown = p.fireInterval;
+    } else {
+      // localized comment
+      p.fireCooldown = 100;
+    }
+  }
+}
+
+function fireProjectiles(angle) {
+  const p = game.player;
+  const n = p.projCount;
+  const spread = (n - 1) * 0.12; // radians
+  const start = angle - spread / 2;
+  for (let i = 0; i < n; i++) {
+    const a = n === 1 ? angle : start + (spread * i) / (n - 1);
+    const vx = Math.cos(a) * p.projSpeed;
+    const vy = Math.sin(a) * p.projSpeed;
+    const ox = Math.cos(a) * (p.r + 4);
+    const oy = Math.sin(a) * (p.r + 4);
+    game.projectiles.push(new Projectile(
+      p.x + ox, p.y + oy, vx, vy,
+      p.damage, p.projRadius, p.pierce
+    ));
+  }
+  sfxShoot();
+}
+
+function findNearestEnemy(x, y, maxDist) {
+  let best = null;
+  let bestD = maxDist * maxDist;
+  for (let i = 0; i < game.enemies.length; i++) {
+    const e = game.enemies[i];
+    if (e.dead) continue;
+    const d = dist2(x, y, e.x, e.y);
+    if (d < bestD) { bestD = d; best = e; }
+  }
+  return best;
+}
+
+function updateEnemies(dt) {
+  const p = game.player;
+  // localized comment
+  const hash = new SpatialHash(40);
+  for (let i = 0; i < game.enemies.length; i++) hash.insert(game.enemies[i]);
+
+  for (let i = 0; i < game.enemies.length; i++) {
+    const e = game.enemies[i];
+    if (e.dead) continue;
+    if (e.hitFlash > 0) e.hitFlash = Math.max(0, e.hitFlash - dt * 4);
+
+    // localized comment
+    let dx = p.x - e.x, dy = p.y - e.y;
+    const dToPlayer = Math.hypot(dx, dy) || 1;
+    dx /= dToPlayer; dy /= dToPlayer;
+
+    // localized comment
+    let moveX = dx, moveY = dy;
+    let move = true;
+    if (e.type === 'shooter' || e.type === 'boss') {
+      const desired = e.type === 'boss' ? 220 : 240;
+      if (dToPlayer < desired - 30) {
+        // localized comment
+        moveX = -dx; moveY = -dy;
+      } else if (dToPlayer < desired + 30) {
+        move = false;
+      }
+      // localized comment
+      e.shootTimer -= dt * 1000;
+      if (e.shootTimer <= 0) {
+        const ang = Math.atan2(p.y - e.y, p.x - e.x);
+        if (e.type === 'boss') {
+          // localized comment
+          for (let k = -1; k <= 1; k++) {
+            const aa = ang + k * 0.18;
+            game.enemyProjectiles.push(new EnemyProjectile(
+              e.x, e.y,
+              Math.cos(aa) * e.bulletSpeed,
+              Math.sin(aa) * e.bulletSpeed,
+              e.bulletDamage
+            ));
+          }
+        } else {
+          game.enemyProjectiles.push(new EnemyProjectile(
+            e.x, e.y,
+            Math.cos(ang) * e.bulletSpeed,
+            Math.sin(ang) * e.bulletSpeed,
+            e.bulletDamage
+          ));
+        }
+        e.shootTimer = e.shootInterval + rand(-150, 150);
+      }
+    }
+
+    // localized comment
+    const neighbors = hash.query(e.x, e.y, e.r + 24);
+    let sepX = 0, sepY = 0, sepCount = 0;
+    for (const o of neighbors) {
+      if (o === e || o.dead) continue;
+      const ox = e.x - o.x, oy = e.y - o.y;
+      const d = Math.hypot(ox, oy);
+      const minD = e.r + o.r;
+      if (d > 0 && d < minD + 6) {
+        sepX += ox / d * (minD + 6 - d);
+        sepY += oy / d * (minD + 6 - d);
+        sepCount++;
+      }
+    }
+
+    let vx = 0, vy = 0;
+    if (move) {
+      vx = moveX * e.speed;
+      vy = moveY * e.speed;
+    }
+    if (sepCount > 0) {
+      vx += sepX * 0.2;
+      vy += sepY * 0.2;
+    }
+
+    // localized comment
+    for (const ob of game.obstacles) {
+      const odx = e.x - ob.x, ody = e.y - ob.y;
+      const od = Math.hypot(odx, ody);
+      const md = ob.r + e.r + 4;
+      if (od < md + 18 && od > 0) {
+        // localized comment
+        const nrm = { x: odx / od, y: ody / od };
+        const tangentA = { x: -nrm.y, y: nrm.x };
+        const tangentB = { x: nrm.y, y: -nrm.x };
+        const choose = (Math.sign((p.x - e.x) * tangentA.x + (p.y - e.y) * tangentA.y) >= 0) ? tangentA : tangentB;
+        const w = clamp((md + 18 - od) / 22, 0, 1);
+        vx += choose.x * e.speed * w * 1.2;
+        vy += choose.y * e.speed * w * 1.2;
+        // localized comment
+        if (od < md) {
+          e.x = ob.x + nrm.x * md;
+          e.y = ob.y + nrm.y * md;
+        }
+      }
+    }
+
+    // localized comment
+    vx += e.knockbackX;
+    vy += e.knockbackY;
+    e.knockbackX *= 0.82;
+    e.knockbackY *= 0.82;
+    if (Math.abs(e.knockbackX) < 0.05) e.knockbackX = 0;
+    if (Math.abs(e.knockbackY) < 0.05) e.knockbackY = 0;
+
+    e.x += vx;
+    e.y += vy;
+
+    // localized comment
+    e.x = clamp(e.x, -80, W + 80);
+    e.y = clamp(e.y, -80, H + 80);
+
+    // localized comment
+    if (e.damage > 0) {
+      const cd = Math.hypot(p.x - e.x, p.y - e.y);
+      if (cd < p.r + e.r) {
+        p.takeDamage(e.damage);
+      }
+    }
+  }
+
+  // localized comment
+  for (let i = game.enemies.length - 1; i >= 0; i--) {
+    const e = game.enemies[i];
+    if (e.dead) {
+      // localized comment
+      const orbs = e.type === 'boss' ? 6 : (e.type === 'tank' ? 3 : 1);
+      for (let k = 0; k < orbs; k++) {
+        const orb = new XpOrb(
+          e.x + rand(-12, 12),
+          e.y + rand(-12, 12),
+          Math.ceil(e.xpDrop / orbs)
+        );
+        game.xpOrbs.push(orb);
+      }
+      game.kills += 1;
+      game.score += e.scoreDrop;
+      spawnParticles(e.x, e.y, e.color, e.type === 'boss' ? 40 : 12, e.type === 'boss' ? 6 : 4);
+      sfxKill();
+      if (e.type === 'boss') {
+        game.shake = Math.min(28, game.shake + 18);
+      }
+      game.enemies.splice(i, 1);
+    }
+  }
+}
+
+function updateProjectiles(dt) {
+  for (let i = game.projectiles.length - 1; i >= 0; i--) {
+    const pr = game.projectiles[i];
+    pr.x += pr.vx;
+    pr.y += pr.vy;
+    pr.life -= dt;
+    if (pr.life <= 0 || pr.x < -20 || pr.y < -20 || pr.x > W + 20 || pr.y > H + 20) {
+      game.projectiles.splice(i, 1);
+      continue;
+    }
+    // localized comment
+    let blocked = false;
+    for (const o of game.obstacles) {
+      if (Math.hypot(pr.x - o.x, pr.y - o.y) < o.r + pr.r) { blocked = true; break; }
+    }
+    if (blocked) {
+      spawnParticles(pr.x, pr.y, '#aaccff', 4, 2);
+      game.projectiles.splice(i, 1);
+      continue;
+    }
+    // localized comment
+    for (let j = 0; j < game.enemies.length; j++) {
+      const e = game.enemies[j];
+      if (e.dead || pr.hits.has(e)) continue;
+      const r = pr.r + e.r;
+      if ((pr.x - e.x) * (pr.x - e.x) + (pr.y - e.y) * (pr.y - e.y) < r * r) {
+        e.takeDamage(pr.damage);
+        pr.hits.add(e);
+        spawnParticles(pr.x, pr.y, '#ffe', 3, 2);
+        sfxHit();
+        // localized comment
+        const ang = Math.atan2(e.y - pr.y, e.x - pr.x);
+        const force = e.type === 'tank' || e.type === 'boss' ? 0.4 : 1.4;
+        e.knockbackX += Math.cos(ang) * force;
+        e.knockbackY += Math.sin(ang) * force;
+        if (pr.pierce <= 0) {
+          game.projectiles.splice(i, 1);
+          break;
+        } else {
+          pr.pierce -= 1;
+        }
+      }
+    }
+  }
+}
+
+function updateEnemyProjectiles(dt) {
+  const p = game.player;
+  for (let i = game.enemyProjectiles.length - 1; i >= 0; i--) {
+    const pr = game.enemyProjectiles[i];
+    pr.x += pr.vx;
+    pr.y += pr.vy;
+    pr.life -= dt;
+    if (pr.life <= 0 || pr.x < -20 || pr.y < -20 || pr.x > W + 20 || pr.y > H + 20) {
+      game.enemyProjectiles.splice(i, 1);
+      continue;
+    }
+    // localized comment
+    let blocked = false;
+    for (const o of game.obstacles) {
+      if (Math.hypot(pr.x - o.x, pr.y - o.y) < o.r + pr.r) { blocked = true; break; }
+    }
+    if (blocked) {
+      spawnParticles(pr.x, pr.y, '#a26bff', 4, 2);
+      game.enemyProjectiles.splice(i, 1);
+      continue;
+    }
+    // localized comment
+    if (Math.hypot(pr.x - p.x, pr.y - p.y) < pr.r + p.r) {
+      p.takeDamage(pr.damage);
+      game.enemyProjectiles.splice(i, 1);
+    }
+  }
+}
+
+function updateXpOrbs(dt) {
+  const p = game.player;
+  const pr = p.pickupRange;
+  const pr2 = pr * pr;
+  for (let i = game.xpOrbs.length - 1; i >= 0; i--) {
+    const o = game.xpOrbs[i];
+    o.life -= dt;
+    if (o.life <= 0) { game.xpOrbs.splice(i, 1); continue; }
+
+    // localized comment
+    o.vx *= 0.94;
+    o.vy *= 0.94;
+
+    const d2 = dist2(o.x, o.y, p.x, p.y);
+    if (d2 < pr2) o.attracted = true;
+    if (o.attracted) {
+      const d = Math.sqrt(d2) || 1;
+      const speed = 5 + 8 * (1 - clamp(d / pr, 0, 1));
+      o.vx = (p.x - o.x) / d * speed;
+      o.vy = (p.y - o.y) / d * speed;
+    }
+    o.x += o.vx;
+    o.y += o.vy;
+
+    // localized comment
+    const r = p.r + o.r;
+    if (d2 < r * r) {
+      const gain = Math.ceil(o.value * p.xpGainMul);
+      p.xp += gain;
+      game.score += 1;
+      sfxXp();
+      game.xpOrbs.splice(i, 1);
+      // localized comment
+      while (p.xp >= p.xpToNext) {
+        p.xp -= p.xpToNext;
+        p.level += 1;
+        p.xpToNext = Math.floor(5 + (p.level - 1) * 4 + Math.pow(p.level - 1, 1.5));
+        showUpgradeUI();
+        if (game.state === STATE.LEVELUP) break; // pause when UI appears
+      }
+    }
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = game.particles.length - 1; i >= 0; i--) {
+    const p = game.particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vx *= 0.92;
+    p.vy *= 0.92;
+    p.life -= dt;
+    if (p.life <= 0) game.particles.splice(i, 1);
+  }
+}
+
+/* =========================================================
+   Wave progress / spawn
+   ========================================================= */
+function handleWave(dt) {
+  if (!game.waveActive) return;
+
+  game.waveTimer -= dt;
+  game.spawnTimer -= dt;
+
+  // localized comment
+  const isBossWave = (game.wave % 5 === 0) || (game.wave === game.maxWave);
+
+  if (isBossWave && !game.bossSpawnedThisWave) {
+    spawnBoss(getWaveScaling(game.wave) * (game.wave === game.maxWave ? 1.6 : 1));
+    game.bossSpawnedThisWave = true;
+  }
+
+  // localized comment
+  if (game.spawnTimer <= 0 && game.enemies.length < 200) {
+    const interval = getSpawnInterval(game.wave);
+    const batch = getSpawnBatchSize(game.wave);
+    const pool = getEnemyTypePoolForWave(game.wave);
+    const scale = getWaveScaling(game.wave);
+    for (let i = 0; i < batch; i++) {
+      const t = choice(pool);
+      spawnEnemyAtEdge(t, scale);
+    }
+    game.spawnTimer = interval;
+  }
+
+  // localized comment
+  const hasBoss = game.enemies.some(e => e.type === 'boss');
+  if (game.waveTimer <= 0 && !hasBoss) {
+    if (game.wave >= game.maxWave) {
+      // localized comment
+      triggerVictory();
+      return;
+    }
+    // localized comment
+    game.wave += 1;
+    game.waveTimer = 30 + Math.min(15, game.wave * 0.5);
+    game.spawnTimer = 0.5;
+    game.bossSpawnedThisWave = false;
+    game.showWaveBanner(game.wave);
+  } else if (game.waveTimer <= 0 && hasBoss) {
+    // localized comment
+    game.waveTimer = 0;
+  }
+}
+
+/* =========================================================
+   State transitions
+   ========================================================= */
+function triggerGameOver() {
+  game.state = STATE.GAMEOVER;
+  if (game.score > game.bestScore) {
+    game.bestScore = game.score;
+    localStorage.setItem('survDef_best', String(game.bestScore));
+  }
+  $('goWaveValue').textContent = game.wave;
+  $('goKillsValue').textContent = game.kills;
+  $('goScoreValue').textContent = game.score;
+  $('goBestValue').textContent = game.bestScore;
+  $('gameOverScreen').classList.remove('hidden');
+  sfxDeath();
+}
+function triggerVictory() {
+  game.state = STATE.VICTORY;
+  if (game.score > game.bestScore) {
+    game.bestScore = game.score;
+    localStorage.setItem('survDef_best', String(game.bestScore));
+  }
+  $('vWaveValue').textContent = game.wave;
+  $('vKillsValue').textContent = game.kills;
+  $('vScoreValue').textContent = game.score;
+  $('vBestValue').textContent = game.bestScore;
+  $('victoryScreen').classList.remove('hidden');
+  sfxVictory();
+}
+function togglePause() {
+  if (!game) return;
+  if (game.state === STATE.PLAYING) {
+    game.state = STATE.PAUSED;
+    $('pauseScreen').classList.remove('hidden');
+  } else if (game.state === STATE.PAUSED) {
+    game.state = STATE.PLAYING;
+    $('pauseScreen').classList.add('hidden');
+  }
+}
+
+/* =========================================================
+   HUD update
+   ========================================================= */
+function updateHUD() {
+  const p = game.player;
+  const hpRatio = clamp(p.hp / p.maxHp, 0, 1);
+  $('hpBarInner').style.width = (hpRatio * 100) + '%';
+  $('hpBarText').textContent = Math.ceil(p.hp) + ' / ' + Math.ceil(p.maxHp);
+  $('xpBarInner').style.width = clamp(p.xp / p.xpToNext * 100, 0, 100) + '%';
+  $('xpBarText').textContent = L.level + p.level + '  ' + p.xp + '/' + p.xpToNext;
+  $('waveValue').textContent = game.wave + ' / ' + game.maxWave;
+  $('killsValue').textContent = game.kills;
+  $('scoreValue').textContent = game.score;
+  $('bestValue').textContent = game.bestScore;
+  $('timeValue').textContent = Math.max(0, Math.ceil(game.waveTimer));
+}
+
+/* =========================================================
+   Drawing
+   ========================================================= */
+function draw() {
+  ctx.save();
+  // localized comment
+  ctx.fillStyle = '#0f0f1f';
+  ctx.fillRect(0, 0, W, H);
+  // localized comment
+  drawGrid();
+
+  // localized comment
+  if (game.shake > 0) {
+    const sx = rand(-game.shake, game.shake) * 0.3;
+    const sy = rand(-game.shake, game.shake) * 0.3;
+    ctx.translate(sx, sy);
+  }
+
+  drawObstacles();
+  drawXpOrbs();
+  drawEnemyProjectiles();
+  drawEnemies();
+  drawProjectiles();
+  drawPlayer();
+  drawParticles();
+
+  // localized comment
+  drawBossHpBar();
+
+  ctx.restore();
+}
+function drawGrid() {
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  const step = 40;
+  ctx.beginPath();
+  for (let x = 0; x <= W; x += step) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); }
+  for (let y = 0; y <= H; y += step) { ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); }
+  ctx.stroke();
+}
+function drawObstacles() {
+  for (const o of game.obstacles) {
+    // localized comment
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(o.x + 4, o.y + 6, o.r, o.r * 0.4, 0, 0, TAU);
+    ctx.fill();
+    // localized comment
+    const grad = ctx.createRadialGradient(o.x - o.r * 0.3, o.y - o.r * 0.3, 2, o.x, o.y, o.r);
+    grad.addColorStop(0, '#666');
+    grad.addColorStop(1, '#2a2a35');
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = '#1a1a25';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, o.r, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+function drawPlayer() {
+  const p = game.player;
+  // localized comment
+  ctx.strokeStyle = 'rgba(80,200,255,0.07)';
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, p.pickupRange, 0, TAU);
+  ctx.stroke();
+
+  // localized comment
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.aimAngle);
+  // localized comment
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(2, 4, p.r * 1.1, p.r * 0.5, 0, 0, TAU); ctx.fill();
+  // localized comment
+  const flash = p.flash > 0 ? `rgba(255,255,255,${p.flash * 0.7})` : null;
+  ctx.fillStyle = '#5fc1ff';
+  ctx.strokeStyle = '#0a3a66';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, p.r, 0, TAU); ctx.fill(); ctx.stroke();
+  // localized comment
+  ctx.fillStyle = '#0a3a66';
+  ctx.fillRect(p.r - 2, -3, 8, 6);
+  if (flash) {
+    ctx.fillStyle = flash;
+    ctx.beginPath(); ctx.arc(0, 0, p.r + 2, 0, TAU); ctx.fill();
+  }
+  // localized comment
+  if (p.invul > 0 && Math.floor(p.invul / 70) % 2 === 0) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, p.r + 3, 0, TAU); ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawEnemies() {
+  for (const e of game.enemies) {
+    if (e.dead) continue;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // localized comment
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(2, 4, e.r * 1.1, e.r * 0.45, 0, 0, TAU); ctx.fill();
+    // localized comment
+    let body = e.color;
+    if (e.hitFlash > 0) body = '#ffffff';
+    ctx.fillStyle = body;
+    ctx.strokeStyle = e.outline;
+    ctx.lineWidth = 2;
+    if (e.type === 'tank') {
+      // localized comment
+      ctx.beginPath();
+      const s = e.r;
+      ctx.rect(-s, -s, s * 2, s * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#444';
+      ctx.fillRect(-s + 4, -s + 4, s * 2 - 8, 4);
+    } else if (e.type === 'fast') {
+      // localized comment
+      const ang = Math.atan2(game.player.y - e.y, game.player.x - e.x);
+      ctx.rotate(ang);
+      ctx.beginPath();
+      ctx.moveTo(e.r, 0);
+      ctx.lineTo(-e.r * 0.7, e.r * 0.8);
+      ctx.lineTo(-e.r * 0.7, -e.r * 0.8);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    } else if (e.type === 'shooter') {
+      ctx.beginPath(); ctx.arc(0, 0, e.r, 0, TAU);
+      ctx.fill(); ctx.stroke();
+      // localized comment
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(0, 0, e.r * 0.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#220044';
+      const ang = Math.atan2(game.player.y - e.y, game.player.x - e.x);
+      ctx.beginPath(); ctx.arc(Math.cos(ang) * 3, Math.sin(ang) * 3, e.r * 0.25, 0, TAU); ctx.fill();
+    } else if (e.type === 'boss') {
+      // localized comment
+      ctx.fillStyle = body;
+      ctx.beginPath(); ctx.arc(0, 0, e.r, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ff6688';
+      const spikes = 10;
+      for (let i = 0; i < spikes; i++) {
+        const a = (i / spikes) * TAU + game.elapsed * 0.6;
+        const x = Math.cos(a) * (e.r + 6);
+        const y = Math.sin(a) * (e.r + 6);
+        ctx.beginPath(); ctx.arc(x, y, 5, 0, TAU); ctx.fill();
+      }
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(-8, -4, 4, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(8, -4, 4, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.arc(-8, -4, 2, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(8, -4, 2, 0, TAU); ctx.fill();
+    } else {
+      // localized comment
+      ctx.beginPath(); ctx.arc(0, 0, e.r, 0, TAU);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(-3, -2, 2, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(4, -2, 2, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+
+    // localized comment
+    if (e.type !== 'boss' && e.hp < e.maxHp) {
+      const w = e.r * 2;
+      const h = 3;
+      const ratio = clamp(e.hp / e.maxHp, 0, 1);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(e.x - w / 2, e.y - e.r - 8, w, h);
+      ctx.fillStyle = ratio > 0.5 ? '#7dff7d' : ratio > 0.25 ? '#ffd84a' : '#ff6464';
+      ctx.fillRect(e.x - w / 2, e.y - e.r - 8, w * ratio, h);
+    }
+  }
+}
+function drawProjectiles() {
+  for (const pr of game.projectiles) {
+    // localized comment
+    ctx.strokeStyle = 'rgba(255,255,180,0.6)';
+    ctx.lineWidth = pr.r;
+    ctx.beginPath();
+    ctx.moveTo(pr.x - pr.vx * 1.5, pr.y - pr.vy * 1.5);
+    ctx.lineTo(pr.x, pr.y);
+    ctx.stroke();
+    ctx.fillStyle = '#fffacc';
+    ctx.beginPath(); ctx.arc(pr.x, pr.y, pr.r, 0, TAU); ctx.fill();
+  }
+}
+function drawEnemyProjectiles() {
+  for (const pr of game.enemyProjectiles) {
+    ctx.fillStyle = 'rgba(180,80,255,0.4)';
+    ctx.beginPath(); ctx.arc(pr.x, pr.y, pr.r + 3, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#d99cff';
+    ctx.beginPath(); ctx.arc(pr.x, pr.y, pr.r, 0, TAU); ctx.fill();
+  }
+}
+function drawXpOrbs() {
+  for (const o of game.xpOrbs) {
+    // localized comment
+    const blink = o.life < 4 ? (Math.floor(o.life * 8) % 2) : 1;
+    if (!blink) continue;
+    const pulse = 1 + Math.sin(game.elapsed * 6 + o.x * 0.1) * 0.1;
+    ctx.fillStyle = 'rgba(120,255,160,0.25)';
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.r * 2.2 * pulse, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#7dff9b';
+    ctx.beginPath();
+    // localized comment
+    ctx.moveTo(o.x, o.y - o.r);
+    ctx.lineTo(o.x + o.r, o.y);
+    ctx.lineTo(o.x, o.y + o.r);
+    ctx.lineTo(o.x - o.r, o.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#1a5a2a';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+function drawParticles() {
+  for (const p of game.particles) {
+    const a = clamp(p.life / p.maxLife, 0, 1);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * a, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+function drawBossHpBar() {
+  const boss = game.enemies.find(e => e.type === 'boss');
+  if (!boss) return;
+  const w = W * 0.6;
+  const h = 18;
+  const x = (W - w) / 2;
+  const y = H - 36;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+  ctx.fillStyle = '#330011';
+  ctx.fillRect(x, y, w, h);
+  const ratio = clamp(boss.hp / boss.maxHp, 0, 1);
+  const grad = ctx.createLinearGradient(x, 0, x + w, 0);
+  grad.addColorStop(0, '#ff5566');
+  grad.addColorStop(1, '#ffaa44');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w * ratio, h);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('BOSS  ' + Math.ceil(boss.hp) + ' / ' + Math.ceil(boss.maxHp), x + w / 2, y + h - 5);
+  ctx.textAlign = 'start';
+}
+
+/* =========================================================
+   Enter / restart
+   ========================================================= */
+function startGame() {
+  ensureAudio();
+  // localized comment
+  $('startScreen').classList.add('hidden');
+  $('gameOverScreen').classList.add('hidden');
+  $('victoryScreen').classList.add('hidden');
+  $('upgradeScreen').classList.add('hidden');
+  $('pauseScreen').classList.add('hidden');
+  // localized comment
+  for (const k in keys) keys[k] = false;
+  // localized comment
+  game = new Game();
+  game.state = STATE.PLAYING;
+  updateHUD();
+}
+function showStartScreen() {
+  // localized comment
+  const best = parseInt(localStorage.getItem('survDef_best') || '0', 10) || 0;
+  $('bestRecValue').textContent = best;
+  $('bestValue').textContent = best;
+  $('startScreen').classList.remove('hidden');
+}
+
+/* =========================================================
+   Initialization and event binding
+   ========================================================= */
+function init() {
+  applyStaticText();
+  // localized comment
+  game = new Game();
+  game.state = STATE.START;
+  showStartScreen();
+
+  $('startBtn').addEventListener('click', startGame);
+  $('restartBtn1').addEventListener('click', startGame);
+  $('restartBtn2').addEventListener('click', startGame);
+
+  requestAnimationFrame((t) => { lastTime = t; loop(t); });
+}
+
+init();
+</script>
+</body>
+</html>

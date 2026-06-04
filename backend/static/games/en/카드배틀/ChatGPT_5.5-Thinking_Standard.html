@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Card Monster Battle</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      background:
+        radial-gradient(circle at top left, #ffe7f1 0, transparent 34%),
+        radial-gradient(circle at bottom right, #d9f6ff 0, transparent 32%),
+        linear-gradient(135deg, #fff5fb, #f1fbff 50%, #fff9e8);
+      color: #3f3148;
+    }
+
+    .game-wrap {
+      width: min(1100px, 96vw);
+      min-height: 720px;
+      padding: 22px;
+      border-radius: 34px;
+      background: rgba(255, 255, 255, 0.76);
+      box-shadow: 0 24px 70px rgba(128, 94, 130, 0.22);
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .game-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border-radius: 26px;
+      border: 2px dashed rgba(255, 176, 207, 0.45);
+      pointer-events: none;
+    }
+
+    .top-bar {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .title-box h1 {
+      margin: 0;
+      font-size: 32px;
+      letter-spacing: -1px;
+    }
+
+    .title-box p {
+      margin: 5px 0 0;
+      color: #8f7e99;
+      font-size: 14px;
+    }
+
+    .pill-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: #fff;
+      border: 2px solid #f3d8eb;
+      box-shadow: 0 8px 16px rgba(210, 166, 198, 0.16);
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .battlefield {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      margin-bottom: 18px;
+    }
+
+    .fighter-card {
+      min-height: 260px;
+      border-radius: 28px;
+      background: linear-gradient(180deg, #fff, #fff6fb);
+      border: 2px solid rgba(246, 202, 229, 0.9);
+      box-shadow: 0 18px 35px rgba(177, 125, 164, 0.16);
+      padding: 22px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .fighter-card.monster {
+      background: linear-gradient(180deg, #fff, #f3fbff);
+      border-color: rgba(183, 225, 244, 0.95);
+    }
+
+    .fighter-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .name {
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    .role {
+      margin-top: 5px;
+      font-size: 13px;
+      color: #9987a3;
+    }
+
+    .avatar {
+      width: 112px;
+      height: 112px;
+      display: grid;
+      place-items: center;
+      font-size: 70px;
+      border-radius: 28px;
+      background: #fff;
+      box-shadow: inset 0 -8px 0 rgba(255, 215, 232, 0.55), 0 12px 22px rgba(180, 135, 171, 0.16);
+      transition: transform 0.18s ease, filter 0.18s ease;
+    }
+
+    .monster .avatar {
+      box-shadow: inset 0 -8px 0 rgba(187, 235, 255, 0.72), 0 12px 22px rgba(128, 176, 205, 0.16);
+    }
+
+    .avatar.hit {
+      animation: hitShake 0.35s ease;
+    }
+
+    .avatar.attack {
+      animation: popAttack 0.32s ease;
+    }
+
+    @keyframes hitShake {
+      0%, 100% { transform: translateX(0); filter: brightness(1); }
+      25% { transform: translateX(-8px); filter: brightness(1.2); }
+      50% { transform: translateX(8px); filter: brightness(0.92); }
+      75% { transform: translateX(-5px); }
+    }
+
+    @keyframes popAttack {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15) translateY(-4px); }
+      100% { transform: scale(1); }
+    }
+
+    .stat-group {
+      display: grid;
+      gap: 12px;
+    }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: 68px 1fr 54px;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .bar {
+      height: 18px;
+      border-radius: 999px;
+      background: #f2eaf2;
+      overflow: hidden;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+    }
+
+    .fill {
+      height: 100%;
+      width: 100%;
+      border-radius: 999px;
+      transition: width 0.28s ease;
+    }
+
+    .hp-fill {
+      background: linear-gradient(90deg, #ff7aa9, #ffb36b);
+    }
+
+    .block-fill {
+      background: linear-gradient(90deg, #8dd7ff, #a6f0d4);
+    }
+
+    .energy-fill {
+      background: linear-gradient(90deg, #b98cff, #ffd16d);
+    }
+
+    .status-note {
+      margin-top: 15px;
+      min-height: 24px;
+      padding: 10px 12px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(235, 211, 230, 0.9);
+      font-size: 14px;
+      color: #75647d;
+    }
+
+    .center-log {
+      position: relative;
+      z-index: 2;
+      min-height: 70px;
+      padding: 15px 18px;
+      border-radius: 22px;
+      background: #fff;
+      border: 2px solid #efe1f0;
+      box-shadow: 0 14px 28px rgba(152, 119, 151, 0.12);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-weight: 850;
+      color: #6e5b76;
+      line-height: 1.45;
+    }
+
+    .hand-area {
+      position: relative;
+      z-index: 2;
+      border-radius: 28px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 2px solid rgba(242, 215, 237, 0.95);
+      padding: 18px;
+    }
+
+    .hand-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .hand-head strong {
+      font-size: 18px;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 900;
+      border-radius: 16px;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, #ff9ec6, #ffca85);
+      color: white;
+      box-shadow: 0 10px 18px rgba(225, 129, 155, 0.28);
+      transition: transform 0.16s ease, opacity 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 24px rgba(225, 129, 155, 0.32);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      transform: none;
+      opacity: 0.52;
+      box-shadow: none;
+      filter: grayscale(0.35);
+    }
+
+    .secondary-btn {
+      background: linear-gradient(135deg, #9bdcff, #b8f5dd);
+      color: #2f5967;
+      box-shadow: 0 10px 18px rgba(114, 180, 205, 0.24);
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(170px, 1fr));
+      gap: 14px;
+    }
+
+    .card {
+      min-height: 170px;
+      border-radius: 22px;
+      background: linear-gradient(180deg, #ffffff, #fff8fc);
+      border: 2px solid #f0d7eb;
+      box-shadow: 0 15px 25px rgba(162, 121, 153, 0.14);
+      padding: 16px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.18s ease, opacity 0.18s ease, border-color 0.18s ease;
+    }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      right: -28px;
+      bottom: -30px;
+      background: rgba(255, 190, 217, 0.23);
+    }
+
+    .card:hover {
+      transform: translateY(-5px) rotate(-1deg);
+      border-color: #ffacd0;
+    }
+
+    .card.disabled {
+      opacity: 0.45;
+      filter: grayscale(0.35);
+    }
+
+    .card.used {
+      animation: cardUse 0.38s ease forwards;
+    }
+
+    @keyframes cardUse {
+      0% { transform: translateY(0) scale(1); opacity: 1; }
+      60% { transform: translateY(-22px) scale(1.05) rotate(2deg); opacity: 1; }
+      100% { transform: translateY(-35px) scale(0.9); opacity: 0; }
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      gap: 10px;
+    }
+
+    .card-icon {
+      font-size: 34px;
+    }
+
+    .cost {
+      min-width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #b68aff, #ffd168);
+      color: white;
+      font-weight: 950;
+      box-shadow: 0 8px 14px rgba(180, 137, 225, 0.24);
+    }
+
+    .card-name {
+      font-size: 18px;
+      font-weight: 950;
+      margin-bottom: 8px;
+    }
+
+    .card-desc {
+      font-size: 14px;
+      color: #75677c;
+      line-height: 1.45;
+    }
+
+    .card-tag {
+      display: inline-flex;
+      margin-top: 12px;
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: #fff1f8;
+      color: #bd5f8c;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(255, 246, 251, 0.88);
+      backdrop-filter: blur(8px);
+    }
+
+    .panel {
+      width: min(560px, 92vw);
+      padding: 34px;
+      border-radius: 32px;
+      background: white;
+      text-align: center;
+      border: 2px solid #f2d9ea;
+      box-shadow: 0 24px 60px rgba(145, 101, 139, 0.22);
+    }
+
+    .panel .big {
+      font-size: 72px;
+      margin-bottom: 12px;
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 34px;
+    }
+
+    .panel p {
+      margin: 0 0 22px;
+      color: #7b697f;
+      line-height: 1.6;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .floating {
+      position: absolute;
+      z-index: 5;
+      pointer-events: none;
+      font-weight: 950;
+      font-size: 24px;
+      animation: floatText 0.9s ease forwards;
+    }
+
+    @keyframes floatText {
+      0% { opacity: 0; transform: translateY(8px) scale(0.85); }
+      20% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-44px) scale(1.08); }
+    }
+
+    @media (max-width: 800px) {
+      .game-wrap {
+        min-height: auto;
+        padding: 16px;
+      }
+
+      .top-bar,
+      .battlefield,
+      .hand-head {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .battlefield {
+        grid-template-columns: 1fr;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .fighter-head {
+        align-items: center;
+      }
+
+      .avatar {
+        width: 90px;
+        height: 90px;
+        font-size: 56px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="game-wrap" id="gameWrap">
+    <section class="top-bar">
+      <div class="title-box">
+        <h1>🍓 Card Monster Battle</h1>
+        <p>A turn-based battle game where cute cards defeat monsters</p>
+      </div>
+      <div class="pill-row">
+        <div class="pill">Turn <span id="turnText">1</span></div>
+        <div class="pill">Score <span id="scoreText">0</span></div>
+        <div class="pill">Status <span id="phaseText">Ready</span></div>
+      </div>
+    </section>
+
+    <section class="battlefield">
+      <article class="fighter-card player">
+        <div class="fighter-head">
+          <div>
+            <div class="name">Brave Rabbit Knight</div>
+            <div class="role">Player</div>
+          </div>
+          <div class="avatar" id="playerAvatar">🐰</div>
+        </div>
+
+        <div class="stat-group">
+          <div class="stat-row">
+            <span>Health</span>
+            <div class="bar"><div class="fill hp-fill" id="playerHpFill"></div></div>
+            <span id="playerHpText">50/50</span>
+          </div>
+          <div class="stat-row">
+            <span>Block</span>
+            <div class="bar"><div class="fill block-fill" id="playerBlockFill"></div></div>
+            <span id="playerBlockText">0</span>
+          </div>
+          <div class="stat-row">
+            <span>Energy</span>
+            <div class="bar"><div class="fill energy-fill" id="energyFill"></div></div>
+            <span id="energyText">3/3</span>
+          </div>
+        </div>
+
+        <div class="status-note" id="playerNote">Use cards to attack, block, and heal.</div>
+      </article>
+
+      <article class="fighter-card monster">
+        <div class="fighter-head">
+          <div>
+            <div class="name" id="monsterName">Marshmallow Goblin</div>
+            <div class="role">Monster</div>
+          </div>
+          <div class="avatar" id="monsterAvatar">👹</div>
+        </div>
+
+        <div class="stat-group">
+          <div class="stat-row">
+            <span>Health</span>
+            <div class="bar"><div class="fill hp-fill" id="monsterHpFill"></div></div>
+            <span id="monsterHpText">45/45</span>
+          </div>
+          <div class="stat-row">
+            <span>Block</span>
+            <div class="bar"><div class="fill block-fill" id="monsterBlockFill"></div></div>
+            <span id="monsterBlockText">0</span>
+          </div>
+          <div class="stat-row">
+            <span>Intent</span>
+            <div class="bar"><div class="fill energy-fill" id="intentFill"></div></div>
+            <span id="intentText">?</span>
+          </div>
+        </div>
+
+        <div class="status-note" id="monsterNote">Watch the monster's next action before ending your turn.</div>
+      </article>
+    </section>
+
+    <section class="center-log" id="battleLog">
+      Press Start to begin battle.
+    </section>
+
+    <section class="hand-area">
+      <div class="hand-head">
+        <strong>My Hand</strong>
+        <div class="button-row">
+          <button id="endTurnBtn" disabled>End Turn</button>
+          <button class="secondary-btn" id="restartBtn">Restart</button>
+        </div>
+      </div>
+      <div class="cards" id="handCards"></div>
+    </section>
+
+    <section class="overlay" id="startOverlay">
+      <div class="panel">
+        <div class="big">🐰⚔️👹</div>
+        <h2>Card Monster Battle</h2>
+        <p>
+          Each turn gives you 3 energy and 3 random cards.<br>
+          Use cards strategically to defeat the monster!
+        </p>
+        <button id="startBtn">Start Battle</button>
+      </div>
+    </section>
+
+    <section class="overlay hidden" id="resultOverlay">
+      <div class="panel">
+        <div class="big" id="resultIcon">🏆</div>
+        <h2 id="resultTitle">Victory!</h2>
+        <p id="resultDesc">You defeated the monster.</p>
+        <button id="resultRestartBtn">Restart</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const MAX_ENERGY = 3;
+
+    const cardPool = [
+      {
+        id: "strike",
+        name: "Strawberry Jab",
+        icon: "🍓",
+        cost: 1,
+        type: "attack",
+        tag: "Attack",
+        desc: "Deal 7 damage to the monster.",
+        use: (state) => dealDamage("monster", 7)
+      },
+      {
+        id: "bigStrike",
+        name: "Rainbow Smash",
+        icon: "🌈",
+        cost: 2,
+        type: "attack",
+        tag: "Heavy Attack",
+        desc: "Deal 13 damage to the monster.",
+        use: (state) => dealDamage("monster", 13)
+      },
+      {
+        id: "guard",
+        name: "Cotton Candy Shield",
+        icon: "🛡️",
+        cost: 1,
+        type: "defense",
+        tag: "Block",
+        desc: "Gain 8 block.",
+        use: (state) => gainBlock("player", 8)
+      },
+      {
+        id: "fortify",
+        name: "Cookie Fortress",
+        icon: "🍪",
+        cost: 2,
+        type: "defense",
+        tag: "Block",
+        desc: "Gain 15 block.",
+        use: (state) => gainBlock("player", 15)
+      },
+      {
+        id: "heal",
+        name: "Warm Carrot Tea",
+        icon: "🥕",
+        cost: 1,
+        type: "heal",
+        tag: "Heal",
+        desc: "Restore 8 health.",
+        use: (state) => heal("player", 8)
+      },
+      {
+        id: "quick",
+        name: "Sparkle Combo",
+        icon: "✨",
+        cost: 0,
+        type: "attack",
+        tag: "Free",
+        desc: "Deal 4 damage to the monster.",
+        use: (state) => dealDamage("monster", 4)
+      },
+      {
+        id: "drain",
+        name: "Moonlight Drain",
+        icon: "🌙",
+        cost: 2,
+        type: "attack",
+        tag: "Drain",
+        desc: "Deal 8 damage and restore 5 health.",
+        use: (state) => {
+          dealDamage("monster", 8);
+          heal("player", 5);
+        }
+      },
+      {
+        id: "focus",
+        name: "Starlight Focus",
+        icon: "⭐",
+        cost: 1,
+        type: "special",
+        tag: "Special",
+        desc: "Gain 5 block and deal 5 damage to the monster.",
+        use: (state) => {
+          gainBlock("player", 5);
+          dealDamage("monster", 5);
+        }
+      }
+    ];
+
+    const monsterActions = [
+      { type: "attack", text: "Attack 10", icon: "⚔️", value: 10 },
+      { type: "attack", text: "Heavy Attack 15", icon: "💥", value: 15 },
+      { type: "block", text: "Block 10", icon: "🧱", value: 10 },
+      { type: "mixed", text: "Attack 7 + Block 6", icon: "🌀", damage: 7, block: 6 }
+    ];
+
+    let state;
+
+    const $ = (id) => document.getElementById(id);
+
+    const el = {
+      gameWrap: $("gameWrap"),
+      turnText: $("turnText"),
+      scoreText: $("scoreText"),
+      phaseText: $("phaseText"),
+      playerHpFill: $("playerHpFill"),
+      playerHpText: $("playerHpText"),
+      playerBlockFill: $("playerBlockFill"),
+      playerBlockText: $("playerBlockText"),
+      energyFill: $("energyFill"),
+      energyText: $("energyText"),
+      monsterName: $("monsterName"),
+      monsterHpFill: $("monsterHpFill"),
+      monsterHpText: $("monsterHpText"),
+      monsterBlockFill: $("monsterBlockFill"),
+      monsterBlockText: $("monsterBlockText"),
+      intentFill: $("intentFill"),
+      intentText: $("intentText"),
+      playerNote: $("playerNote"),
+      monsterNote: $("monsterNote"),
+      battleLog: $("battleLog"),
+      handCards: $("handCards"),
+      endTurnBtn: $("endTurnBtn"),
+      restartBtn: $("restartBtn"),
+      startOverlay: $("startOverlay"),
+      resultOverlay: $("resultOverlay"),
+      resultIcon: $("resultIcon"),
+      resultTitle: $("resultTitle"),
+      resultDesc: $("resultDesc"),
+      resultRestartBtn: $("resultRestartBtn"),
+      startBtn: $("startBtn"),
+      playerAvatar: $("playerAvatar"),
+      monsterAvatar: $("monsterAvatar")
+    };
+
+    function createInitialState() {
+      return {
+        started: false,
+        gameOver: false,
+        turn: 1,
+        score: 0,
+        phase: "player",
+        player: {
+          maxHp: 50,
+          hp: 50,
+          block: 0,
+          energy: MAX_ENERGY
+        },
+        monster: {
+          name: "Marshmallow Goblin",
+          maxHp: 45,
+          hp: 45,
+          block: 0,
+          nextAction: null
+        },
+        hand: [],
+        usedCardIds: []
+      };
+    }
+
+    function startGame() {
+      state = createInitialState();
+      state.started = true;
+      el.startOverlay.classList.add("hidden");
+      el.resultOverlay.classList.add("hidden");
+      startPlayerTurn();
+      log("Battle started! Play cards, then end your turn.");
+      render();
+    }
+
+    function restartGame() {
+      // localized comment
+      state = createInitialState();
+      el.resultOverlay.classList.add("hidden");
+      el.startOverlay.classList.remove("hidden");
+      log("Press Start to begin battle.");
+      render();
+    }
+
+    function startPlayerTurn() {
+      if (state.gameOver) return;
+
+      state.phase = "player";
+      state.player.block = 0; // Block resets at the start of the next player turn
+      state.player.energy = MAX_ENERGY;
+      state.hand = drawRandomCards(3);
+      state.usedCardIds = [];
+      state.monster.nextAction = pickMonsterAction();
+
+      el.endTurnBtn.disabled = false;
+      render();
+    }
+
+    function drawRandomCards(count) {
+      const result = [];
+      for (let i = 0; i < count; i++) {
+        const source = cardPool[Math.floor(Math.random() * cardPool.length)];
+        result.push({ ...source, instanceId: `${source.id}-${Date.now()}-${i}-${Math.random()}` });
+      }
+      return result;
+    }
+
+    function pickMonsterAction() {
+      return monsterActions[Math.floor(Math.random() * monsterActions.length)];
+    }
+
+    function useCard(instanceId) {
+      if (state.gameOver || state.phase !== "player") return;
+
+      const card = state.hand.find((c) => c.instanceId === instanceId);
+      if (!card || state.usedCardIds.includes(instanceId)) return;
+      if (state.player.energy < card.cost) return;
+
+      state.player.energy -= card.cost;
+      state.usedCardIds.push(instanceId);
+
+      const cardEl = document.querySelector(`[data-card-id="${instanceId}"]`);
+      if (cardEl) cardEl.classList.add("used");
+
+      card.use(state);
+      state.score += card.cost === 0 ? 3 : card.cost * 5;
+
+      animateAvatar(card.type === "attack" || card.type === "special" ? "player" : "player", "attack");
+      log(`「${card.name}」 played! ${card.desc}`);
+
+      setTimeout(() => {
+        state.hand = state.hand.filter((c) => c.instanceId !== instanceId);
+        checkEnd();
+        render();
+      }, 260);
+
+      render();
+    }
+
+    function endTurn() {
+      if (state.gameOver || state.phase !== "player") return;
+
+      state.phase = "monster";
+      el.endTurnBtn.disabled = true;
+      state.hand = [];
+      render();
+
+      setTimeout(() => {
+        monsterAct();
+      }, 520);
+    }
+
+    function monsterAct() {
+      if (state.gameOver) return;
+
+      const action = state.monster.nextAction;
+      state.monster.block = 0; // Monster block resets at the start of its action
+
+      if (action.type === "attack") {
+        animateAvatar("monster", "attack");
+        dealDamage("player", action.value);
+        log(`Monster ${action.value} attacked for damage!`);
+      }
+
+      if (action.type === "block") {
+        gainBlock("monster", action.value);
+        log(`Monster Block ${action.value}gained.`);
+      }
+
+      if (action.type === "mixed") {
+        animateAvatar("monster", "attack");
+        dealDamage("player", action.damage);
+        gainBlock("monster", action.block);
+        log(`Monster ${action.damage} attacks for damage and gains block ${action.block}.`);
+      }
+
+      checkEnd();
+      render();
+
+      if (!state.gameOver) {
+        setTimeout(() => {
+          state.turn += 1;
+          startPlayerTurn();
+          log(`Turn ${state.turn} started! You received 3 energy and 3 new cards.`);
+        }, 850);
+      }
+    }
+
+    function dealDamage(target, amount) {
+      const unit = target === "player" ? state.player : state.monster;
+      const blocked = Math.min(unit.block, amount);
+      const damage = Math.max(0, amount - blocked);
+
+      unit.block -= blocked;
+      unit.hp = Math.max(0, unit.hp - damage);
+
+      showFloating(target, damage > 0 ? `-${damage}` : "Blocked!", damage > 0 ? "#ff5d8f" : "#55bfe8");
+      animateAvatar(target, "hit");
+    }
+
+    function gainBlock(target, amount) {
+      const unit = target === "player" ? state.player : state.monster;
+      unit.block += amount;
+      showFloating(target, `+${amount} Block`, "#46b7dc");
+    }
+
+    function heal(target, amount) {
+      const unit = target === "player" ? state.player : state.monster;
+      const before = unit.hp;
+      unit.hp = Math.min(unit.maxHp, unit.hp + amount);
+      const healed = unit.hp - before;
+      showFloating(target, healed > 0 ? `+${healed}` : "Max Health", "#39bd77");
+    }
+
+    function checkEnd() {
+      if (state.monster.hp <= 0) {
+        state.gameOver = true;
+        state.phase = "win";
+        state.score += 100 + Math.max(0, state.player.hp) * 2;
+        showResult(true);
+      } else if (state.player.hp <= 0) {
+        state.gameOver = true;
+        state.phase = "lose";
+        showResult(false);
+      }
+    }
+
+    function showResult(isWin) {
+      el.resultIcon.textContent = isWin ? "🏆" : "💤";
+      el.resultTitle.textContent = isWin ? "Victory!" : "Defeat...";
+      el.resultDesc.textContent = isWin
+        ? `You defeated the Marshmallow Goblin! Final score: ${state.score}pts..`
+        : `The rabbit knight fell. Try again! Final score: ${state.score}pts..`;
+      el.resultOverlay.classList.remove("hidden");
+      el.endTurnBtn.disabled = true;
+      render();
+    }
+
+    function render() {
+      if (!state) {
+        state = createInitialState();
+      }
+
+      el.turnText.textContent = state.turn;
+      el.scoreText.textContent = state.score;
+      el.phaseText.textContent = phaseName(state.phase);
+
+      updateBar(el.playerHpFill, state.player.hp, state.player.maxHp);
+      el.playerHpText.textContent = `${state.player.hp}/${state.player.maxHp}`;
+
+      updateBar(el.playerBlockFill, Math.min(state.player.block, 30), 30);
+      el.playerBlockText.textContent = state.player.block;
+
+      updateBar(el.energyFill, state.player.energy, MAX_ENERGY);
+      el.energyText.textContent = `${state.player.energy}/${MAX_ENERGY}`;
+
+      el.monsterName.textContent = state.monster.name;
+      updateBar(el.monsterHpFill, state.monster.hp, state.monster.maxHp);
+      el.monsterHpText.textContent = `${state.monster.hp}/${state.monster.maxHp}`;
+
+      updateBar(el.monsterBlockFill, Math.min(state.monster.block, 30), 30);
+      el.monsterBlockText.textContent = state.monster.block;
+
+      const intent = state.monster.nextAction;
+      el.intentText.textContent = intent ? intent.icon : "?";
+      el.monsterNote.textContent = intent ? `Next action: ${intent.text}` : "Monster is preparing an action.";
+      el.playerNote.textContent = state.phase === "player"
+        ? "Only cards with enough energy can be used."
+        : "The monster is acting.";
+
+      renderHand();
+    }
+
+    function renderHand() {
+      el.handCards.innerHTML = "";
+
+      if (!state.started || state.gameOver) {
+        el.handCards.innerHTML = `<div class="status-note">Cards will appear here after starting the game.</div>`;
+        return;
+      }
+
+      if (state.hand.length === 0) {
+        el.handCards.innerHTML = `<div class="status-note">No cards in hand.</div>`;
+        return;
+      }
+
+      state.hand.forEach((card) => {
+        const disabled = state.player.energy < card.cost || state.phase !== "player";
+        const used = state.usedCardIds.includes(card.instanceId);
+
+        const cardEl = document.createElement("button");
+        cardEl.className = `card ${disabled ? "disabled" : ""}`;
+        cardEl.dataset.cardId = card.instanceId;
+        cardEl.disabled = disabled || used;
+        cardEl.innerHTML = `
+          <div class="card-top">
+            <div class="card-icon">${card.icon}</div>
+            <div class="cost">${card.cost}</div>
+          </div>
+          <div class="card-name">${card.name}</div>
+          <div class="card-desc">${card.desc}</div>
+          <span class="card-tag">${card.tag}</span>
+        `;
+        cardEl.addEventListener("click", () => useCard(card.instanceId));
+        el.handCards.appendChild(cardEl);
+      });
+    }
+
+    function updateBar(element, value, max) {
+      const percent = Math.max(0, Math.min(100, (value / max) * 100));
+      element.style.width = `${percent}%`;
+    }
+
+    function phaseName(phase) {
+      const names = {
+        player: "Player Turn",
+        monster: "Monster Turn",
+        win: "Victory",
+        lose: "Defeat"
+      };
+      return names[phase] || "Ready";
+    }
+
+    function log(message) {
+      el.battleLog.textContent = message;
+    }
+
+    function animateAvatar(target, className) {
+      const avatar = target === "player" ? el.playerAvatar : el.monsterAvatar;
+      avatar.classList.remove(className);
+      void avatar.offsetWidth;
+      avatar.classList.add(className);
+      setTimeout(() => avatar.classList.remove(className), 420);
+    }
+
+    function showFloating(target, text, color) {
+      const base = target === "player" ? el.playerAvatar : el.monsterAvatar;
+      const wrapRect = el.gameWrap.getBoundingClientRect();
+      const rect = base.getBoundingClientRect();
+
+      const floating = document.createElement("div");
+      floating.className = "floating";
+      floating.textContent = text;
+      floating.style.color = color;
+      floating.style.left = `${rect.left - wrapRect.left + rect.width / 2 - 24}px`;
+      floating.style.top = `${rect.top - wrapRect.top + 12}px`;
+
+      el.gameWrap.appendChild(floating);
+      setTimeout(() => floating.remove(), 950);
+    }
+
+    el.startBtn.addEventListener("click", startGame);
+    el.restartBtn.addEventListener("click", restartGame);
+    el.resultRestartBtn.addEventListener("click", restartGame);
+    el.endTurnBtn.addEventListener("click", endTurn);
+
+    restartGame();
+  </script>
+</body>
+</html>

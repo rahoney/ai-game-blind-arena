@@ -59,10 +59,10 @@ RESERVED_NICKNAME_TERMS, BANNED_NICKNAME_TERMS = _load_nickname_blocklist()
 
 BADGE_STAGES = [
     {"key": "badge_egg", "min": 0, "max": 4, "next": 5},
-    {"key": "badge_junior_owl", "min": 5, "max": 11, "next": 12},
-    {"key": "badge_student_owl", "min": 12, "max": 19, "next": 20},
-    {"key": "badge_apprentice_owl", "min": 20, "max": 29, "next": 30},
-    {"key": "badge_senior_owl", "min": 30, "max": None, "next": None},
+    {"key": "badge_junior_owl", "min": 5, "max": 19, "next": 20},
+    {"key": "badge_student_owl", "min": 20, "max": 34, "next": 35},
+    {"key": "badge_apprentice_owl", "min": 35, "max": 49, "next": 50},
+    {"key": "badge_senior_owl", "min": 50, "max": None, "next": None},
 ]
 
 BADGE_DISPLAY_ORDER = [
@@ -215,7 +215,7 @@ def get_unlocked_badge_keys(eval_rows, view_rows, games_data):
         if BADGE_DISPLAY_ORDER.index(stage["key"]) <= BADGE_DISPLAY_ORDER.index(stage_badge):
             unlocked.add(stage["key"])
 
-    if total_views >= 100:
+    if total_views >= 200:
         unlocked.add("badge_gamer_owl")
 
     evals_by_game = defaultdict(set)

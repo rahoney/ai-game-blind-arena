@@ -355,7 +355,7 @@
         if(enemyHp <= 0) return;
         enemyDef = 0; // 적 행동 전 방어력 초기화
         
-        // 적 패턴: 70% 공격, 30% 방어
+        // 적 패턴: 70% attack, 30% 방어
         const isAttacking = Math.random() < 0.7;
         
         if(isAttacking) {

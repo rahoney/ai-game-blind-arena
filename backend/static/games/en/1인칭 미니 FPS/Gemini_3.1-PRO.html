@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Game Blind Arena</title>
+    <title>Dungeon FPS</title>
     <style>
         /* CSS Reset 및 전체 화면 설정 */
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -70,7 +70,7 @@
        1. 다국어 데이터베이스 (LANG_DATA)
        ========================================== */
     const LANG_DATA = {
-        title: "AI Game Blind Arena",
+        title: "Dungeon FPS",
         subtitle: "- Evaluating LLM Performance via Zero-Shot Prompt-Generated Games",
         startBtn: "Start Game",
         restartBtn: "Restart",
@@ -294,7 +294,7 @@
             euler.setFromQuaternion(camera.quaternion);
             euler.y -= movementX * 0.002;
             euler.x -= movementY * 0.002;
-            // 위아래 시pts 제한
+            // 위아래 viewpoint 제한
             euler.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, euler.x));
             camera.quaternion.setFromEuler(euler);
         }
@@ -409,7 +409,7 @@
 
             enemy.mesh.lookAt(camera.position.x, enemy.mesh.position.y, camera.position.z);
 
-            // 공격 판정 (거리가 가까우면 데미지)
+            // attack 판정 (거리가 가까우면 데미지)
             const dist = enemy.mesh.position.distanceTo(camera.position);
             if (dist < 3 && clock.getElapsedTime() - enemy.lastAttack > 1.0) {
                 takeDamage(15);

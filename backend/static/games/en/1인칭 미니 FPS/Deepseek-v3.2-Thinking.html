@@ -696,7 +696,7 @@
             scene = new THREE.Scene();
             scene.fog = new THREE.Fog(0x050510, 10, 50);
             
-            // 카메라 생성 (1인칭 시pts)
+            // 카메라 생성 (1인칭 viewpoint)
             camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
             camera.position.set(0, 1.6, 0);
             
@@ -785,7 +785,7 @@
 
         // 플레이어 생성
         function createPlayer() {
-            // 플레이어는 카메라로 대표됨 (1인칭 시pts)
+            // 플레이어는 카메라로 대표됨 (1인칭 viewpoint)
             player = camera;
             player.position.set(0, 1.6, 0);
         }
@@ -989,21 +989,21 @@
             }
         }
 
-        // Mouse Move 처리 (시pts 조절)
+        // Mouse Move 처리 (viewpoint 조절)
         function mouseMove(e) {
             if (!gameState.mouseLocked || !gameState.isPlaying || gameState.isGameOver) return;
             
             const sensitivity = 0.002;
             
-            // 카메라 회전 (시pts 변경)
+            // 카메라 회전 (viewpoint 변경)
             camera.rotation.y -= e.movementX * sensitivity;
             camera.rotation.x -= e.movementY * sensitivity;
             
-            // 수직 시pts 제한
+            // 수직 viewpoint 제한
             camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
         }
 
-        // Mouse Click 처리 (공격)
+        // Mouse Click 처리 (attack)
         function mouseDown(e) {
             if (!gameState.isPlaying || gameState.isGameOver || e.button !== 0) return;
             
@@ -1239,9 +1239,9 @@
                 
                 const distanceToPlayer = directionToPlayer.length();
                 
-                // 공격 범위 내에 있으면 공격
+                // attack 범위 내에 있으면 attack
                 if (distanceToPlayer < enemy.userData.attackRange) {
-                    // 공격 쿨다운 업데이트
+                    // attack 쿨다운 업데이트
                     enemy.userData.attackCooldown -= deltaTime * 1000;
                     
                     if (enemy.userData.attackCooldown <= 0) {
@@ -1253,7 +1253,7 @@
                         // 피격 효과 표시
                         showHitEffect();
                         
-                        // 공격 쿨다운 재설정
+                        // attack 쿨다운 재설정
                         enemy.userData.attackCooldown = 1000; // 1초
                         
                         // Health이 0 이하이면 Game Over

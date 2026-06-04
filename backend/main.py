@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import base64
 import secrets
+import random
 import re
 from urllib import error as urllib_error
 from urllib import request as urllib_request
@@ -136,6 +137,27 @@ EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 LOGIN_ID_RE = re.compile(r"^[A-Za-z0-9]{4,15}$")
 SERVICE_BRAND_NAME = "VeilPlays"
 SERVICE_CONTEXT_NAME = "AI Game Blind Arena"
+BLIND_TOKEN_SECRET = (
+    os.getenv("BLIND_TOKEN_SECRET")
+    or os.getenv("SECRET_KEY")
+    or os.getenv("SUPABASE_JWT_SECRET")
+    or "veilplays-local-blind-token-secret"
+).encode("utf-8")
+
+
+def _blind_digest(purpose: str, game_type: str, actual_model: str):
+    message = f"{purpose}\0{game_type}\0{actual_model}".encode("utf-8")
+    return base64.urlsafe_b64encode(
+        hmac.new(BLIND_TOKEN_SECRET, message, hashlib.sha256).digest()
+    ).decode("ascii").rstrip("=")
+
+
+def _get_model_key(game_type: str, actual_model: str):
+    return _blind_digest("model-key", game_type, actual_model)
+
+
+def _get_blind_model_token(game_type: str, actual_model: str):
+    return _blind_digest("blind-token", game_type, actual_model)
 
 
 def _get_client_ip(request: Request):
@@ -837,8 +859,18 @@ def _update_profile_social_providers(profile: dict, providers: list[str]):
         raise HTTPException(status_code=500, detail="Failed to update social providers") from exc
 
 
-def _find_actual_model(game_type: str, blind_model_id: str, preferred_lang: str = "ko"):
+def _find_actual_model(game_type: str, blind_model_id: str, preferred_lang: str = "ko", blind_model_token: str | None = None):
     lang_games = GAMES_DATA.get(preferred_lang, GAMES_DATA.get('ko', {}))
+    if blind_model_token:
+        for m in lang_games.get(game_type, []):
+            if _get_blind_model_token(game_type, m["actual_model"]) == blind_model_token:
+                return m["actual_model"]
+
+        for lang_dict in GAMES_DATA.values():
+            for m in lang_dict.get(game_type, []):
+                if _get_blind_model_token(game_type, m["actual_model"]) == blind_model_token:
+                    return m["actual_model"]
+
     for m in lang_games.get(game_type, []):
         if m["blind_id"] == blind_model_id:
             return m["actual_model"]
@@ -913,8 +945,16 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, curr
         for m in lang_dict.get(game_type, []):
             blind_mapping[m['actual_model']] = m['blind_id']
 
-    participant_display_names = {_activity_display_name(row) for row in data if _activity_display_name(row)}
-    participant_display_names.update(_activity_display_name(reply) for reply in reply_rows if _activity_display_name(reply))
+    def resolve_activity_display_name(row: dict):
+        display_name = _activity_display_name(row)
+        if display_name:
+            return display_name
+        if current_user_id and row.get("user_id") == current_user_id:
+            return current_display_name or ""
+        return ""
+
+    participant_display_names = {resolve_activity_display_name(row) for row in data if resolve_activity_display_name(row)}
+    participant_display_names.update(resolve_activity_display_name(reply) for reply in reply_rows if resolve_activity_display_name(reply))
     badge_lookup = build_user_badge_lookup(participant_display_names, user_eval_rows, user_view_rows, GAMES_DATA, saved_profile_badges)
 
     reaction_map = {}
@@ -942,7 +982,7 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, curr
         evaluation_id = reply['evaluation_id']
         reply_map.setdefault(evaluation_id, [])
         is_blinded = bool(reply.get('is_blinded'))
-        reply_display_name = _activity_display_name(reply)
+        reply_display_name = resolve_activity_display_name(reply)
         reply_map[evaluation_id].append({
             "id": reply['id'],
             "display_name": reply_display_name,
@@ -974,7 +1014,7 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, curr
         if row.get('comment'):
             reaction_info = reaction_map.get(row['id'], {"like_count": 0, "dislike_count": 0, "user_reactions": {}, "user_reactions_by_id": {}})
             is_blinded = bool(row.get('is_blinded'))
-            row_display_name = _activity_display_name(row)
+            row_display_name = resolve_activity_display_name(row)
             stats[m_name]['comments'].append({
                 "id": row['id'],
                 "display_name": row_display_name,
@@ -1000,6 +1040,7 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, curr
         result.append({
             "actual_model_name": m_name,
             "blind_id": blind_mapping.get(m_name, "?"),
+            "model_key": _get_model_key(game_type, m_name),
             "participant_count": count,
             "avg_control": round(s['scores']['control'] / count, 1) if count > 0 else 0,
             "avg_structure": round(s['scores']['structure'] / count, 1) if count > 0 else 0,
@@ -1215,7 +1256,7 @@ async def update_profile_social_providers(payload: SocialProvidersUpdate, reques
 
 
 @app.get("/api/games")
-async def get_games(lang: str = 'ko'):
+async def get_games(lang: str = 'ko', blind_seed: str = ''):
     """Returns games grouped by type, hides actual model names, and includes play counts based on language."""
     response = {}
     
@@ -1223,14 +1264,22 @@ async def get_games(lang: str = 'ko'):
     lang_games = GAMES_DATA.get(lang, GAMES_DATA.get('ko', {}))
     category_meta = get_category_meta(lang_games)
     
+    seed = (blind_seed or "default")[:128]
+    response_models_by_type = {}
     for g_type, models in lang_games.items():
+        response_models = [dict(model) for model in models]
+        random.Random(f"{seed}:{lang}:{g_type}").shuffle(response_models)
+        for index, model in enumerate(response_models):
+            model["blind_id"] = chr(65 + index)
+        response_models_by_type[g_type] = response_models
         response[g_type] = [
             {
                 "blind_id": m["blind_id"],
-                "actual_model": m["actual_model"],
+                "model_key": _get_model_key(g_type, m["actual_model"]),
+                "blind_model_token": _get_blind_model_token(g_type, m["actual_model"]),
                 "file": f"/static/{m['file']}",
             }
-            for m in models
+            for m in response_models
         ]
     
     play_counts = {}
@@ -1266,7 +1315,7 @@ async def get_games(lang: str = 'ko'):
             print("DB Fetch Error:", e)
             
     # Enrich the response with stats
-    for g_type, models in lang_games.items():
+    for g_type, models in response_models_by_type.items():
         if g_type not in response:
             continue
         for m in response[g_type]:
@@ -1283,7 +1332,7 @@ async def get_games(lang: str = 'ko'):
 
 @app.post("/api/play")
 async def record_play(data: PlayEvent, request: Request):
-    actual_model = _find_actual_model(data.game_type, data.blind_model_id)
+    actual_model = _find_actual_model(data.game_type, data.blind_model_id, blind_model_token=data.blind_model_token)
     actor = _get_actor_from_request(request, required=False)
             
     if actual_model:
@@ -1340,7 +1389,12 @@ async def submit_evaluation(eval: Evaluation, request: Request):
     forwarded = request.headers.get("X-Forwarded-For")
     ip = forwarded.split(",")[0] if forwarded else request.client.host
         
-    actual_model = _find_actual_model(eval.game_type, eval.blind_model_id, getattr(eval, 'language', 'ko'))
+    actual_model = _find_actual_model(
+        eval.game_type,
+        eval.blind_model_id,
+        getattr(eval, 'language', 'ko'),
+        blind_model_token=eval.blind_model_token,
+    )
     if not actual_model:
         raise HTTPException(status_code=400, detail="Invalid game type or blind ID")
 
@@ -1465,6 +1519,7 @@ async def get_current_user_evals(request: Request):
                 {
                     "game_type": row["game_type"],
                     "blind_model_id": row["blind_model_id"],
+                    "model_key": _get_model_key(row["game_type"], row["actual_model_name"]),
                     "total_score": row["total_score"],
                     "actual_model_name": row["actual_model_name"],
                 }
@@ -1479,7 +1534,13 @@ async def get_current_user_evals(request: Request):
             .eq('user_id', profile_id)
             .execute()
         )
-        return {"evals": res.data or []}
+        eval_rows = []
+        for row in res.data or []:
+            eval_rows.append({
+                **row,
+                "model_key": _get_model_key(row["game_type"], row["actual_model_name"]),
+            })
+        return {"evals": eval_rows}
     except Exception:
         return {"evals": []}
 
