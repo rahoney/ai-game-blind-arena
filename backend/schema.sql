@@ -1,5 +1,5 @@
 -- Supabase schema for VeilPlays account-owned activity.
--- Legacy nickname-login tables are intentionally not part of this schema.
+-- Legacy display-name login tables are intentionally not part of this schema.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

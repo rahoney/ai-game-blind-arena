@@ -1120,15 +1120,15 @@ async def serve_index():
         return f.read()
 
 
-@app.get("/api/nickname-blocklist.csv")
-async def get_nickname_blocklist():
-    blocklist_path = BASE_DIR / "data" / "nickname_blocklist.csv"
+@app.get("/api/display-name-blocklist.csv")
+async def get_display_name_blocklist():
+    blocklist_path = BASE_DIR / "data" / "display_name_blocklist.csv"
     if not blocklist_path.exists():
-        raise HTTPException(status_code=404, detail="nickname_blocklist_not_found")
+        raise HTTPException(status_code=404, detail="display_name_blocklist_not_found")
     return FileResponse(
         str(blocklist_path),
         media_type="text/csv; charset=utf-8",
-        filename="nickname_blocklist.csv",
+        filename="display_name_blocklist.csv",
     )
 
 

@@ -16,7 +16,7 @@ function getPrivacyPolicyContent() {
                 {
                     heading: '2. Data We Process',
                     body: [
-                        'Account profile information such as login ID, email, display nickname, and linked provider state',
+                        'Account profile information such as login ID, email, display name, and linked provider state',
                         'Evaluation records such as category, blind model ID, score values, and submitted comment text',
                         'Comment interaction data such as likes, dislikes, replies, and moderation state',
                         'View history used for My Page statistics, badge conditions, and gameplay entry history',
@@ -40,7 +40,7 @@ function getPrivacyPolicyContent() {
                     body: [
                         'Core service data is stored in Supabase-backed service storage.',
                         'Browser-side settings such as language preference and seen badge alerts may be stored in localStorage on the user device.',
-                        'Account profile data, display nicknames, evaluations, comments, replies, reactions, and view history may be retained while the service is operated unless deletion, moderation, legal retention, or policy changes require otherwise.',
+                        'Account profile data, display names, evaluations, comments, replies, reactions, and view history may be retained while the service is operated unless deletion, moderation, legal retention, or policy changes require otherwise.',
                         'If a user deletes their account, account identity fields are anonymized or removed. Existing evaluations, comments, replies, reactions, and related service records may remain with deleted-user display wording so the public evaluation dataset is preserved.',
                     ],
                 },

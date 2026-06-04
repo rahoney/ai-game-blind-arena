@@ -33,6 +33,14 @@ const SOCIAL_AUTH_PROVIDERS = {
         providerId: 'oidc.naver',
         createProvider: () => new firebase.auth.OAuthProvider('oidc.naver'),
     },
+    discord: {
+        providerId: 'oidc.discord',
+        createProvider: () => new firebase.auth.OAuthProvider('oidc.discord'),
+    },
+    github: {
+        providerId: 'github.com',
+        createProvider: () => new firebase.auth.GithubAuthProvider(),
+    },
 };
 
 function setSignedOutState() {
@@ -93,7 +101,7 @@ function getFriendlyAuthError(error, mode = 'login') {
             passwordResetLinkFailed: 'Failed to create the password reset link. Please try again later.',
             signupEmailVerificationNotConfigured: 'Email verification is being prepared. Please try again shortly.',
             loginIdTaken: 'This ID is already taken.',
-            displayNameTaken: 'This display nickname is already in use.',
+            displayNameTaken: 'This display name is already in use.',
             loginIdFormat: 'Use only 4-15 letters or numbers.',
             generic: mode === 'signup' ? 'Sign-up failed.' : 'Login failed.',
         },

@@ -20,7 +20,7 @@ let CLIENT_BANNED_DISPLAY_NAME_TERMS = [
 
 async function loadDisplayNameBlocklist() {
     try {
-        const response = await fetch('/api/nickname-blocklist.csv', { cache: 'no-store' });
+        const response = await fetch('/api/display-name-blocklist.csv', { cache: 'no-store' });
         const csvText = await response.text();
         const rows = csvText.replace(/^\uFEFF/, '').split(/\r?\n/).slice(1);
         const reservedTerms = new Set(CLIENT_RESERVED_DISPLAY_NAME_TERMS);

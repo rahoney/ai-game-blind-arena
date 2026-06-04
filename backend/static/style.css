@@ -1197,7 +1197,7 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
     opacity: 1;
 }
 
-.login-nickname-input::placeholder {
+.login-display-name-input::placeholder {
     font-size: 1.18rem;
     font-weight: 600;
 }

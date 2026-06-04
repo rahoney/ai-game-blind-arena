@@ -56,6 +56,8 @@ function renderMyPage() {
         ['google', 'google.com', 'auth_link_google'],
         ['kakao', 'oidc.kakao', 'auth_link_kakao'],
         ['naver', 'oidc.naver', 'auth_link_naver'],
+        ['discord', 'oidc.discord', 'auth_link_discord'],
+        ['github', 'github.com', 'auth_link_github'],
     ].map(([providerKey, providerId, labelKey]) => (
         state.account && !hasLinkedProvider(providerId)
             ? `<button class="secondary" style="width:auto; padding:0.85rem 1rem;" onclick="handleLinkSocialProvider('${providerKey}')">${t(labelKey)}</button>`
@@ -84,7 +86,7 @@ function renderMyPage() {
                 <div>
                     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom:1rem;">
                         <div style="padding:0.85rem 1rem; border:1px solid var(--border-color); border-radius:14px; background:var(--card-bg);">
-                            <div style="font-size:0.82rem; color:var(--text-muted); font-weight:800; margin-bottom:0.25rem;">${t('nickname_label')}</div>
+                            <div style="font-size:0.82rem; color:var(--text-muted); font-weight:800; margin-bottom:0.25rem;">${t('display_name_label')}</div>
                             <div style="font-size:1.25rem; color:var(--text-color); font-weight:900; word-break:break-word;">${escapeHtml(data.display_name || displayName || '-')}</div>
                         </div>
                         <div style="padding:0.85rem 1rem; border:1px solid var(--border-color); border-radius:14px; background:var(--card-bg);">
