@@ -169,14 +169,16 @@ function renderGameList() {
         : category;
 
     const modelsHtml = models.map((model) => {
-        const isEval = checkEvaluated(category, model.blind_id);
-        const actualName = getActualModelNameIfEvaluated(category, model.blind_id);
+        const isEval = checkEvaluated(category, model);
+        const actualName = getActualModelNameIfEvaluated(category, model);
         const evalClass = isEval ? 'completed' : '';
         const titleText = isEval
-            ? `✅ Model ${model.blind_id} <br><span style="color: var(--success); font-size: 0.9em;">(${actualName})</span>`
+            ? `✅ ${escapeHtml(actualName || `Model ${model.blind_id}`)}`
             : `Model ${model.blind_id}`;
 
-        return `<div class="game-card ${evalClass}" onclick="playGame('${model.blind_id}')">
+        const launchDisabled = state.isPlayLaunching ? 'aria-disabled="true" style="pointer-events:none; opacity:0.68;"' : '';
+
+        return `<div class="game-card ${evalClass}" ${launchDisabled} onclick="playGame('${model.blind_id}')">
             <h3>${titleText}</h3>
             <div style="margin-top: 1rem; color: var(--text-muted); font-size: 0.9rem;">${t('view_count')}: ${model.play_count || 0}</div>
             <div style="margin-top: 0.35rem; color: var(--text-muted); font-size: 0.9rem;">${t('eval_count')}: ${model.eval_count || 0}</div>

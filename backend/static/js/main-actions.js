@@ -1,5 +1,10 @@
 async function selectCategory(category) {
     state.selectedCategory = category;
+    try {
+        await apiFetchUserEvals();
+    } catch (e) {
+        console.error('User evaluation load failed', e);
+    }
     navigateTo('list', renderGameList);
 }
 
@@ -106,20 +111,39 @@ async function toggleBlindTarget(targetType, targetId, nextBlindState) {
 }
 
 async function playGame(blindId) {
+    if (state.isPlayLaunching) return;
     state.selectedGame = state.games[state.selectedCategory].find(m => m.blind_id === blindId);
+    if (!state.selectedGame) return;
+    state.isPlayLaunching = true;
     state.playModelCommentsResult = null;
     state.playCommentsLoading = true;
-    await apiRecordPlay(state.selectedCategory, blindId);
-    if (getCurrentProfileDisplayName()) {
-        try {
-            const myPageData = await apiFetchMyPage();
-            notifyNewUnlockedBadges(myPageData, { shouldNotify: true });
-        } catch (e) {
-            // Ignore badge refresh failures during play launch.
+    navigateTo('play', renderPlayArea);
+
+    const selectedCategory = state.selectedCategory;
+    const selectedBlindId = blindId;
+
+    apiRecordPlay(selectedCategory, selectedBlindId, state.selectedGame.blind_model_token || '')
+        .then(async () => {
+            if (!getCurrentProfileDisplayName()) return;
+            try {
+                const myPageData = await apiFetchMyPage();
+                notifyNewUnlockedBadges(myPageData, { shouldNotify: true });
+            } catch (e) {
+                // Ignore badge refresh failures during play launch.
+            }
+        })
+        .catch(() => {
+            // Play launch should not be blocked by statistics recording failures.
+        });
+
+    try {
+        await loadSelectedModelComments({ showLoading: true });
+    } finally {
+        state.isPlayLaunching = false;
+        if (state.currentView?.id === 'list') {
+            renderGameList();
         }
     }
-    navigateTo('play', renderPlayArea);
-    await loadSelectedModelComments({ showLoading: true });
 }
 
 async function loadSelectedModelComments(options = {}) {
@@ -133,7 +157,10 @@ async function loadSelectedModelComments(options = {}) {
 
     try {
         const data = await apiFetchResults(state.selectedCategory);
-        const modelResult = (data.results || []).find(result => result.blind_id === state.selectedGame.blind_id) || null;
+        const modelResult = (data.results || []).find(result => (
+            (state.selectedGame.model_key && result.model_key === state.selectedGame.model_key)
+            || (!state.selectedGame.model_key && result.blind_id === state.selectedGame.blind_id)
+        )) || null;
         state.playModelCommentsResult = modelResult;
     } catch (e) {
         state.playModelCommentsResult = null;
@@ -157,6 +184,7 @@ async function submitEvaluation() {
     const payload = {
         game_type: state.selectedCategory,
         blind_model_id: state.selectedGame.blind_id,
+        blind_model_token: state.selectedGame.blind_model_token || '',
         score_control: parseInt(document.getElementById('score-control').value),
         score_structure: parseInt(document.getElementById('score-structure').value),
         score_presentation: parseInt(document.getElementById('score-presentation').value),

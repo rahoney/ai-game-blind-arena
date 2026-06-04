@@ -402,7 +402,7 @@ function moveEnemies() {
       if (!inBounds(nr, nc)) continue;
       if (grid[nr][nc] === 'W') continue;
       if (occupied.has(`${nr},${nc}`)) continue;
-      // Player와 같은 칸 → 공격
+      // Player와 같은 칸 → attack
       if (nr === player.r && nc === player.c) {
         combatEnemyAttacks(e);
         break;
@@ -416,7 +416,7 @@ function moveEnemies() {
   });
 }
 
-// ── 전투: Enemy이 Player 공격 ──
+// ── 전투: Enemy이 Player attack ──
 function combatEnemyAttacks(enemy) {
   state.player.hp -= ENEMY_DMG;
   addLog('combat', `👺 Enemy attacked! -${ENEMY_DMG} HP (Remaining HP: ${state.player.hp})`);
@@ -426,7 +426,7 @@ function combatEnemyAttacks(enemy) {
   }
 }
 
-// ── 전투: Player가 Enemy 공격 ──
+// ── 전투: Player가 Enemy attack ──
 function combatPlayerAttacks(enemy) {
   enemy.hp -= PLAYER_DMG;
   addLog('combat', `⚔️ Attacked Enemy! -${PLAYER_DMG} (Enemy HP: ${Math.max(0, enemy.hp)})`);

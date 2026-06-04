@@ -1007,7 +1007,7 @@ function updateEnemies(dt, now) {
     const dx = p.x - e.x, dy = p.y - e.y;
     const dist = Math.sqrt(dx*dx + dy*dy);
 
-    // 공격 범위 안이면 공격
+    // attack 범위 안이면 attack
     if (dist < e.attackRange) {
       if (now - e.lastAttack > e.attackCooldown) {
         e.lastAttack = now;

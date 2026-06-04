@@ -451,7 +451,7 @@ function tryMove(dx, dy) {
     // 1. Wall 충돌
     if(state.map[idx] === 1) return;
 
-    // 2. Enemy 충돌 (공격)
+    // 2. Enemy 충돌 (attack)
     const enemyIdx = state.enemies.findIndex(e => e.x === nx && e.y === ny);
     if(enemyIdx !== -1) {
         attackEnemy(enemyIdx);
@@ -484,7 +484,7 @@ function tryMove(dx, dy) {
 }
 
 /**
- * Enemy 공격
+ * Enemy attack
  */
 function attackEnemy(idx) {
     const dmg = 3 + state.level; // Player 피해량
@@ -520,7 +520,7 @@ function enemyTurn() {
         // 다른 Enemy 위에 탑승 방지
         if(state.enemies.some(e => e !== en && e.x === nx && e.y === ny)) return;
 
-        // Player에게 충돌 (공격)
+        // Player에게 충돌 (attack)
         if(nx === state.player.x && ny === state.player.y) {
             takeDamage(1 + Math.floor(state.level/2));
         } else {

@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brick Breaker</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#0a0e1a;
+  display:flex;justify-content:center;align-items:center;
+  min-height:100vh;overflow:hidden;
+  font-family:'Segoe UI',sans-serif;color:#fff;
+}
+#wrap{position:relative;width:800px;height:600px}
+canvas{display:block;border-radius:12px;box-shadow:0 0 40px rgba(80,140,255,.25)}
+#overlay{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  justify-content:center;align-items:center;
+  background:rgba(6,10,24,.92);border-radius:12px;
+  transition:opacity .4s;z-index:10;
+}
+#overlay.hidden{opacity:0;pointer-events:none}
+#overlay h1{font-size:48px;font-weight:700;margin-bottom:8px;letter-spacing:2px}
+#overlay h2{font-size:28px;font-weight:600;margin-bottom:12px}
+#overlay p{font-size:16px;color:#94a3b8;margin-bottom:24px;text-align:center;line-height:1.6}
+.btn{
+  padding:14px 48px;font-size:18px;font-weight:600;border:none;border-radius:8px;
+  cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;
+  box-shadow:0 4px 20px rgba(99,102,241,.4);transition:transform .15s,box-shadow .15s;
+}
+.btn:hover{transform:translateY(-2px);box-shadow:0 6px 28px rgba(99,102,241,.6)}
+.btn:active{transform:translateY(0)}
+#hud{
+  position:absolute;top:12px;left:16px;right:16px;display:flex;
+  justify-content:space-between;font-size:15px;font-weight:600;z-index:5;
+  pointer-events:none;
+}
+.hud-box{
+  background:rgba(255,255,255,.08);backdrop-filter:blur(6px);
+  padding:6px 16px;border-radius:6px;
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="800" height="600"></canvas>
+  <div id="hud">
+    <div class="hud-box" id="scoreEl">Score: 0</div>
+    <div class="hud-box" id="livesEl">❤ 3</div>
+  </div>
+  <div id="overlay">
+    <h1 id="oTitle">🧱 Brick Breaker</h1>
+    <h2 id="oSub"></h2>
+    <p id="oDesc">Control the paddle with ← → arrow keys<br>Break bricks to drop items!</p>
+    <button class="btn" id="oBtn">Start Game</button>
+  </div>
+</div>
+
+<script>
+// localized comment
+const cvs = document.getElementById('c');
+const ctx = cvs.getContext('2d');
+const W = cvs.width, H = cvs.height;
+
+// localized comment
+const overlay = document.getElementById('overlay');
+const oTitle  = document.getElementById('oTitle');
+const oSub    = document.getElementById('oSub');
+const oDesc   = document.getElementById('oDesc');
+const oBtn    = document.getElementById('oBtn');
+const scoreEl = document.getElementById('scoreEl');
+const livesEl = document.getElementById('livesEl');
+
+// localized comment
+let score, lives, running, won, bricks, particles, items, combo;
+let paddle, ball;
+const keys = {};
+
+// localized comment
+const COLS = 10, ROWS = 6, BW = 70, BH = 24, BPAD = 6;
+const BX0 = (W - (COLS * (BW + BPAD) - BPAD)) / 2;
+const BY0 = 60;
+const ROW_COLORS = ['#f43f5e','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6'];
+const ROW_SCORES  = [60,50,40,30,20,10];
+
+// localized comment
+const ITEM_TYPES = [
+  {type:'wide',  color:'#38bdf8', label:'W', desc:'Paddle Expand'},
+  {type:'multi', color:'#a78bfa', label:'M', desc:'Multiball'},
+  {type:'life',  color:'#f472b6', label:'♥', desc:'Life +1'},
+  {type:'fast',  color:'#fb923c', label:'F', desc:'Speed Up'},
+  {type:'slow',  color:'#4ade80', label:'S', desc:'Speed Down'},
+];
+
+// localized comment
+function init(){
+  score=0; lives=3; running=true; won=false; combo=0;
+  particles=[]; items=[];
+  scoreEl.textContent='Score: 0';
+  livesEl.textContent='❤ '+lives;
+
+  // localized comment
+  paddle = {w:120, h:14, x:W/2-60, y:H-40, speed:8, baseW:120};
+
+  // localized comment
+  ball = [];
+  resetBall();
+
+  // localized comment
+  bricks = [];
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    bricks.push({
+      x: BX0 + c*(BW+BPAD),
+      y: BY0 + r*(BH+BPAD),
+      w: BW, h: BH,
+      color: ROW_COLORS[r],
+      pts: ROW_SCORES[r],
+      alive: true,
+      // localized comment
+      hasItem: Math.random() < 0.25,
+      hp: r < 2 ? 2 : 1 // top two rows have 2 HP
+    });
+  }
+}
+
+function resetBall(){
+  ball = [{x:W/2, y:H-60, dx:4*(Math.random()>.5?1:-1), dy:-5, r:7}];
+}
+
+// localized comment
+function spawnParticles(x, y, color, count=12){
+  for(let i=0;i<count;i++){
+    const angle = Math.random()*Math.PI*2;
+    const speed = 1.5 + Math.random()*4;
+    particles.push({
+      x, y,
+      dx: Math.cos(angle)*speed,
+      dy: Math.sin(angle)*speed,
+      life: 1,
+      decay: 0.015 + Math.random()*0.025,
+      size: 2 + Math.random()*4,
+      color
+    });
+  }
+}
+
+// localized comment
+function spawnItem(x, y){
+  const t = ITEM_TYPES[Math.floor(Math.random()*ITEM_TYPES.length)];
+  items.push({x, y, dy:2, w:26, h:26, ...t, life:1});
+}
+
+// localized comment
+function applyItem(item){
+  switch(item.type){
+    case 'wide':
+      paddle.w = Math.min(220, paddle.w + 40);
+      // localized comment
+      setTimeout(()=>{ paddle.w = paddle.baseW; }, 8000);
+      break;
+    case 'multi':
+      // localized comment
+      const nb = [];
+      ball.forEach(b=>{
+        nb.push({x:b.x,y:b.y,dx:b.dx,dy:b.dy,r:b.r});
+        nb.push({x:b.x,y:b.y,dx:-b.dx,dy:b.dy,r:b.r});
+      });
+      ball = nb;
+      break;
+    case 'life':
+      lives = Math.min(5, lives+1);
+      livesEl.textContent='❤ '+lives;
+      break;
+    case 'fast':
+      ball.forEach(b=>{ const s=Math.sqrt(b.dx*b.dx+b.dy*b.dy); b.dx*=1.3; b.dy*=1.3; });
+      break;
+    case 'slow':
+      ball.forEach(b=>{ b.dx*=0.7; b.dy*=0.7; });
+      break;
+  }
+  spawnParticles(item.x, item.y, item.color, 20);
+}
+
+// localized comment
+function ballBrickCollision(b, br){
+  const cx = Math.max(br.x, Math.min(b.x, br.x+br.w));
+  const cy = Math.max(br.y, Math.min(b.y, br.y+br.h));
+  const dx = b.x - cx, dy = b.y - cy;
+  if(dx*dx+dy*dy < b.r*b.r){
+    // localized comment
+    const overlapX = b.r - Math.abs(dx);
+    const overlapY = b.r - Math.abs(dy);
+    if(overlapX < overlapY) b.dx = -b.dx; else b.dy = -b.dy;
+    return true;
+  }
+  return false;
+}
+
+// localized comment
+function update(){
+  if(!running) return;
+
+  // paddle movement
+  if(keys['ArrowLeft']||keys['a'])  paddle.x -= paddle.speed;
+  if(keys['ArrowRight']||keys['d']) paddle.x += paddle.speed;
+  paddle.x = Math.max(0, Math.min(W - paddle.w, paddle.x));
+
+  // localized comment
+  const deadBalls = [];
+  ball.forEach((b,i)=>{
+    b.x += b.dx;
+    b.y += b.dy;
+
+    // Wall
+    if(b.x - b.r < 0){ b.x = b.r; b.dx = Math.abs(b.dx); }
+    if(b.x + b.r > W){ b.x = W - b.r; b.dx = -Math.abs(b.dx); }
+    if(b.y - b.r < 0){ b.y = b.r; b.dy = Math.abs(b.dy); }
+
+    // localized comment
+    if(b.y - b.r > H){
+      deadBalls.push(i);
+      return;
+    }
+
+    // localized comment
+    if(b.dy > 0 &&
+       b.y + b.r >= paddle.y && b.y + b.r <= paddle.y + paddle.h + 6 &&
+       b.x >= paddle.x - b.r && b.x <= paddle.x + paddle.w + b.r){
+      b.dy = -Math.abs(b.dy);
+      // localized comment
+      const hit = (b.x - paddle.x) / paddle.w; // 0~1
+      b.dx = (hit - 0.5) * 10;
+      b.y = paddle.y - b.r;
+      // localized comment
+      const spd = Math.sqrt(b.dx*b.dx+b.dy*b.dy);
+      const targetSpd = 5.5;
+      b.dx = b.dx/spd*targetSpd;
+      b.dy = b.dy/spd*targetSpd;
+      combo = 0;
+    }
+
+    // localized comment
+    bricks.forEach(br=>{
+      if(!br.alive) return;
+      if(ballBrickCollision(b, br)){
+        br.hp--;
+        if(br.hp <= 0){
+          br.alive = false;
+          combo++;
+          score += br.pts * (1 + Math.floor(combo/3));
+          scoreEl.textContent = 'Score: ' + score;
+          spawnParticles(br.x+br.w/2, br.y+br.h/2, br.color, 16);
+          if(br.hasItem) spawnItem(br.x+br.w/2, br.y+br.h/2);
+        } else {
+          spawnParticles(br.x+br.w/2, br.y+br.h/2, '#ffffff', 5);
+        }
+      }
+    });
+  });
+
+  // localized comment
+  for(let i=deadBalls.length-1;i>=0;i--) ball.splice(deadBalls[i],1);
+
+  // localized comment
+  if(ball.length === 0){
+    lives--;
+    livesEl.textContent = '❤ ' + lives;
+    if(lives <= 0){
+      endGame(false);
+    } else {
+      resetBall();
+    }
+  }
+
+  // localized comment
+  if(bricks.every(b=>!b.alive)) endGame(true);
+
+  // localized comment
+  items.forEach((it,i)=>{
+    it.y += it.dy;
+    // localized comment
+    if(it.y + it.h >= paddle.y && it.y <= paddle.y+paddle.h &&
+       it.x + it.w/2 >= paddle.x && it.x - it.w/2 <= paddle.x+paddle.w){
+      applyItem(it);
+      it.life = 0;
+    }
+    if(it.y > H+30) it.life = 0;
+  });
+  items = items.filter(it=>it.life>0);
+
+  // localized comment
+  particles.forEach(p=>{
+    p.x += p.dx; p.y += p.dy;
+    p.dy += 0.06; // gravity
+    p.life -= p.decay;
+  });
+  particles = particles.filter(p=>p.life>0);
+}
+
+// localized comment
+function draw(){
+  // localized comment
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0,0,W,H);
+
+  // localized comment
+  ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+  ctx.lineWidth = 1;
+  for(let i=0;i<W;i+=40){ ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,H);ctx.stroke(); }
+  for(let i=0;i<H;i+=40){ ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(W,i);ctx.stroke(); }
+
+  // localized comment
+  bricks.forEach(br=>{
+    if(!br.alive) return;
+    const grad = ctx.createLinearGradient(br.x, br.y, br.x, br.y+br.h);
+    grad.addColorStop(0, br.color);
+    grad.addColorStop(1, shadeColor(br.color, -30));
+    ctx.fillStyle = grad;
+    roundRect(br.x, br.y, br.w, br.h, 4);
+    ctx.fill();
+
+    // localized comment
+    if(br.hp >= 2){
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 2;
+      roundRect(br.x+3, br.y+3, br.w-6, br.h-6, 2);
+      ctx.stroke();
+    }
+
+    // localized comment
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(br.x+4, br.y+2, br.w-8, 3);
+  });
+
+  // localized comment
+  items.forEach(it=>{
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.shadowColor = it.color;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = it.color;
+    ctx.beginPath();
+    ctx.arc(it.x, it.y, 13, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(it.label, it.x, it.y);
+    ctx.restore();
+  });
+
+  // localized comment
+  const pGrad = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x+paddle.w, paddle.y);
+  pGrad.addColorStop(0, '#6366f1');
+  pGrad.addColorStop(0.5, '#818cf8');
+  pGrad.addColorStop(1, '#6366f1');
+  ctx.fillStyle = pGrad;
+  ctx.shadowColor = '#818cf8';
+  ctx.shadowBlur = 16;
+  roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 7);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // localized comment
+  ball.forEach(b=>{
+    ctx.save();
+    ctx.shadowColor = '#e0e7ff';
+    ctx.shadowBlur = 12;
+    const bGrad = ctx.createRadialGradient(b.x-2, b.y-2, 0, b.x, b.y, b.r);
+    bGrad.addColorStop(0, '#ffffff');
+    bGrad.addColorStop(1, '#c7d2fe');
+    ctx.fillStyle = bGrad;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    // localized comment
+    ctx.fillStyle = 'rgba(199,210,254,0.3)';
+    ctx.beginPath();
+    ctx.arc(b.x - b.dx*1.2, b.y - b.dy*1.2, b.r*0.7, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  // localized comment
+  particles.forEach(p=>{
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI*2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+// localized comment
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+function shadeColor(col,pct){
+  let r=parseInt(col.slice(1,3),16),g=parseInt(col.slice(3,5),16),b=parseInt(col.slice(5,7),16);
+  r=Math.max(0,Math.min(255,r+pct));
+  g=Math.max(0,Math.min(255,g+pct));
+  b=Math.max(0,Math.min(255,b+pct));
+  return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+
+// ─── Game Over ───
+function endGame(victory){
+  running = false;
+  won = victory;
+  overlay.classList.remove('hidden');
+  oTitle.textContent = victory ? '🎉 Victory!' : '💀 Game Over';
+  oSub.textContent = 'Final Score: ' + score;
+  oDesc.innerHTML = victory
+    ? 'You cleared every brick!'
+    : 'Try again!';
+  oBtn.textContent = 'Restart';
+}
+
+// localized comment
+oBtn.addEventListener('click', ()=>{
+  overlay.classList.add('hidden');
+  init();
+});
+
+// localized comment
+document.addEventListener('keydown', e=>{
+  keys[e.key] = true;
+  // localized comment
+  if(['ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
+});
+document.addEventListener('keyup', e=>{ keys[e.key] = false; });
+
+// localized comment
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// localized comment
+init();
+loop();
+</script>
+</body>
+</html>

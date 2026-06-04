@@ -604,7 +604,7 @@ class Player {
     this.jumpReleased = true; // 릴리즈 감지
     this.invincible  = 0;     // 무적 시간(프레임)
     this.attackCooldown = 0;
-    this.attacking   = 0;     // 공격 애니메이션 프레임
+    this.attacking   = 0;     // attack 애니메이션 프레임
     this.facing      = 1;     // 1=오른쪽, -1=왼쪽
     this.dead        = false;
     this.deathTimer  = 0;
@@ -622,7 +622,7 @@ class Player {
       return;
     }
 
-    // 무적/공격 타이머 감소
+    // 무적/attack 타이머 감소
     if (this.invincible > 0) this.invincible--;
     if (this.starActive  > 0) this.starActive--;
     if (this.attackCooldown > 0) this.attackCooldown--;
@@ -681,7 +681,7 @@ class Player {
     this.vy += GRAVITY;
     this.vy = Math.min(this.vy, MAX_FALL);
 
-    // ── 공격 ──
+    // ── attack ──
     const attack = isAttackKey() || (gpAttack() && !gpAttackPrev);
     if (attack && this.attackCooldown <= 0) {
       this.attacking = 15;
@@ -784,7 +784,7 @@ class Player {
     spawnParticles(this.x + this.w/2, this.y + this.h/2, 16, [COLORS.playerBody, '#fff', '#f44'], 8, 60);
   }
 
-  // 공격 히트박스 반환
+  // attack 히트박스 반환
   getAttackBox() {
     if (this.attacking <= 0) return null;
     const aw = 28, ah = 20;
@@ -846,7 +846,7 @@ class Player {
     ctx.roundRect(this.w/2 - 12, this.h/2 - 12 - legOff, 10, 10, 3);
     ctx.fill();
 
-    // 공격 이펙트
+    // attack 이펙트
     if (this.attacking > 0) {
       ctx.strokeStyle = '#ff0';
       ctx.lineWidth = 3;
@@ -1489,7 +1489,7 @@ function update() {
           score += e.scoreValue;
           addFloatText(`+${e.scoreValue}`, e.x + e.w/2, e.y, COLORS.scoreColor);
         } else if (attackBox && rectsOverlap(attackBox, e)) {
-          // 공격으로 처치
+          // attack으로 처치
           e.takeDamage(10);
           score += e.scoreValue;
           addFloatText(`+${e.scoreValue}`, e.x + e.w/2, e.y, COLORS.scoreColor);
@@ -2127,7 +2127,7 @@ function draw() {
   // 적들
   for (const e of enemies) e.draw(camX, camY);
 
-  // 플레이어 (공격 히트박스 디버그 - 필요 시 주석 해제)
+  // 플레이어 (attack 히트박스 디버그 - 필요 시 주석 해제)
   // const ab = player.getAttackBox();
   // if (ab) { ctx.strokeStyle='#ff0'; ctx.strokeRect(ab.x-camX, ab.y-camY, ab.w, ab.h); }
 

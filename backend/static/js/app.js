@@ -9,6 +9,9 @@ async function initApp() {
     applyDocumentLanguage();
     await initializeFirebaseAuth();
     try { await apiFetchGames(); } catch (e) { console.error("Game data load failed", e); }
+    if (state.authUser) {
+        try { await apiFetchUserEvals(); } catch (e) { console.error("User evaluation load failed", e); }
+    }
     if (state.authMode === 'verify_email') {
         navigateTo('login', renderLogin);
         return;

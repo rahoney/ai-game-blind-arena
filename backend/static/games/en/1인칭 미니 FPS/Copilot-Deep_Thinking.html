@@ -549,7 +549,7 @@ function killEnemy(enemy){
   playBeep(400,0.12,'sine',0.16);
 }
 
-/* 적이 플레이어를 공격했을 때 */
+/* 적이 플레이어를 attack했을 때 */
 function damagePlayer(amount){
   state.player.health -= amount;
   state.player.health = Math.max(0, state.player.health);

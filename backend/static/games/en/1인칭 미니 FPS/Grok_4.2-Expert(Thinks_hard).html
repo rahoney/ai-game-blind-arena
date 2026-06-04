@@ -387,7 +387,7 @@
                     geometry = new THREE.BoxGeometry(1.9, 2.1, 1.9);
                     color = 0x22ff44;
                     scaleY = 1.1;
-                } else { // 헌터 - 파랑, 원거리 공격 가능
+                } else { // 헌터 - 파랑, 원거리 attack 가능
                     geometry = new THREE.ConeGeometry(0.7, 1.8, 6);
                     color = 0x4488ff;
                 }
@@ -413,7 +413,7 @@
                 dir.y = 0;
                 const distance = dir.length();
                 
-                // 너무 가까우면 공격
+                // 너무 가까우면 attack
                 if (distance < 2.8) {
                     const now = Date.now();
                     if (now - this.lastAttack > this.attackCooldown) {
@@ -442,7 +442,7 @@
                     this.mesh.lookAt(playerPos.x, this.mesh.position.y, playerPos.z);
                 }
                 
-                // 헌터 전용 원거리 공격
+                // 헌터 전용 원거리 attack
                 if (this.type === 2 && distance > 4 && distance < 22) {
                     const now = Date.now();
                     if (now - this.lastShot > 1350) {
@@ -805,7 +805,7 @@
                 keys[e.key] = false;
             });
             
-            // Mouse Click 공격
+            // Mouse Click attack
             const canvas = renderer.domElement;
             canvas.addEventListener('mousedown', e => {
                 if (gameState !== 'playing' || !document.pointerLockElement) return;
@@ -819,7 +819,7 @@
                 playSound(920, 0.07, 'sawtooth', 0.45);
                 playSound(680, 0.04, 'sawtooth', 0.3, 300);
                 
-                // Raycast 공격
+                // Raycast attack
                 const raycaster = new THREE.Raycaster();
                 raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
                 

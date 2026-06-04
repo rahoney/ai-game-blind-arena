@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+  <title>2D 로그라이크 던전 · Fog of War</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0c0f;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Segoe UI', 'Courier New', monospace;
+      padding: 1rem;
+      margin: 0;
+    }
+
+    .game-container {
+      background: #1e1e2f;
+      border: 3px solid #4e3b5e;
+      border-radius: 2rem;
+      padding: 2rem 2rem 1.8rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.7), inset 0 0 15px #3c2a44;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.2rem;
+      max-width: 650px;
+      width: fit-content;
+      margin: auto;
+    }
+
+    .status-panel {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      background: #2a2435;
+      border: 2px solid #5b4b6b;
+      border-radius: 3rem;
+      padding: 0.7rem 2rem;
+      color: #f3e3c9;
+      font-weight: bold;
+      font-size: 1.2rem;
+      letter-spacing: 0.5px;
+      box-shadow: 0 6px 0 #3a2e44;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+    }
+
+    .hp {
+      background: #1f1a24;
+      padding: 0.4rem 1.2rem;
+      border-radius: 2rem;
+      color: #f5b895;
+      text-shadow: 0 0 6px #b45f3a;
+    }
+
+    .enemy-hp {
+      background: #1f1a24;
+      padding: 0.4rem 1.2rem;
+      border-radius: 2rem;
+      color: #d49b9b;
+      text-shadow: 0 0 6px #a13d3d;
+    }
+
+    .grid-wrapper {
+      background: #17141c;
+      border: 4px solid #5e4b66;
+      border-radius: 1.8rem;
+      padding: 0.7rem;
+      box-shadow: inset 0 0 20px #000000, 0 10px 15px rgba(0,0,0,0.6);
+    }
+
+    .dungeon-grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      gap: 3px;
+      background: #2e2537;
+      padding: 3px;
+      border-radius: 1.2rem;
+      aspect-ratio: 1 / 1;
+      width: min(65vw, 65vh, 450px);
+      max-width: 450px;
+      margin: 0 auto;
+    }
+
+    .cell {
+      background: #1b1620;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(1.2rem, 4vw, 2rem);
+      transition: all 0.08s ease;
+      box-shadow: inset 0 0 0 1px #3f3347;
+      aspect-ratio: 1 / 1;
+      color: #d8cfc0;
+      text-shadow: 0 0 8px currentColor;
+      user-select: none;
+    }
+
+    .cell.visible {
+      background: #2b2335;
+      box-shadow: inset 0 0 0 1px #7b5f88, 0 0 12px #3b2c42;
+    }
+
+    .cell.player {
+      background: #3c5a4b;
+      color: #d4ffb0;
+      text-shadow: 0 0 16px #b9f57b, 0 0 5px black;
+      font-weight: bold;
+      filter: drop-shadow(0 0 6px #83c98b);
+    }
+
+    .cell.enemy {
+      background: #5a3e3e;
+      color: #ffb4a2;
+      text-shadow: 0 0 14px #e35f4f;
+    }
+
+    .cell.item {
+      background: #3b4a5c;
+      color: #b2e0fa;
+      text-shadow: 0 0 12px #5fa3d1;
+    }
+
+    .cell.exit {
+      background: #5b4c3b;
+      color: #ffd966;
+      text-shadow: 0 0 18px #f5b042, 0 0 6px black;
+    }
+
+    .cell.hidden {
+      background: #0f0c14;
+      color: transparent;
+      text-shadow: none;
+      box-shadow: inset 0 0 0 1px #2a2230;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      margin-top: 0.3rem;
+    }
+
+    .direction-pad {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .dir-row {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .dir-btn {
+      background: #2f263a;
+      border: none;
+      color: #ecd7bc;
+      font-size: 1.8rem;
+      font-weight: bold;
+      width: 3rem;
+      height: 3rem;
+      border-radius: 1rem;
+      box-shadow: 0 5px 0 #1a1420, 0 4px 8px black;
+      cursor: pointer;
+      transition: all 0.06s linear;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      background: #362d40;
+    }
+
+    .dir-btn:active {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 #0f0b14, 0 6px 10px black;
+      background: #4b3c5c;
+    }
+
+    .restart-btn {
+      background: #382e3f;
+      border: none;
+      font-size: 1.4rem;
+      font-weight: bold;
+      color: #f2d9b1;
+      padding: 0.7rem 1.8rem;
+      border-radius: 3rem;
+      box-shadow: 0 5px 0 #1f1827, 0 5px 12px black;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: 0.08s;
+      background: #3d3148;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .restart-btn:active {
+      transform: translateY(3px);
+      box-shadow: 0 2px 0 #100b16, 0 6px 12px black;
+    }
+
+    .message-area {
+      color: #ebd6b0;
+      font-weight: bold;
+      font-size: 1.1rem;
+      background: #231d2b;
+      padding: 0.3rem 1.8rem;
+      border-radius: 2rem;
+      text-align: center;
+      min-height: 2.5rem;
+      display: flex;
+      align-items: center;
+    }
+
+    .screen-overlay {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.8rem;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    button {
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+<div class="game-container" id="gameContainer">
+  <!-- 시작 화면 / 엔딩 화면 등에서 전환 -->
+  <div id="startScreen" class="screen-overlay">
+    <div style="font-size: 2.5rem; color:#f7e3b2; text-shadow:0 0 20px #c28b4b;">⚔️ 어둠의 로그라이크 ⚔️</div>
+    <div style="color:#cbb9d9; font-size:1.2rem; text-align:center;">8x8 던전 · Fog of War</div>
+    <button id="startGameBtn" class="restart-btn" style="font-size:2rem; padding:0.8rem 2.5rem;">🏁 모험 시작</button>
+    <div style="color:#9b8cac; margin-top:0.5rem;">⬆️⬇️⬅️➡️ 또는 WASD</div>
+  </div>
+
+  <!-- 실제 게임 화면 (초기 숨김) -->
+  <div id="gameScreen" class="hidden" style="display: flex; flex-direction: column; align-items: center; gap: 1rem; width: 100%;">
+    <div class="status-panel">
+      <span class="hp">❤️ <span id="playerHpDisplay">20</span></span>
+      <span class="enemy-hp">👾 적 <span id="enemyHpDisplay">?/?</span></span>
+      <span>📍 <span id="turnInfo">1</span>턴</span>
+    </div>
+    <div class="grid-wrapper">
+      <div class="dungeon-grid" id="dungeonGrid"></div>
+    </div>
+    <div class="controls">
+      <div class="direction-pad">
+        <div class="dir-row">
+          <button class="dir-btn" data-dir="up">▲</button>
+        </div>
+        <div class="dir-row">
+          <button class="dir-btn" data-dir="left">◀</button>
+          <button class="dir-btn" data-dir="down">▼</button>
+          <button class="dir-btn" data-dir="right">▶</button>
+        </div>
+      </div>
+      <button id="restartFromGameBtn" class="restart-btn">🔄 다시 시작</button>
+    </div>
+    <div class="message-area" id="gameMessage">⬆️ 방향키로 이동하세요</div>
+  </div>
+
+  <!-- 승리/패배 overlay (게임 화면 위에 표시) -->
+  <div id="endScreen" class="hidden screen-overlay" style="position: absolute; background: rgba(10, 8, 15, 0.9); border-radius: 2rem; padding: 2.5rem; z-index: 10;">
+    <div id="endTitle" style="font-size: 2.8rem; font-weight: bold; color:#f3cd81;"></div>
+    <div id="endSub" style="color:#ccbbdd; font-size:1.3rem;"></div>
+    <button id="playAgainBtn" class="restart-btn" style="font-size:1.8rem;">🔁 다시 도전</button>
+  </div>
+</div>
+
+<script>
+  (function() {
+    // ----- 게임 설정 -----
+    const SIZE = 8;
+    const WALL_PROBABILITY = 0.22; // 벽 생성 확률 (도달 가능 보장을 위해 조정)
+    
+    // 던전 요소 심볼
+    const TILE = {
+      FLOOR: '·',
+      WALL: '🪨',
+      PLAYER: '🧙',
+      ENEMY: '👾',
+      ITEM: '💚',
+      EXIT: '🚪'
+    };
+
+    // 게임 상태 변수
+    let grid = [];                 // 2D 문자 배열 (벽, 바닥 등)
+    let fogMask = [];            // boolean 2D: true면 시야 내 보임
+    let playerPos = { r: 0, c: 0 };
+    let playerHp = 20;
+    let maxPlayerHp = 20;
+    
+    let enemyPos = { r: -1, c: -1 };
+    let enemyHp = 12;
+    let maxEnemyHp = 12;
+    let enemyAlive = true;
+    
+    let itemPos = { r: -1, c: -1 };
+    let itemActive = true;
+    
+    let exitPos = { r: -1, c: -1 };
+    
+    let turnCount = 0;
+    let gameOver = false;
+    let gameResult = null; // 'win', 'lose', null
+    
+    // DOM 요소
+    const startScreen = document.getElementById('startScreen');
+    const gameScreen = document.getElementById('gameScreen');
+    const endScreen = document.getElementById('endScreen');
+    const dungeonGridEl = document.getElementById('dungeonGrid');
+    const playerHpSpan = document.getElementById('playerHpDisplay');
+    const enemyHpSpan = document.getElementById('enemyHpDisplay');
+    const turnInfoSpan = document.getElementById('turnInfo');
+    const gameMessageEl = document.getElementById('gameMessage');
+    const endTitleEl = document.getElementById('endTitle');
+    const endSubEl = document.getElementById('endSub');
+    
+    // ----- 유틸리티 함수 -----
+    function randomInt(max) {
+      return Math.floor(Math.random() * max);
+    }
+    
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = randomInt(i + 1);
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+    
+    // 두 좌표 간 맨해튼 거리
+    function manhattan(r1, c1, r2, c2) {
+      return Math.abs(r1 - r2) + Math.abs(c1 - c2);
+    }
+    
+    // 그리드 범위 체크
+    function inBounds(r, c) {
+      return r >= 0 && r < SIZE && c >= 0 && c < SIZE;
+    }
+    
+    // 벽이 아닌지 확인
+    function isWalkable(r, c, gridData) {
+      return inBounds(r, c) && gridData[r][c] !== TILE.WALL;
+    }
+    
+    // BFS로 두 지점 연결 여부 확인 (벽 제외)
+    function isPathExists(startR, startC, endR, endC, gridData) {
+      if (!isWalkable(startR, startC, gridData) || !isWalkable(endR, endC, gridData)) return false;
+      const visited = Array(SIZE).fill().map(() => Array(SIZE).fill(false));
+      const queue = [{r: startR, c: startC}];
+      visited[startR][startC] = true;
+      const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+      
+      while (queue.length > 0) {
+        const {r, c} = queue.shift();
+        if (r === endR && c === endC) return true;
+        for (let [dr, dc] of dirs) {
+          const nr = r + dr, nc = c + dc;
+          if (isWalkable(nr, nc, gridData) && !visited[nr][nc]) {
+            visited[nr][nc] = true;
+            queue.push({r: nr, c: nc});
+          }
+        }
+      }
+      return false;
+    }
+    
+    // 플레이어 주변 3x3 시야 (체비셰프 거리 1) + 현재 칸
+    function updateFogMask() {
+      // 전체 false로 초기화
+      for (let r = 0; r < SIZE; r++) {
+        fogMask[r].fill(false);
+      }
+      if (!playerPos) return;
+      const pr = playerPos.r, pc = playerPos.c;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const nr = pr + dr, nc = pc + dc;
+          if (inBounds(nr, nc)) {
+            fogMask[nr][nc] = true;
+          }
+        }
+      }
+      // 플레이어 위치는 항상 보임 (이미 포함)
+    }
+    
+    // 현재 그리드와 Fog of War를 기반으로 셀 렌더링
+    function renderGrid() {
+      // 먼저 fog 갱신
+      updateFogMask();
+      
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          const cell = document.querySelector(`.cell[data-r='${r}'][data-c='${c}']`);
+          if (!cell) continue;
+          
+          const visible = fogMask[r][c];
+          // visible 클래스 토글
+          cell.classList.remove('visible', 'hidden', 'player', 'enemy', 'item', 'exit');
+          
+          if (!visible) {
+            cell.classList.add('hidden');
+            cell.textContent = '';  // 숨김 상태에서는 아무것도 표시 안 함
+            continue;
+          }
+          
+          // 보이는 칸
+          cell.classList.add('visible');
+          const tileChar = grid[r][c];
+          
+          // 실제 엔티티 표시 (플레이어, 적, 아이템, 출구 우선)
+          if (r === playerPos.r && c === playerPos.c) {
+            cell.textContent = TILE.PLAYER;
+            cell.classList.add('player');
+          } else if (enemyAlive && r === enemyPos.r && c === enemyPos.c) {
+            cell.textContent = TILE.ENEMY;
+            cell.classList.add('enemy');
+          } else if (itemActive && r === itemPos.r && c === itemPos.c) {
+            cell.textContent = TILE.ITEM;
+            cell.classList.add('item');
+          } else if (r === exitPos.r && c === exitPos.c) {
+            cell.textContent = TILE.EXIT;
+            cell.classList.add('exit');
+          } else {
+            // 일반 타일 (벽 또는 바닥)
+            cell.textContent = tileChar;
+            if (tileChar === TILE.WALL) {
+              cell.style.color = '#6b5b7c';
+            } else {
+              cell.style.color = '#d8cfc0';
+            }
+          }
+        }
+      }
+      
+      // 상태 패널 업데이트
+      playerHpSpan.textContent = playerHp;
+      if (enemyAlive) {
+        enemyHpSpan.textContent = `${enemyHp}/${maxEnemyHp}`;
+      } else {
+        enemyHpSpan.textContent = `처치됨`;
+      }
+      turnInfoSpan.textContent = turnCount;
+    }
+    
+    // 전투 처리: 플레이어와 적 접촉 시
+    function engageCombat() {
+      if (!enemyAlive) return;
+      // 서로 피해
+      const playerDamage = Math.floor(Math.random() * 5) + 3; // 3~7
+      const enemyDamage = Math.floor(Math.random() * 4) + 2;  // 2~5
+      
+      playerHp = Math.max(0, playerHp - enemyDamage);
+      enemyHp = Math.max(0, enemyHp - playerDamage);
+      
+      let combatMsg = `⚔️ 전투! 플레이어 -${enemyDamage}, 적 -${playerDamage}`;
+      
+      if (enemyHp <= 0) {
+        enemyAlive = false;
+        combatMsg += ' | 적 처치!';
+      }
+      if (playerHp <= 0) {
+        gameOver = true;
+        gameResult = 'lose';
+        combatMsg += ' | 💀 플레이어 사망...';
+      }
+      
+      gameMessageEl.textContent = combatMsg;
+      
+      if (gameOver) {
+        showEndScreen();
+      }
+      renderGrid();
+    }
+    
+    // 아이템 획득
+    function collectItem() {
+      if (!itemActive) return;
+      const healAmount = Math.floor(Math.random() * 8) + 5; // 5~12
+      playerHp = Math.min(maxPlayerHp, playerHp + healAmount);
+      itemActive = false;
+      gameMessageEl.textContent = `💚 회복 +${healAmount}! 현재 체력 ${playerHp}`;
+      renderGrid();
+    }
+    
+    // 탈출구 도달 처리
+    function reachExit() {
+      gameOver = true;
+      gameResult = 'win';
+      gameMessageEl.textContent = '✨ 탈출 성공! 어둠을 벗어났습니다.';
+      showEndScreen();
+      renderGrid();
+    }
+    
+    // 플레이어 이동 로직
+    function attemptMove(dr, dc) {
+      if (gameOver) {
+        return;
+      }
+      
+      const newR = playerPos.r + dr;
+      const newC = playerPos.c + dc;
+      
+      if (!inBounds(newR, newC)) {
+        gameMessageEl.textContent = '🗻 벽 너머로 갈 수 없습니다.';
+        renderGrid();
+        return;
+      }
+      
+      if (grid[newR][newC] === TILE.WALL) {
+        gameMessageEl.textContent = '🪨 벽에 막혔습니다.';
+        renderGrid();
+        return;
+      }
+      
+      // 이동 실행
+      playerPos = { r: newR, c: newC };
+      turnCount++;
+      
+      // 이동 후 상호작용 체크
+      // 1. 적과 같은 칸? (적이 살아있을 때)
+      if (enemyAlive && playerPos.r === enemyPos.r && playerPos.c === enemyPos.c) {
+        engageCombat();
+        renderGrid();
+        return;
+      }
+      
+      // 2. 아이템 획득
+      if (itemActive && playerPos.r === itemPos.r && playerPos.c === itemPos.c) {
+        collectItem();
+        // 아이템 획득 후에도 이동 완료, 추가 이동 없음
+        renderGrid();
+        return;
+      }
+      
+      // 3. 탈출구 도달
+      if (playerPos.r === exitPos.r && playerPos.c === exitPos.c) {
+        reachExit();
+        return;
+      }
+      
+      // 일반 이동 메시지
+      gameMessageEl.textContent = `이동했습니다. (${turnCount}턴)`;
+      renderGrid();
+    }
+    
+    // 승리/패배 화면 표시
+    function showEndScreen() {
+      if (!gameOver) return;
+      endScreen.classList.remove('hidden');
+      if (gameResult === 'win') {
+        endTitleEl.textContent = '🏆 승리!';
+        endSubEl.textContent = `🎉 ${turnCount}턴 만에 탈출!`;
+      } else if (gameResult === 'lose') {
+        endTitleEl.textContent = '💔 패배';
+        endSubEl.textContent = '어둠이 삼켜버렸다...';
+      }
+    }
+    
+    function hideEndScreen() {
+      endScreen.classList.add('hidden');
+    }
+    
+    // ----- 맵 생성 (도달 가능성 보장) -----
+    function generateDungeon() {
+      // 1. 빈 그리드 (모두 바닥)
+      const newGrid = Array(SIZE).fill().map(() => Array(SIZE).fill(TILE.FLOOR));
+      
+      // 2. 랜덤 벽 배치 (단, 나중에 플레이어-탈출구 경로 확보 위해 조정)
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          if (Math.random() < WALL_PROBABILITY) {
+            newGrid[r][c] = TILE.WALL;
+          }
+        }
+      }
+      
+      // 3. 플레이어 시작 위치 (항상 좌측 상단 근처로 고정하지 않고 랜덤하게, 단 벽 아닌 곳)
+      let startCandidates = [];
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          if (newGrid[r][c] !== TILE.WALL) startCandidates.push({r, c});
+        }
+      }
+      if (startCandidates.length === 0) {
+        // 극단적 경우 전부 바닥으로
+        for (let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) newGrid[r][c]=TILE.FLOOR;
+        startCandidates = [{r:0,c:0}];
+      }
+      const playerStart = startCandidates[randomInt(startCandidates.length)];
+      
+      // 4. 탈출구 위치: 플레이어와 맨해튼 거리 최소 6 이상 & 벽 아닌 곳 우선
+      let exitCandidates = [];
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          if (newGrid[r][c] !== TILE.WALL && !(r === playerStart.r && c === playerStart.c)) {
+            if (manhattan(r, c, playerStart.r, playerStart.c) >= 6) {
+              exitCandidates.push({r, c});
+            }
+          }
+        }
+      }
+      // 거리 조건 만족하는 곳이 없으면 완화
+      if (exitCandidates.length === 0) {
+        for (let r = 0; r < SIZE; r++) {
+          for (let c = 0; c < SIZE; c++) {
+            if (newGrid[r][c] !== TILE.WALL && !(r === playerStart.r && c === playerStart.c)) {
+              exitCandidates.push({r, c});
+            }
+          }
+        }
+      }
+      const exitPosLocal = exitCandidates[randomInt(exitCandidates.length)];
+      newGrid[exitPosLocal.r][exitPosLocal.c] = TILE.FLOOR; // 바닥 보장
+      
+      // 5. 경로 존재 확인 및 벽 제거 루프 (BFS)
+      let safety = 0;
+      const maxAttempts = 200;
+      while (!isPathExists(playerStart.r, playerStart.c, exitPosLocal.r, exitPosLocal.c, newGrid) && safety < maxAttempts) {
+        // 무작위 벽 하나를 바닥으로 변경 (단, 플레이어/출구 위치 제외)
+        const wallCells = [];
+        for (let r = 0; r < SIZE; r++) {
+          for (let c = 0; c < SIZE; c++) {
+            if (newGrid[r][c] === TILE.WALL && !(r === playerStart.r && c === playerStart.c) && !(r === exitPosLocal.r && c === exitPosLocal.c)) {
+              wallCells.push({r, c});
+            }
+          }
+        }
+        if (wallCells.length === 0) break;
+        const toRemove = wallCells[randomInt(wallCells.length)];
+        newGrid[toRemove.r][toRemove.c] = TILE.FLOOR;
+        safety++;
+      }
+      
+      // 혹시 모를 최후 수단: 경로 없으면 전부 바닥으로 (거의 발생 안 함)
+      if (!isPathExists(playerStart.r, playerStart.c, exitPosLocal.r, exitPosLocal.c, newGrid)) {
+        for (let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) newGrid[r][c]=TILE.FLOOR;
+      }
+      
+      // 6. 적 배치: 플레이어, 출구와 겹치지 않고 벽 아닌 곳, 플레이어와 거리 3 이상 권장
+      let enemyCandidates = [];
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          if (newGrid[r][c] !== TILE.WALL && 
+              !(r === playerStart.r && c === playerStart.c) && 
+              !(r === exitPosLocal.r && c === exitPosLocal.c)) {
+            if (manhattan(r, c, playerStart.r, playerStart.c) >= 3) {
+              enemyCandidates.push({r, c});
+            }
+          }
+        }
+      }
+      if (enemyCandidates.length === 0) {
+        for (let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) {
+          if (newGrid[r][c]!==TILE.WALL && !(r===playerStart.r&&c===playerStart.c) && !(r===exitPosLocal.r&&c===exitPosLocal.c))
+            enemyCandidates.push({r,c});
+        }
+      }
+      const enemyPosLocal = enemyCandidates.length > 0 ? enemyCandidates[randomInt(enemyCandidates.length)] : {r:0,c:1};
+      
+      // 7. 아이템 배치: 플레이어, 적, 출구 제외, 벽 아닌 곳
+      let itemCandidates = [];
+      for (let r=0;r<SIZE;r++) {
+        for (let c=0;c<SIZE;c++) {
+          if (newGrid[r][c]!==TILE.WALL &&
+              !(r===playerStart.r&&c===playerStart.c) &&
+              !(r===exitPosLocal.r&&c===exitPosLocal.c) &&
+              !(r===enemyPosLocal.r&&c===enemyPosLocal.c)) {
+            itemCandidates.push({r,c});
+          }
+        }
+      }
+      const itemPosLocal = itemCandidates.length > 0 ? itemCandidates[randomInt(itemCandidates.length)] : {r:2,c:2};
+      
+      return {
+        grid: newGrid,
+        playerStart,
+        exitPos: exitPosLocal,
+        enemyPos: enemyPosLocal,
+        itemPos: itemPosLocal
+      };
+    }
+    
+    // ----- 게임 초기화 (재시작 포함) -----
+    function resetAndStart() {
+      hideEndScreen();
+      const dungeonData = generateDungeon();
+      grid = dungeonData.grid.map(row => [...row]);
+      playerPos = { ...dungeonData.playerStart };
+      exitPos = { ...dungeonData.exitPos };
+      enemyPos = { ...dungeonData.enemyPos };
+      itemPos = { ...dungeonData.itemPos };
+      
+      playerHp = maxPlayerHp;
+      enemyHp = maxEnemyHp;
+      enemyAlive = true;
+      itemActive = true;
+      turnCount = 0;
+      gameOver = false;
+      gameResult = null;
+      
+      // fog 마스크 초기화
+      fogMask = Array(SIZE).fill().map(() => Array(SIZE).fill(false));
+      
+      // 그리드 DOM 생성 (최초 한 번만 만들고 재사용 가능하지만, 재시작 시 깨끗하게 재생성)
+      dungeonGridEl.innerHTML = '';
+      for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.r = r;
+          cell.dataset.c = c;
+          dungeonGridEl.appendChild(cell);
+        }
+      }
+      
+      // UI 화면 전환
+      startScreen.classList.add('hidden');
+      gameScreen.classList.remove('hidden');
+      endScreen.classList.add('hidden');
+      
+      gameMessageEl.textContent = '모험이 시작되었다! 방향키로 이동';
+      renderGrid();
+    }
+    
+    // ----- 이벤트 리스너 -----
+    function handleDirection(dir) {
+      if (gameOver) return;
+      switch(dir) {
+        case 'up': attemptMove(-1, 0); break;
+        case 'down': attemptMove(1, 0); break;
+        case 'left': attemptMove(0, -1); break;
+        case 'right': attemptMove(0, 1); break;
+        default: break;
+      }
+    }
+    
+    // 키보드 입력
+    window.addEventListener('keydown', (e) => {
+      // 시작 화면에서 엔터 등으로도 시작 가능하게 (선택)
+      if (!gameScreen.classList.contains('hidden') && !gameOver) {
+        const key = e.key;
+        e.preventDefault();
+        if (key === 'ArrowUp' || key === 'w' || key === 'W') handleDirection('up');
+        else if (key === 'ArrowDown' || key === 's' || key === 'S') handleDirection('down');
+        else if (key === 'ArrowLeft' || key === 'a' || key === 'A') handleDirection('left');
+        else if (key === 'ArrowRight' || key === 'd' || key === 'D') handleDirection('right');
+      }
+    });
+    
+    // 방향 버튼 클릭
+    document.querySelectorAll('.dir-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const dir = e.currentTarget.getAttribute('data-dir');
+        handleDirection(dir);
+      });
+    });
+    
+    // 시작 버튼
+    document.getElementById('startGameBtn').addEventListener('click', resetAndStart);
+    
+    // 게임 내 재시작 버튼
+    document.getElementById('restartFromGameBtn').addEventListener('click', resetAndStart);
+    
+    // 엔딩 화면 다시하기 버튼
+    document.getElementById('playAgainBtn').addEventListener('click', resetAndStart);
+    
+    // 초기 화면: 시작 화면 노출, 게임 화면 숨김
+    startScreen.classList.remove('hidden');
+    gameScreen.classList.add('hidden');
+    endScreen.classList.add('hidden');
+    
+    // 더미 그리드 미리보기 (선택 사항) 없이 바로 시작 화면
+  })();
+</script>
+</body>
+</html>

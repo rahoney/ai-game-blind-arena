@@ -599,13 +599,13 @@
             
             // 적 턴 (약간의 딜레이로 긴장감)
             setTimeout(() => {
-                // 적 공격 (7~11 랜덤)
+                // 적 attack (7~11 랜덤)
                 const enemyDamage = 7 + Math.floor(Math.random() * 5)
                 const actualDamage = Math.max(0, enemyDamage - block)
                 
                 playerHP = Math.max(0, playerHP - actualDamage)
                 
-                // 적 공격 애니메이션
+                // 적 attack 애니메이션
                 enemyEmoji.classList.add('shake')
                 setTimeout(() => enemyEmoji.classList.remove('shake'), 600)
                 

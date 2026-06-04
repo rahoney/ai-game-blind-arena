@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Brick Breaker - Enhanced</title>
+    <style>
+        :root {
+            --bg: #0a0a1a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', 'Poppins', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* localized comment */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(ellipse at 30% 20%, rgba(120, 40, 200, 0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 60%, rgba(0, 180, 220, 0.06) 0%, transparent 60%),
+                radial-gradient(ellipse at 50% 80%, rgba(255, 100, 150, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .game-wrapper {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .game-title {
+            color: #fff;
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #ff6bcd, #6be4ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: none;
+            filter: drop-shadow(0 0 12px rgba(150, 100, 255, 0.4));
+            margin-bottom: 2px;
+        }
+
+        canvas {
+            display: block;
+            border-radius: 16px;
+            box-shadow:
+                0 0 40px rgba(100, 130, 255, 0.25),
+                0 0 80px rgba(100, 80, 255, 0.15),
+                0 8px 40px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.03);
+            border: 2px solid rgba(255, 255, 255, 0.08);
+            cursor: none;
+            max-width: 95vw;
+            max-height: 85vh;
+            transition: box-shadow 0.3s;
+        }
+
+        .info-text {
+            color: rgba(255, 255, 255, 0.55);
+            font-size: 0.8rem;
+            letter-spacing: 1.5px;
+            text-align: center;
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-wrapper">
+        <div class="game-title">⚡ Neon Breaker ⚡</div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="info-text">← → Move &nbsp;|&nbsp; SPACE Launch Ball</div>
+    </div>
+
+    <script>
+        (function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width;
+            const H = canvas.height;
+
+            // localized comment
+            const STATE = { START: 'start', PLAYING: 'playing', WIN: 'win', LOSE: 'lose' };
+            let gameState = STATE.START;
+            let score = 0;
+            let lives = 3;
+            let comboCount = 0; // combo hits
+            let comboTimer = 0; // combo timer
+
+            // localized comment
+            const paddleBaseWidth = 130;
+            const paddleHeight = 16;
+            let paddle = {
+                x: W / 2 - paddleBaseWidth / 2,
+                y: H - 65,
+                width: paddleBaseWidth,
+                height: paddleHeight,
+                baseWidth: paddleBaseWidth,
+                speed: 520, // px/s
+            };
+
+            // localized comment
+            const ballRadius = 8;
+            const ballBaseSpeed = 420; // px/s
+            let balls = [];
+
+            function createBall(attached = true) {
+                let bx = paddle.x + paddle.width / 2;
+                let by = paddle.y - ballRadius - 2;
+                let angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.6; // slightly random angle
+                let speed = ballBaseSpeed;
+                return {
+                    x: bx,
+                    y: by,
+                    dx: Math.cos(angle) * speed,
+                    dy: Math.sin(angle) * speed,
+                    speed: speed,
+                    attached: attached,
+                    piercing: false,
+                    trail: [], // trail
+                };
+            }
+
+            // localized comment
+            const brickRows = 6;
+            const brickCols = 9;
+            const brickWidth = (W - 60) / brickCols;
+            const brickHeight = 26;
+            const brickPadding = 4;
+            const brickOffsetTop = 70;
+            const brickOffsetLeft = 30;
+            const brickColors = [
+                '#ff5e8a', '#ff7eb3', '#ff8c5a', '#ffb347',
+                '#ffd93d', '#ffe570', '#5ddb92', '#3ecf8e',
+                '#4dc9f6', '#5ba4fc', '#a78bfa', '#c084fc',
+            ];
+            let bricks = [];
+
+            function createBricks() {
+                bricks = [];
+                for (let r = 0; r < brickRows; r++) {
+                    for (let c = 0; c < brickCols; c++) {
+                        let x = brickOffsetLeft + c * (brickWidth + brickPadding);
+                        let y = brickOffsetTop + r * (brickHeight + brickPadding);
+                        // localized comment
+                        let special = false;
+                        let colorIdx = (r * 2 + c) % brickColors.length;
+                        let color = brickColors[colorIdx];
+                        bricks.push({
+                            x: x,
+                            y: y,
+                            width: brickWidth,
+                            height: brickHeight,
+                            color: color,
+                            special: special,
+                            alive: true,
+                            glowPhase: Math.random() * Math.PI * 2,
+                        });
+                    }
+                }
+                // localized comment
+                for (let r = 0; r < brickRows; r++) {
+                    let count = 1 + Math.floor(Math.random() * 2); // 1-2 items
+                    let indices = [];
+                    for (let c = 0; c < brickCols; c++) indices.push(c);
+                    // localized comment
+                    for (let i = indices.length - 1; i > 0; i--) {
+                        let j = Math.floor(Math.random() * (i + 1));
+                        [indices[i], indices[j]] = [indices[j], indices[i]];
+                    }
+                    for (let i = 0; i < count; i++) {
+                        let c = indices[i];
+                        let idx = r * brickCols + c;
+                        bricks[idx].special = true;
+                        bricks[idx].color = '#ffe066'; // gold special brick
+                    }
+                }
+            }
+
+            // localized comment
+            const ITEM_TYPES = {
+                WIDE: 'wide', // Paddle Expand
+                SLOW: 'slow', // ball slow
+                MULTI: 'multi', // Multiball
+                BONUS: 'bonus', // Bonus Score
+                PIERCE: 'pierce', // Pierce Mode
+            };
+            const itemTypeList = [ITEM_TYPES.WIDE, ITEM_TYPES.SLOW, ITEM_TYPES.MULTI, ITEM_TYPES.BONUS,
+                ITEM_TYPES.PIERCE
+            ];
+            const itemColors = {
+                wide: '#5ba4fc',
+                slow: '#ff8c5a',
+                multi: '#3ecf8e',
+                bonus: '#ffd93d',
+                pierce: '#c084fc',
+            };
+            const itemLabels = {
+                wide: 'W',
+                slow: 'S',
+                multi: 'M',
+                bonus: '+',
+                pierce: 'P',
+            };
+            let items = []; // {x, y, type, vy, radius: 16}
+
+            // localized comment
+            let particles = [];
+
+            function spawnParticles(x, y, color, count = 25) {
+                for (let i = 0; i < count; i++) {
+                    let angle = Math.random() * Math.PI * 2;
+                    let speed = 80 + Math.random() * 300;
+                    let life = 0.35 + Math.random() * 0.7;
+                    particles.push({
+                        x: x,
+                        y: y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed - Math.random() * 150,
+                        life: life,
+                        maxLife: life,
+                        color: color,
+                        size: 2 + Math.random() * 5,
+                    });
+                }
+            }
+
+            // localized comment
+            let activeEffects = []; // {type, endTime}
+
+            function addEffect(type, duration) {
+                // localized comment
+                activeEffects = activeEffects.filter(e => e.type !== type);
+                activeEffects.push({ type: type, endTime: performance.now() / 1000 + duration });
+                applyEffects();
+            }
+
+            function hasEffect(type) {
+                return activeEffects.some(e => e.type === type);
+            }
+
+            function applyEffects() {
+                // localized comment
+                if (hasEffect(ITEM_TYPES.WIDE)) {
+                    paddle.width = paddleBaseWidth * 1.6;
+                } else {
+                    paddle.width = paddleBaseWidth;
+                }
+                // localized comment
+                let speedMult = hasEffect(ITEM_TYPES.SLOW) ? 0.55 : 1.0;
+                balls.forEach(b => {
+                    if (!b.attached) {
+                        let currentSpeed = Math.sqrt(b.dx * b.dx + b.dy * b.dy);
+                        let targetSpeed = ballBaseSpeed * speedMult;
+                        if (currentSpeed > 0.01) {
+                            let ratio = targetSpeed / currentSpeed;
+                            b.dx *= ratio;
+                            b.dy *= ratio;
+                        }
+                    }
+                    b.piercing = hasEffect(ITEM_TYPES.PIERCE);
+                    b.speed = ballBaseSpeed * speedMult;
+                });
+            }
+
+            function updateEffects(now) {
+                let changed = false;
+                let prevHasWide = hasEffect(ITEM_TYPES.WIDE);
+                let prevHasSlow = hasEffect(ITEM_TYPES.SLOW);
+                let prevHasPierce = hasEffect(ITEM_TYPES.PIERCE);
+
+                activeEffects = activeEffects.filter(e => e.endTime > now / 1000);
+
+                let curHasWide = hasEffect(ITEM_TYPES.WIDE);
+                let curHasSlow = hasEffect(ITEM_TYPES.SLOW);
+                let curHasPierce = hasEffect(ITEM_TYPES.PIERCE);
+
+                if (prevHasWide !== curHasWide || prevHasSlow !== curHasSlow || prevHasPierce !== curHasPierce) {
+                    applyEffects();
+                }
+            }
+
+            // localized comment
+            let stars = [];
+
+            function createStars() {
+                stars = [];
+                for (let i = 0; i < 80; i++) {
+                    stars.push({
+                        x: Math.random() * W,
+                        y: Math.random() * H,
+                        radius: 0.4 + Math.random() * 1.8,
+                        twinkleSpeed: 0.5 + Math.random() * 2.5,
+                        twinkleOffset: Math.random() * Math.PI * 2,
+                        opacity: 0.3 + Math.random() * 0.7,
+                    });
+                }
+            }
+
+            // localized comment
+            const keys = { left: false, right: false, space: false };
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowLeft' || e.key === 'Left' || e.key === 'ArrowRight' || e.key === 'Right') {
+                    e.preventDefault();
+                    if (e.key === 'ArrowLeft' || e.key === 'Left') keys.left = true;
+                    if (e.key === 'ArrowRight' || e.key === 'Right') keys.right = true;
+                }
+                if (e.key === ' ' || e.key === 'Spacebar') {
+                    e.preventDefault();
+                    keys.space = true;
+                    handleSpacePress();
+                }
+                if (e.key === 'r' || e.key === 'R') {
+                    e.preventDefault();
+                    if (gameState === STATE.WIN || gameState === STATE.LOSE) {
+                        restartGame();
+                    }
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (e.key === 'ArrowLeft' || e.key === 'Left') { e.preventDefault();
+                    keys.left = false; }
+                if (e.key === 'ArrowRight' || e.key === 'Right') { e.preventDefault();
+                    keys.right = false; }
+                if (e.key === ' ' || e.key === 'Spacebar') { e.preventDefault();
+                    keys.space = false; }
+            });
+
+            function handleSpacePress() {
+                if (gameState === STATE.START) {
+                    gameState = STATE.PLAYING;
+                    // localized comment
+                    balls.forEach(b => { if (b.attached) b.attached = false; });
+                    return;
+                }
+                if (gameState === STATE.WIN || gameState === STATE.LOSE) {
+                    restartGame();
+                    return;
+                }
+                if (gameState === STATE.PLAYING) {
+                    // localized comment
+                    balls.forEach(b => { if (b.attached) b.attached = false; });
+                }
+            }
+
+            // localized comment
+            function restartGame() {
+                score = 0;
+                lives = 3;
+                comboCount = 0;
+                comboTimer = 0;
+                paddle.x = W / 2 - paddleBaseWidth / 2;
+                paddle.width = paddleBaseWidth;
+                balls = [createBall(true)];
+                items = [];
+                particles = [];
+                activeEffects = [];
+                applyEffects();
+                createBricks();
+                gameState = STATE.PLAYING;
+            }
+
+            function fullReset() {
+                score = 0;
+                lives = 3;
+                comboCount = 0;
+                comboTimer = 0;
+                paddle.x = W / 2 - paddleBaseWidth / 2;
+                paddle.width = paddleBaseWidth;
+                balls = [createBall(true)];
+                items = [];
+                particles = [];
+                activeEffects = [];
+                applyEffects();
+                createBricks();
+                createStars();
+                gameState = STATE.START;
+            }
+
+            // localized comment
+            function ballBrickCollision(ball, brick) {
+                if (!brick.alive) return false;
+                let bx = ball.x;
+                let by = ball.y;
+                let br = ballRadius;
+                // AABB vs Circle
+                let closestX = Math.max(brick.x, Math.min(bx, brick.x + brick.width));
+                let closestY = Math.max(brick.y, Math.min(by, brick.y + brick.height));
+                let distX = bx - closestX;
+                let distY = by - closestY;
+                return (distX * distX + distY * distY) < (br * br);
+            }
+
+            function ballPaddleCollision(ball) {
+                let bx = ball.x;
+                let by = ball.y;
+                let br = ballRadius;
+                let px = paddle.x;
+                let py = paddle.y;
+                let pw = paddle.width;
+                let ph = paddle.height;
+                let closestX = Math.max(px, Math.min(bx, px + pw));
+                let closestY = Math.max(py, Math.min(by, py + ph));
+                let distX = bx - closestX;
+                let distY = by - closestY;
+                return (distX * distX + distY * distY) < (br * br);
+            }
+
+            function itemPaddleCollision(item) {
+                let ix = item.x;
+                let iy = item.y;
+                let ir = item.radius;
+                let px = paddle.x;
+                let py = paddle.y;
+                let pw = paddle.width;
+                let ph = paddle.height;
+                let closestX = Math.max(px, Math.min(ix, px + pw));
+                let closestY = Math.max(py, Math.min(iy, py + ph));
+                let distX = ix - closestX;
+                let distY = iy - closestY;
+                return (distX * distX + distY * distY) < (ir * ir);
+            }
+
+            // localized comment
+            function applyItem(type) {
+                switch (type) {
+                    case ITEM_TYPES.WIDE:
+                        addEffect(ITEM_TYPES.WIDE, 10);
+                        break;
+                    case ITEM_TYPES.SLOW:
+                        addEffect(ITEM_TYPES.SLOW, 10);
+                        break;
+                    case ITEM_TYPES.MULTI:
+                        // localized comment
+                        let currentBalls = balls.filter(b => !b.attached);
+                        if (currentBalls.length === 0 && balls.length > 0) {
+                            // localized comment
+                            balls.forEach(b => b.attached = false);
+                            currentBalls = [...balls];
+                        }
+                        let newBalls = [];
+                        currentBalls.forEach(b => {
+                            for (let i = 0; i < 2; i++) {
+                                let angle = Math.atan2(b.dy, b.dx) + (Math.random() - 0.5) * 0.9;
+                                let spd = Math.sqrt(b.dx * b.dx + b.dy * b.dy);
+                                newBalls.push({
+                                    x: b.x,
+                                    y: b.y,
+                                    dx: Math.cos(angle) * spd,
+                                    dy: Math.sin(angle) * spd,
+                                    speed: spd,
+                                    attached: false,
+                                    piercing: b.piercing,
+                                    trail: [],
+                                });
+                            }
+                        });
+                        balls.push(...newBalls);
+                        // localized comment
+                        if (balls.length > 20) balls = balls.slice(0, 20);
+                        break;
+                    case ITEM_TYPES.BONUS:
+                        score += 150;
+                        break;
+                    case ITEM_TYPES.PIERCE:
+                        addEffect(ITEM_TYPES.PIERCE, 8);
+                        break;
+                }
+                // localized comment
+                let midX = paddle.x + paddle.width / 2;
+                let midY = paddle.y + paddle.height / 2;
+                spawnParticles(midX, midY, itemColors[type] || '#fff', 15);
+            }
+
+            // localized comment
+            let lastTime = performance.now();
+
+            function update(deltaSec) {
+                if (gameState !== STATE.PLAYING) return;
+                let dt = Math.min(deltaSec, 0.1); // cap at 0.1s
+
+                let now = performance.now();
+
+                // localized comment
+                updateEffects(now);
+
+                // combo timer
+                if (comboTimer > 0) {
+                    comboTimer -= dt;
+                    if (comboTimer <= 0) comboCount = 0;
+                }
+
+                // paddle movement
+                let paddleSpeed = paddle.speed;
+                if (keys.left) paddle.x -= paddleSpeed * dt;
+                if (keys.right) paddle.x += paddleSpeed * dt;
+                paddle.x = Math.max(0, Math.min(W - paddle.width, paddle.x));
+
+                // localized comment
+                balls.forEach(b => {
+                    if (b.attached) {
+                        b.x = paddle.x + paddle.width / 2;
+                        b.y = paddle.y - ballRadius - 2;
+                    }
+                });
+
+                // localized comment
+                balls.forEach(b => {
+                    if (b.attached) return;
+                    // localized comment
+                    b.trail.push({ x: b.x, y: b.y, life: 0.15 });
+                    if (b.trail.length > 12) b.trail.shift();
+
+                    b.x += b.dx * dt;
+                    b.y += b.dy * dt;
+
+                    // localized comment
+                    if (b.x - ballRadius <= 0) {
+                        b.x = ballRadius;
+                        b.dx = Math.abs(b.dx);
+                    }
+                    if (b.x + ballRadius >= W) {
+                        b.x = W - ballRadius;
+                        b.dx = -Math.abs(b.dx);
+                    }
+                    if (b.y - ballRadius <= 0) {
+                        b.y = ballRadius;
+                        b.dy = Math.abs(b.dy);
+                    }
+
+                    // localized comment
+                    if (b.y - ballRadius > H + 30) {
+                        b.dead = true;
+                    }
+
+                    // localized comment
+                    if (b.dy > 0 && ballPaddleCollision(b)) {
+                        b.y = paddle.y - ballRadius;
+                        // localized comment
+                        let hitPos = (b.x - paddle.x) / paddle.width; // 0~1
+                        hitPos = Math.max(0.05, Math.min(0.95, hitPos));
+                        let angle = -Math.PI * 0.75 + hitPos * Math.PI * 0.5; // -135 to -45 degrees
+                        let spd = b.speed;
+                        b.dx = Math.cos(angle) * spd;
+                        b.dy = Math.sin(angle) * spd;
+                        // localized comment
+                        spawnParticles(b.x, b.y, '#ffffff', 6);
+                    }
+
+                    // localized comment
+                    for (let brick of bricks) {
+                        if (!brick.alive) continue;
+                        if (ballBrickCollision(b, brick)) {
+                            if (!b.piercing) {
+                                // localized comment
+                                let bx = b.x;
+                                let by = b.y;
+                                let br = ballRadius;
+                                let closestX = Math.max(brick.x, Math.min(bx, brick.x + brick.width));
+                                let closestY = Math.max(brick.y, Math.min(by, brick.y + brick.height));
+                                let distX = bx - closestX;
+                                let distY = by - closestY;
+                                if (Math.abs(distX) > Math.abs(distY)) {
+                                    b.dx = (distX > 0 ? 1 : -1) * Math.abs(b.dx);
+                                } else {
+                                    b.dy = (distY > 0 ? 1 : -1) * Math.abs(b.dy);
+                                }
+                                // localized comment
+                                let overlap = br - Math.sqrt(distX * distX + distY * distY);
+                                if (overlap > 0 && Math.sqrt(distX * distX + distY * distY) > 0.001) {
+                                    let normX = distX / Math.sqrt(distX * distX + distY * distY);
+                                    let normY = distY / Math.sqrt(distX * distX + distY * distY);
+                                    b.x += normX * overlap;
+                                    b.y += normY * overlap;
+                                }
+                            }
+                            // localized comment
+                            brick.alive = false;
+                            score += (brick.special ? 30 : 10);
+                            comboCount++;
+                            comboTimer = 1.5;
+                            if (comboCount >= 5) score += comboCount * 2; // combo bonus
+
+                            // localized comment
+                            let cx = brick.x + brick.width / 2;
+                            let cy = brick.y + brick.height / 2;
+                            spawnParticles(cx, cy, brick.color, brick.special ? 40 : 20);
+
+                            // localized comment
+                            let dropChance = brick.special ? 1.0 : 0.12;
+                            if (Math.random() < dropChance) {
+                                let itype = itemTypeList[Math.floor(Math.random() * itemTypeList.length)];
+                                items.push({
+                                    x: cx,
+                                    y: cy,
+                                    type: itype,
+                                    vy: 180 + Math.random() * 60,
+                                    radius: 15,
+                                });
+                            }
+                            break; // process only one brick per frame
+                        }
+                    }
+                });
+
+                // localized comment
+                balls = balls.filter(b => !b.dead);
+
+                // localized comment
+                if (balls.length === 0) {
+                    lives--;
+                    comboCount = 0;
+                    comboTimer = 0;
+                    if (lives <= 0) {
+                        gameState = STATE.LOSE;
+                        spawnParticles(paddle.x + paddle.width / 2, paddle.y, '#ff4444', 50);
+                    } else {
+                        // localized comment
+                        balls.push(createBall(true));
+                        activeEffects = []; // reset effects
+                        applyEffects();
+                        spawnParticles(paddle.x + paddle.width / 2, paddle.y, '#ffaa00', 30);
+                    }
+                }
+
+                // localized comment
+                items.forEach(item => {
+                    item.y += item.vy * dt;
+                    if (item.y > H + 50) item.dead = true;
+                    if (itemPaddleCollision(item)) {
+                        applyItem(item.type);
+                        item.dead = true;
+                    }
+                });
+                items = items.filter(i => !i.dead);
+
+                // localized comment
+                particles.forEach(p => {
+                    p.x += p.vx * dt;
+                    p.y += p.vy * dt;
+                    p.vy += 350 * dt; // gravity
+                    p.life -= dt;
+                });
+                particles = particles.filter(p => p.life > 0);
+
+                // localized comment
+                balls.forEach(b => {
+                    b.trail.forEach(t => t.life -= dt);
+                    b.trail = b.trail.filter(t => t.life > 0);
+                });
+
+                // localized comment
+                if (bricks.every(b => !b.alive)) {
+                    gameState = STATE.WIN;
+                    // localized comment
+                    for (let i = 0; i < 100; i++) {
+                        let x = Math.random() * W;
+                        let y = Math.random() * H * 0.6;
+                        spawnParticles(x, y, '#ffd93d', 3);
+                    }
+                }
+
+                // localized comment
+                applyEffects();
+            }
+
+            // localized comment
+            function drawStar(x, y, radius, opacity) {
+                ctx.save();
+                ctx.globalAlpha = opacity;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
+                // localized comment
+                let glow = ctx.createRadialGradient(x, y, 0, x, y, radius * 3);
+                glow.addColorStop(0, 'rgba(255,255,255,0.5)');
+                glow.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(x, y, radius * 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            function drawPaddle() {
+                // localized comment
+                ctx.save();
+                ctx.shadowColor = 'rgba(100,200,255,0.6)';
+                ctx.shadowBlur = 18;
+                let grad = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x, paddle.y + paddle.height);
+                grad.addColorStop(0, '#6bd4ff');
+                grad.addColorStop(0.5, '#3da8f0');
+                grad.addColorStop(1, '#1a6fbf');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                let r = paddle.height / 2;
+                ctx.moveTo(paddle.x + r, paddle.y);
+                ctx.lineTo(paddle.x + paddle.width - r, paddle.y);
+                ctx.arcTo(paddle.x + paddle.width, paddle.y, paddle.x + paddle.width, paddle.y + r, r);
+                ctx.lineTo(paddle.x + paddle.width, paddle.y + paddle.height - r);
+                ctx.arcTo(paddle.x + paddle.width, paddle.y + paddle.height, paddle.x + paddle.width - r, paddle.y + paddle
+                    .height, r);
+                ctx.lineTo(paddle.x + r, paddle.y + paddle.height);
+                ctx.arcTo(paddle.x, paddle.y + paddle.height, paddle.x, paddle.y + paddle.height - r, r);
+                ctx.lineTo(paddle.x, paddle.y + r);
+                ctx.arcTo(paddle.x, paddle.y, paddle.x + r, paddle.y, r);
+                ctx.closePath();
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                // localized comment
+                let hlGrad = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x, paddle.y + paddle.height);
+                hlGrad.addColorStop(0, 'rgba(255,255,255,0.4)');
+                hlGrad.addColorStop(0.4, 'rgba(255,255,255,0.05)');
+                hlGrad.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = hlGrad;
+                ctx.fill();
+                ctx.restore();
+            }
+
+            function drawBalls() {
+                balls.forEach(b => {
+                    // trail
+                    if (b.trail.length > 1) {
+                        ctx.save();
+                        for (let i = 1; i < b.trail.length; i++) {
+                            let t0 = b.trail[i - 1];
+                            let t1 = b.trail[i];
+                            let alpha = (i / b.trail.length) * 0.5 * (t1.life / 0.15);
+                            ctx.strokeStyle = `rgba(180,230,255,${alpha})`;
+                            ctx.lineWidth = ballRadius * 1.2 * (i / b.trail.length);
+                            ctx.lineCap = 'round';
+                            ctx.beginPath();
+                            ctx.moveTo(t0.x, t0.y);
+                            ctx.lineTo(t1.x, t1.y);
+                            ctx.stroke();
+                        }
+                        ctx.restore();
+                    }
+                    // localized comment
+                    ctx.save();
+                    ctx.shadowColor = b.piercing ? 'rgba(200,100,255,0.9)' : 'rgba(150,220,255,0.8)';
+                    ctx.shadowBlur = b.piercing ? 22 : 16;
+                    let ballGrad = ctx.createRadialGradient(b.x - 2, b.y - 2, ballRadius * 0.2, b.x, b.y, ballRadius);
+                    if (b.piercing) {
+                        ballGrad.addColorStop(0, '#f0d0ff');
+                        ballGrad.addColorStop(0.6, '#c06fff');
+                        ballGrad.addColorStop(1, '#6a1fb0');
+                    } else {
+                        ballGrad.addColorStop(0, '#ffffff');
+                        ballGrad.addColorStop(0.5, '#b8ecff');
+                        ballGrad.addColorStop(1, '#3da0e0');
+                    }
+                    ctx.fillStyle = ballGrad;
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, ballRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.restore();
+                });
+            }
+
+            function drawBricks() {
+                let now = performance.now() / 1000;
+                bricks.forEach(brick => {
+                    if (!brick.alive) return;
+                    ctx.save();
+                    // localized comment
+                    if (brick.special) {
+                        let glowIntensity = 0.5 + 0.5 * Math.sin(now * 4 + brick.glowPhase);
+                        ctx.shadowColor = `rgba(255,220,100,${0.4 + glowIntensity * 0.5})`;
+                        ctx.shadowBlur = 10 + glowIntensity * 12;
+                    }
+                    // localized comment
+                    let grad = ctx.createLinearGradient(brick.x, brick.y, brick.x, brick.y + brick.height);
+                    grad.addColorStop(0, brick.color);
+                    grad.addColorStop(1, shadeColor(brick.color, -30));
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    let br = 4;
+                    ctx.moveTo(brick.x + br, brick.y);
+                    ctx.lineTo(brick.x + brick.width - br, brick.y);
+                    ctx.arcTo(brick.x + brick.width, brick.y, brick.x + brick.width, brick.y + br, br);
+                    ctx.lineTo(brick.x + brick.width, brick.y + brick.height - br);
+                    ctx.arcTo(brick.x + brick.width, brick.y + brick.height, brick.x + brick.width - br, brick.y + brick.height,
+                        br);
+                    ctx.lineTo(brick.x + br, brick.y + brick.height);
+                    ctx.arcTo(brick.x, brick.y + brick.height, brick.x, brick.y + brick.height - br, br);
+                    ctx.lineTo(brick.x, brick.y + br);
+                    ctx.arcTo(brick.x, brick.y, brick.x + br, brick.y, br);
+                    ctx.closePath();
+                    ctx.fill();
+                    // localized comment
+                    let hlGrad = ctx.createLinearGradient(brick.x, brick.y, brick.x, brick.y + brick.height);
+                    hlGrad.addColorStop(0, 'rgba(255,255,255,0.35)');
+                    hlGrad.addColorStop(0.5, 'rgba(255,255,255,0)');
+                    hlGrad.addColorStop(1, 'rgba(0,0,0,0.15)');
+                    ctx.fillStyle = hlGrad;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.restore();
+                });
+            }
+
+            function drawItems() {
+                items.forEach(item => {
+                    ctx.save();
+                    let col = itemColors[item.type] || '#fff';
+                    ctx.shadowColor = col;
+                    ctx.shadowBlur = 14;
+                    // localized comment
+                    let grad = ctx.createRadialGradient(item.x - 3, item.y - 3, item.radius * 0.1, item.x, item.y, item
+                        .radius);
+                    grad.addColorStop(0, '#ffffff');
+                    grad.addColorStop(0.5, col);
+                    grad.addColorStop(1, shadeColor(col, -40));
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                    // localized comment
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 13px "Segoe UI", sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(itemLabels[item.type] || '?', item.x, item.y);
+                    ctx.restore();
+                });
+            }
+
+            function drawParticles() {
+                particles.forEach(p => {
+                    let alpha = Math.max(0, p.life / p.maxLife);
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = p.color;
+                    ctx.shadowColor = p.color;
+                    ctx.shadowBlur = 4;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                });
+            }
+
+            function drawUI() {
+                // Score
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 18px "Segoe UI", "Poppins", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(`Score: ${score}`, 25, 42);
+
+                // localized comment
+                ctx.textAlign = 'right';
+                ctx.font = '20px sans-serif';
+                let heartsStr = '';
+                for (let i = 0; i < lives; i++) heartsStr += '❤️';
+                for (let i = lives; i < 3; i++) heartsStr += '🖤';
+                ctx.fillText(heartsStr, W - 25, 42);
+
+                // localized comment
+                if (comboCount >= 3 && comboTimer > 0) {
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = '#ffd93d';
+                    ctx.font = 'bold 22px "Segoe UI", sans-serif';
+                    ctx.shadowColor = 'rgba(255,200,50,0.7)';
+                    ctx.shadowBlur = 10;
+                    ctx.fillText(`${comboCount}x COMBO!`, W / 2, 42);
+                    ctx.shadowBlur = 0;
+                }
+
+                // localized comment
+                let effectY = H - 20;
+                ctx.textAlign = 'center';
+                ctx.font = '11px "Segoe UI", sans-serif';
+                let effectTexts = [];
+                if (hasEffect(ITEM_TYPES.WIDE)) effectTexts.push('🟦 Wide Paddle');
+                if (hasEffect(ITEM_TYPES.SLOW)) effectTexts.push('🟧 Slow Ball');
+                if (hasEffect(ITEM_TYPES.PIERCE)) effectTexts.push('🟪 Pierce Mode');
+                if (effectTexts.length > 0) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                    ctx.fillText(effectTexts.join('  |  '), W / 2, effectY);
+                }
+            }
+
+            function drawStartScreen() {
+                // localized comment
+                ctx.fillStyle = 'rgba(5,5,20,0.7)';
+                ctx.fillRect(0, 0, W, H);
+
+                // localized comment
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 48px "Segoe UI", "Poppins", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = 'rgba(150,120,255,0.8)';
+                ctx.shadowBlur = 30;
+                ctx.fillText('NEON BREAKER', W / 2, H / 2 - 50);
+                ctx.shadowBlur = 0;
+
+                // localized comment
+                ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                ctx.font = '18px "Segoe UI", sans-serif';
+                ctx.fillText('Enhanced Brick Breaker', W / 2, H / 2);
+
+                // localized comment
+                let pulse = 0.7 + 0.3 * Math.sin(performance.now() / 1000 * 3);
+                ctx.fillStyle = `rgba(255,255,255,${pulse})`;
+                ctx.font = 'bold 22px "Segoe UI", sans-serif';
+                ctx.fillText('Press SPACE to start', W / 2, H / 2 + 60);
+
+                // localized comment
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.font = '13px "Segoe UI", sans-serif';
+                ctx.fillText('🟦 W: Paddle Expand  🟧 S: Ball Slow  🟩 M: Multiball  🟨 +: Bonus  🟪 P: Pierce', W / 2, H / 2 + 100);
+                ctx.fillText('Break special gold bricks to drop items!', W / 2, H / 2 + 122);
+            }
+
+            function drawEndScreen(title, subtitle, color) {
+                ctx.fillStyle = 'rgba(5,5,20,0.75)';
+                ctx.fillRect(0, 0, W, H);
+
+                ctx.fillStyle = color;
+                ctx.font = 'bold 52px "Segoe UI", "Poppins", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 30;
+                ctx.fillText(title, W / 2, H / 2 - 40);
+                ctx.shadowBlur = 0;
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '20px "Segoe UI", sans-serif';
+                ctx.fillText(subtitle, W / 2, H / 2 + 20);
+
+                ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                ctx.font = 'bold 18px "Segoe UI", sans-serif';
+                let pulse = 0.7 + 0.3 * Math.sin(performance.now() / 1000 * 3);
+                ctx.fillStyle = `rgba(255,255,255,${pulse})`;
+                ctx.fillText('Press SPACE or R to restart', W / 2, H / 2 + 70);
+            }
+
+            function render(now) {
+                // localized comment
+                ctx.clearRect(0, 0, W, H);
+
+                // localized comment
+                let bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+                bgGrad.addColorStop(0, '#0d0d2b');
+                bgGrad.addColorStop(0.5, '#0f0f30');
+                bgGrad.addColorStop(1, '#0a0a20');
+                ctx.fillStyle = bgGrad;
+                ctx.fillRect(0, 0, W, H);
+
+                // localized comment
+                stars.forEach(star => {
+                    let twinkle = star.opacity * (0.5 + 0.5 * Math.sin(now / 1000 * star.twinkleSpeed + star
+                        .twinkleOffset));
+                    drawStar(star.x, star.y, star.radius, twinkle);
+                });
+
+                // localized comment
+                drawBricks();
+                drawItems();
+                drawPaddle();
+                drawBalls();
+                drawParticles();
+                drawUI();
+
+                // localized comment
+                if (gameState === STATE.START) {
+                    drawStartScreen();
+                } else if (gameState === STATE.WIN) {
+                    drawEndScreen('🎉 Victory! 🎉', `Final Score: ${score}`, '#ffd93d');
+                } else if (gameState === STATE.LOSE) {
+                    drawEndScreen('💔 Defeat', `Final Score: ${score}`, '#ff5577');
+                }
+            }
+
+            // localized comment
+            function shadeColor(color, percent) {
+                let num = parseInt(color.replace('#', ''), 16);
+                let amt = Math.round(2.55 * percent);
+                let R = Math.max(0, Math.min(255, (num >> 16) + amt));
+                let G = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF00) + amt));
+                let B = Math.max(0, Math.min(255, (num & 0x0000FF) + amt));
+                return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+            }
+
+            // localized comment
+            function gameLoop(timestamp) {
+                let deltaSec = (timestamp - lastTime) / 1000;
+                if (deltaSec <= 0) deltaSec = 0.016;
+                lastTime = timestamp;
+
+                update(deltaSec);
+                render(timestamp);
+
+                requestAnimationFrame(gameLoop);
+            }
+
+            // localized comment
+            function init() {
+                createStars();
+                createBricks();
+                balls = [createBall(true)];
+                items = [];
+                particles = [];
+                activeEffects = [];
+                score = 0;
+                lives = 3;
+                comboCount = 0;
+                comboTimer = 0;
+                paddle.x = W / 2 - paddleBaseWidth / 2;
+                paddle.width = paddleBaseWidth;
+                applyEffects();
+                gameState = STATE.START;
+                lastTime = performance.now();
+            }
+
+            init();
+            requestAnimationFrame(gameLoop);
+
+            // localized comment
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (gameState === STATE.PLAYING) {
+                    let touch = e.touches[0];
+                    let rect = canvas.getBoundingClientRect();
+                    let scaleX = W / rect.width;
+                    let touchX = (touch.clientX - rect.left) * scaleX;
+                    paddle.x = touchX - paddle.width / 2;
+                    paddle.x = Math.max(0, Math.min(W - paddle.width, paddle.x));
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                if (gameState === STATE.START) {
+                    gameState = STATE.PLAYING;
+                    balls.forEach(b => { if (b.attached) b.attached = false; });
+                } else if (gameState === STATE.WIN || gameState === STATE.LOSE) {
+                    restartGame();
+                } else if (gameState === STATE.PLAYING) {
+                    balls.forEach(b => { if (b.attached) b.attached = false; });
+                }
+            }, { passive: false });
+
+            console.log('🚀 Neon Brick Breaker ready!');
+            console.log('  ← → Arrow keys: paddle movement');
+            console.log('  SPACE: Launch Ball / start / restart');
+            console.log('  R: Restart');
+            console.log('  📱 Mobile: touch to control paddle, tap to fire');
+            console.log('  🧱 Break gold bricks to drop items!');
+        })();
+    </script>
+</body>
+</html>

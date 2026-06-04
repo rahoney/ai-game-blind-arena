@@ -89,6 +89,7 @@ class SocialProvidersUpdate(BaseModel):
 class Evaluation(BaseModel):
     game_type: str = Field(min_length=1, max_length=100)
     blind_model_id: str = Field(min_length=1, max_length=10)
+    blind_model_token: Optional[str] = Field(default=None, max_length=128)
     score_control: int = Field(ge=1, le=10)
     score_structure: int = Field(ge=1, le=10)
     score_presentation: int = Field(ge=1, le=10)
@@ -97,7 +98,7 @@ class Evaluation(BaseModel):
     score_overall: int = Field(ge=1, le=10)
     comment: Optional[str] = Field(default=None, max_length=150)
 
-    @field_validator("game_type", "blind_model_id", mode="before")
+    @field_validator("game_type", "blind_model_id", "blind_model_token", mode="before")
     @classmethod
     def strip_required_strings(cls, value):
         return value.strip() if isinstance(value, str) else value
@@ -110,8 +111,9 @@ class Evaluation(BaseModel):
 class PlayEvent(BaseModel):
     game_type: str = Field(min_length=1, max_length=100)
     blind_model_id: str = Field(min_length=1, max_length=10)
+    blind_model_token: Optional[str] = Field(default=None, max_length=128)
 
-    @field_validator("game_type", "blind_model_id", mode="before")
+    @field_validator("game_type", "blind_model_id", "blind_model_token", mode="before")
     @classmethod
     def strip_play_fields(cls, value):
         return value.strip() if isinstance(value, str) else value

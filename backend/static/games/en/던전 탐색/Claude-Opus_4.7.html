@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>🏰 Dungeon Roguelike</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at center, #1a1410 0%, #06050a 100%);
+    color: #d4c5a0;
+    font-family: 'Courier New', monospace;
+    user-select: none;
+  }
+  .game {
+    text-align: center;
+    padding: 20px 24px;
+    background: #14100c;
+    border: 2px solid #4a3c28;
+    border-radius: 10px;
+    box-shadow: 0 0 40px rgba(180, 140, 60, 0.15), inset 0 0 30px rgba(0,0,0,0.6);
+  }
+  h1 {
+    color: #d4a056;
+    margin: 0 0 4px;
+    letter-spacing: 6px;
+    font-size: 28px;
+    text-shadow: 0 0 12px rgba(212, 160, 86, 0.5);
+  }
+  .sub { color: #6a5638; font-size: 12px; margin-bottom: 12px; letter-spacing: 2px; }
+  .stats {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    margin: 6px 0 10px;
+    font-size: 15px;
+    padding: 8px 12px;
+    background: #0a0805;
+    border: 1px solid #2a221a;
+    border-radius: 4px;
+  }
+  .stats b { color: #d4a056; font-weight: normal; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(8, 46px);
+    grid-template-rows: repeat(8, 46px);
+    gap: 2px;
+    background: #000;
+    padding: 6px;
+    border: 2px solid #4a3c28;
+    margin: 0 auto;
+  }
+  .cell {
+    width: 46px; height: 46px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    background: #000;
+    transition: background 0.15s;
+  }
+  .cell.visible { background: #2a241a; box-shadow: inset 0 0 6px rgba(212,160,86,0.15); }
+  .cell.explored { background: #100c08; opacity: 0.45; filter: grayscale(0.6); }
+  .cell.wall.visible { background: #3a2e1f; }
+  .cell.wall.explored { background: #1a1410; }
+  .log {
+    margin-top: 10px;
+    height: 38px;
+    font-size: 13px;
+    color: #a89678;
+    line-height: 1.4;
+    padding: 4px 8px;
+  }
+  .legend {
+    font-size: 12px;
+    color: #6a5638;
+    margin-top: 4px;
+    letter-spacing: 1px;
+  }
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.88);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 10;
+    backdrop-filter: blur(3px);
+  }
+  .overlay h2 {
+    font-size: 38px; color: #d4a056; margin: 0 0 12px;
+    letter-spacing: 8px;
+    text-shadow: 0 0 20px rgba(212, 160, 86, 0.4);
+  }
+  .overlay p {
+    max-width: 380px; text-align: center;
+    line-height: 1.6; color: #a89678; margin: 6px 0;
+  }
+  button {
+    background: linear-gradient(180deg, #5a4828, #3a2e1f);
+    color: #f0e0b8;
+    border: 1px solid #d4a056;
+    padding: 12px 32px;
+    font-family: inherit; font-size: 15px;
+    cursor: pointer; margin-top: 18px;
+    letter-spacing: 3px;
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+  button:hover {
+    background: linear-gradient(180deg, #7a6238, #4a3c28);
+    box-shadow: 0 0 14px rgba(212, 160, 86, 0.4);
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div id="startScreen" class="overlay">
+  <h2>DUNGEON</h2>
+  <p>🧙 Welcome to the dark dungeon.</p>
+  <p>👹 Avoid or defeat enemies, collect potions, and reach the exit.</p>
+  <p style="font-size:13px;color:#6a5638;margin-top:14px">Move with arrow keys or W A S D</p>
+  <button id="startBtn">Start Adventure</button>
+</div>
+
+<!-- localized comment -->
+<div id="endScreen" class="overlay hidden">
+  <h2 id="endTitle"></h2>
+  <p id="endMsg"></p>
+  <button id="restartBtn">Try Again</button>
+</div>
+
+<!-- localized comment -->
+<div class="game">
+  <h1>DUNGEON</h1>
+  <div class="sub">~ A SINGLE-FILE ROGUELIKE ~</div>
+  <div class="stats">
+    <div>❤️ HP <b id="hp">10</b>/<b id="maxHp">10</b></div>
+    <div>⚔️ Defeated <b id="kills">0</b></div>
+    <div>🏆 Score <b id="score">0</b></div>
+  </div>
+  <div id="grid" class="grid"></div>
+  <div class="log" id="log">Entered the dungeon...</div>
+  <div class="legend">🧙 You · 👹 Enemy · 🧪 Heal · 🚪 Exit · 🪨 Wall</div>
+</div>
+
+<script>
+  /* localized comment */
+  const SIZE = 8;
+  const VIEW_RADIUS = 2;          // Fog of War vision range
+  const PLAYER_MAX_HP = 10;
+  const PLAYER_ATK = 3;
+  const ENEMY_HP = 4;
+  const ENEMY_ATK = 2;
+  const NUM_ENEMIES = 3;
+  const NUM_ITEMS = 2;
+  const HEAL_AMOUNT = 4;
+  const WALL_DENSITY = 0.22;
+  const ENEMY_AGGRO = 4;          // enemy chases only within this distance
+
+  let state;                       // all game state lives here and is reset together
+
+  const key = (x, y) => `${x},${y}`;
+  const inBounds = (x, y) => x >= 0 && x < SIZE && y >= 0 && y < SIZE;
+
+  /* localized comment */
+  function newState() {
+    return {
+      walls: new Set(),
+      enemies: [],
+      items: [],
+      player: { x: 0, y: 0, hp: PLAYER_MAX_HP, atk: PLAYER_ATK },
+      exit: { x: SIZE - 1, y: SIZE - 1 },
+      explored: new Set(),
+      kills: 0,
+      score: 0,
+      over: false,
+      won: false,
+    };
+  }
+
+  /* localized comment */
+  function reachable(walls, sx, sy, ex, ey) {
+    if (sx === ex && sy === ey) return true;
+    const visited = new Set([key(sx, sy)]);
+    const q = [[sx, sy]];
+    while (q.length) {
+      const [x, y] = q.shift();
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (!inBounds(nx, ny)) continue;
+        const k = key(nx, ny);
+        if (visited.has(k) || walls.has(k)) continue;
+        if (nx === ex && ny === ey) return true;
+        visited.add(k);
+        q.push([nx, ny]);
+      }
+    }
+    return false;
+  }
+
+  /* localized comment */
+  function generateMap() {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const walls = new Set();
+      const px = 0, py = 0;
+      const ex = SIZE - 1, ey = SIZE - 1;
+
+      // localized comment
+      for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+          if ((x === px && y === py) || (x === ex && y === ey)) continue;
+          if (Math.random() < WALL_DENSITY) walls.add(key(x, y));
+        }
+      }
+      // localized comment
+      if (!reachable(walls, px, py, ex, ey)) continue;
+
+      const occupied = new Set([key(px, py), key(ex, ey), ...walls]);
+      const placeRandom = (minDist = 0) => {
+        for (let tries = 0; tries < 80; tries++) {
+          const x = Math.floor(Math.random() * SIZE);
+          const y = Math.floor(Math.random() * SIZE);
+          const k = key(x, y);
+          if (occupied.has(k)) continue;
+          if (Math.abs(x - px) + Math.abs(y - py) < minDist) continue;
+          if (!reachable(walls, px, py, x, y)) continue;
+          occupied.add(k);
+          return { x, y };
+        }
+        return null;
+      };
+
+      // localized comment
+      const enemies = [];
+      for (let i = 0; i < NUM_ENEMIES; i++) {
+        const p = placeRandom(3);
+        if (p) enemies.push({ x: p.x, y: p.y, hp: ENEMY_HP, atk: ENEMY_ATK, acted: false });
+      }
+      const items = [];
+      for (let i = 0; i < NUM_ITEMS; i++) {
+        const p = placeRandom(2);
+        if (p) items.push(p);
+      }
+
+      return { walls, enemies, items,
+               player: { x: px, y: py, hp: PLAYER_MAX_HP, atk: PLAYER_ATK },
+               exit: { x: ex, y: ey } };
+    }
+    // localized comment
+    return { walls: new Set(), enemies: [], items: [],
+             player: { x: 0, y: 0, hp: PLAYER_MAX_HP, atk: PLAYER_ATK },
+             exit: { x: SIZE - 1, y: SIZE - 1 } };
+  }
+
+  /* localized comment */
+  function startGame() {
+    state = newState();
+    const m = generateMap();
+    Object.assign(state, m);
+    updateExplored();
+    render();
+    setLog("Entered the dungeon... Find the exit.");
+  }
+
+  /* localized comment */
+  function updateExplored() {
+    for (let dy = -VIEW_RADIUS; dy <= VIEW_RADIUS; dy++) {
+      for (let dx = -VIEW_RADIUS; dx <= VIEW_RADIUS; dx++) {
+        const x = state.player.x + dx;
+        const y = state.player.y + dy;
+        if (!inBounds(x, y)) continue;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) <= VIEW_RADIUS) {
+          state.explored.add(key(x, y));
+        }
+      }
+    }
+  }
+  function isVisible(x, y) {
+    const dx = Math.abs(x - state.player.x);
+    const dy = Math.abs(y - state.player.y);
+    return Math.max(dx, dy) <= VIEW_RADIUS;
+  }
+
+  /* localized comment */
+  function render() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        const k = key(x, y);
+        const visible = isVisible(x, y);
+        const explored = state.explored.has(k);
+        const isWall = state.walls.has(k);
+
+        if (visible) {
+          cell.classList.add('visible');
+          if (isWall) { cell.classList.add('wall'); cell.textContent = '🪨'; }
+          else if (state.player.x === x && state.player.y === y) cell.textContent = '🧙';
+          else if (state.enemies.some(e => e.x === x && e.y === y)) cell.textContent = '👹';
+          else if (state.items.some(i => i.x === x && i.y === y)) cell.textContent = '🧪';
+          else if (state.exit.x === x && state.exit.y === y) cell.textContent = '🚪';
+        } else if (explored) {
+          cell.classList.add('explored');
+          // localized comment
+          if (isWall) { cell.classList.add('wall'); cell.textContent = '🪨'; }
+          else if (state.exit.x === x && state.exit.y === y) cell.textContent = '🚪';
+        }
+        grid.appendChild(cell);
+      }
+    }
+    document.getElementById('hp').textContent = Math.max(0, state.player.hp);
+    document.getElementById('maxHp').textContent = PLAYER_MAX_HP;
+    document.getElementById('kills').textContent = state.kills;
+    document.getElementById('score').textContent = state.score;
+  }
+  function setLog(msg) { document.getElementById('log').textContent = msg; }
+
+  /* localized comment */
+  function tryMove(dx, dy) {
+    if (state.over) return;
+    const nx = state.player.x + dx, ny = state.player.y + dy;
+    if (!inBounds(nx, ny)) return;
+    if (state.walls.has(key(nx, ny))) { setLog("🪨 A wall blocks the way."); return; }
+
+    const messages = [];
+
+    // localized comment
+    const enemy = state.enemies.find(e => e.x === nx && e.y === ny);
+    if (enemy) {
+      enemy.hp -= state.player.atk;
+      messages.push(`👹 to  ${state.player.atk} damage!`);
+      if (enemy.hp <= 0) {
+        state.enemies = state.enemies.filter(e => e !== enemy);
+        state.kills++;
+        state.score += 50;
+        messages.push(`Defeated (+50)`);
+      } else {
+        // localized comment
+        state.player.hp -= enemy.atk;
+        enemy.acted = true; // prevent another attack in the same turn
+        messages.push(`Counterattack dealt ${enemy.atk}  damage.`);
+      }
+    } else {
+      // localized comment
+      const itemIdx = state.items.findIndex(i => i.x === nx && i.y === ny);
+      if (itemIdx >= 0) {
+        const heal = Math.min(HEAL_AMOUNT, PLAYER_MAX_HP - state.player.hp);
+        state.player.hp += heal;
+        state.items.splice(itemIdx, 1);
+        state.score += 20;
+        messages.push(`🧪 Potion used! HP +${heal} (+20)`);
+      }
+      // localized comment
+      if (nx === state.exit.x && ny === state.exit.y) {
+        state.player.x = nx; state.player.y = ny;
+        state.score += 100 + state.player.hp * 5; // remaining health bonus
+        state.won = true; state.over = true;
+        updateExplored(); render();
+        showEnd(true);
+        return;
+      }
+      // localized comment
+      state.player.x = nx;
+      state.player.y = ny;
+      state.score += 1;
+    }
+
+    // Enemy Turn
+    const dmg = enemiesTurn();
+    if (dmg > 0) messages.push(`Enemy attack! -${dmg} HP`);
+
+    if (messages.length === 0) messages.push("...You walk through the darkness.");
+    setLog(messages.join(' '));
+
+    checkEnd();
+    updateExplored();
+    render();
+  }
+
+  /* localized comment */
+  function enemiesTurn() {
+    let dmgTaken = 0;
+    for (const e of state.enemies) {
+      if (e.acted) continue; // skip enemies that already countered this turn
+      const dx = state.player.x - e.x;
+      const dy = state.player.y - e.y;
+      const dist = Math.abs(dx) + Math.abs(dy);
+      if (dist > ENEMY_AGGRO) continue;
+      if (dist === 1) {
+        state.player.hp -= e.atk; dmgTaken += e.atk; continue;
+      }
+      // localized comment
+      const order = Math.abs(dx) >= Math.abs(dy)
+        ? [[Math.sign(dx), 0], [0, Math.sign(dy)]]
+        : [[0, Math.sign(dy)], [Math.sign(dx), 0]];
+      for (const [mx, my] of order) {
+        if (mx === 0 && my === 0) continue;
+        const nx = e.x + mx, ny = e.y + my;
+        if (!inBounds(nx, ny)) continue;
+        if (state.walls.has(key(nx, ny))) continue;
+        if (state.enemies.some(o => o !== e && o.x === nx && o.y === ny)) continue;
+        if (state.player.x === nx && state.player.y === ny) {
+          state.player.hp -= e.atk; dmgTaken += e.atk;
+        } else {
+          e.x = nx; e.y = ny;
+        }
+        break;
+      }
+    }
+    // localized comment
+    state.enemies.forEach(e => e.acted = false);
+    return dmgTaken;
+  }
+
+  /* localized comment */
+  function checkEnd() {
+    if (state.player.hp <= 0) {
+      state.player.hp = 0;
+      state.over = true;
+      state.won = false;
+      showEnd(false);
+    }
+  }
+
+  function showEnd(won) {
+    document.getElementById('endTitle').textContent = won ? '🏆 Escape Successful' : '💀 Defeat';
+    document.getElementById('endMsg').textContent = won
+      ? `You returned alive from the dungeon! Defeated: ${state.kills}, Final Score: ${state.score}`
+      : `You fell asleep in the darkness. Defeated: ${state.kills}, Final Score: ${state.score}`;
+    document.getElementById('endScreen').classList.remove('hidden');
+  }
+
+  /* localized comment */
+  const KEYMAP = {
+    ArrowUp: [0,-1], ArrowDown: [0,1], ArrowLeft: [-1,0], ArrowRight: [1,0],
+    w: [0,-1], s: [0,1], a: [-1,0], d: [1,0],
+    W: [0,-1], S: [0,1], A: [-1,0], D: [1,0],
+  };
+  document.addEventListener('keydown', (e) => {
+    // localized comment
+    if (!document.getElementById('startScreen').classList.contains('hidden')) return;
+    if (!document.getElementById('endScreen').classList.contains('hidden')) return;
+    const m = KEYMAP[e.key];
+    if (m) { e.preventDefault(); tryMove(m[0], m[1]); }
+  });
+
+  document.getElementById('startBtn').addEventListener('click', () => {
+    document.getElementById('startScreen').classList.add('hidden');
+    startGame();
+  });
+  document.getElementById('restartBtn').addEventListener('click', () => {
+    document.getElementById('endScreen').classList.add('hidden');
+    startGame(); // recreate all state for a full reset
+  });
+
+  // localized comment
+  state = newState();
+  render();
+</script>
+</body>
+</html>
