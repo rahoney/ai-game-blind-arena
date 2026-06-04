@@ -10,19 +10,19 @@ from dotenv import load_dotenv
 DISPLAY_NAME_RE = re.compile(r"^[A-Za-z0-9가-힣]{3,14}$")
 JAMO_RE = re.compile(r"[\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uD7B0-\uD7FF]")
 
-DEFAULT_RESERVED_NICKNAME_TERMS = (
+DEFAULT_RESERVED_DISPLAY_NAME_TERMS = (
     "admin", "administrator", "moderator", "operator", "staff", "manager",
     "관리자", "운영자", "매니저", "스태프", "공식", "마스터",
 )
 
-DEFAULT_BANNED_NICKNAME_TERMS = (
+DEFAULT_BANNED_DISPLAY_NAME_TERMS = (
     "fuck", "shit", "bitch", "sex", "porn", "penis", "vagina",
     "섹스", "야동", "보지", "자지", "씨발", "시발", "병신", "좆", "존나",
 )
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
-BLOCKLIST_CSV_PATH = BASE_DIR / "data" / "nickname_blocklist.csv"
+BLOCKLIST_CSV_PATH = BASE_DIR / "data" / "display_name_blocklist.csv"
 
 
 def has_supabase_config():
@@ -36,9 +36,9 @@ def has_supabase_config():
     )
 
 
-def _load_nickname_blocklist():
-    banned_terms = set(DEFAULT_BANNED_NICKNAME_TERMS)
-    reserved_terms = set(DEFAULT_RESERVED_NICKNAME_TERMS)
+def _load_display_name_blocklist():
+    banned_terms = set(DEFAULT_BANNED_DISPLAY_NAME_TERMS)
+    reserved_terms = set(DEFAULT_RESERVED_DISPLAY_NAME_TERMS)
 
     if BLOCKLIST_CSV_PATH.exists():
         with BLOCKLIST_CSV_PATH.open("r", encoding="utf-8-sig", newline="") as csv_file:
@@ -55,7 +55,7 @@ def _load_nickname_blocklist():
     return tuple(sorted(reserved_terms)), tuple(sorted(banned_terms))
 
 
-RESERVED_NICKNAME_TERMS, BANNED_NICKNAME_TERMS = _load_nickname_blocklist()
+RESERVED_DISPLAY_NAME_TERMS, BANNED_DISPLAY_NAME_TERMS = _load_display_name_blocklist()
 
 BADGE_STAGES = [
     {"key": "badge_egg", "min": 0, "max": 4, "next": 5},
@@ -97,26 +97,26 @@ CATEGORY_COMPLETION_BADGES = {
 def validate_display_name(display_name: str):
     display_name = (display_name or "").strip()
     if not display_name:
-        return False, "nickname_required"
+        return False, "display_name_required"
 
     lowered = display_name.casefold()
-    if any(term in lowered for term in RESERVED_NICKNAME_TERMS if term.isascii()):
-        return False, "nickname_reserved"
-    if any(term in display_name for term in RESERVED_NICKNAME_TERMS if not term.isascii()):
-        return False, "nickname_reserved"
+    if any(term in lowered for term in RESERVED_DISPLAY_NAME_TERMS if term.isascii()):
+        return False, "display_name_reserved"
+    if any(term in display_name for term in RESERVED_DISPLAY_NAME_TERMS if not term.isascii()):
+        return False, "display_name_reserved"
 
-    if any(term in lowered for term in BANNED_NICKNAME_TERMS if term.isascii()):
-        return False, "nickname_banned"
-    if any(term in display_name for term in BANNED_NICKNAME_TERMS if not term.isascii()):
-        return False, "nickname_banned"
+    if any(term in lowered for term in BANNED_DISPLAY_NAME_TERMS if term.isascii()):
+        return False, "display_name_banned"
+    if any(term in display_name for term in BANNED_DISPLAY_NAME_TERMS if not term.isascii()):
+        return False, "display_name_banned"
 
     if JAMO_RE.search(display_name):
-        return False, "nickname_jamo_only"
+        return False, "display_name_jamo_only"
 
     if DISPLAY_NAME_RE.fullmatch(display_name):
         return True, None
 
-    return False, "nickname_format"
+    return False, "display_name_format"
 
 
 def get_effective_english_letter_count(text: str):

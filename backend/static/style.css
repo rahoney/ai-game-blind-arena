@@ -339,6 +339,12 @@ html.sidebar-open {
     background: rgba(255, 255, 255, 0.68);
 }
 
+.auth-social-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.55rem;
+}
+
 .message-action-button {
     display: block;
     width: auto;
@@ -1191,7 +1197,7 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
     opacity: 1;
 }
 
-.login-nickname-input::placeholder {
+.login-display-name-input::placeholder {
     font-size: 1.18rem;
     font-weight: 600;
 }

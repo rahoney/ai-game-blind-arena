@@ -18,7 +18,7 @@ from uuid import uuid4
 from postgrest.exceptions import APIError
 try:
     from .database import supabase
-    from .auth import get_firebase_app, get_public_firebase_config, get_super_admin_uids, require_firebase_user
+    from .auth import delete_firebase_user, get_firebase_app, get_public_firebase_config, get_super_admin_uids, require_firebase_user
     from .models import (
         Evaluation,
         PlayEvent,
@@ -31,6 +31,7 @@ try:
         PasswordResetRequest,
         SendLoginIdEmailRequest,
         SocialProvidersUpdate,
+        AccountDeletionRequest,
         CommentReactionToggle,
         CommentReplyCreate,
         AdminBlindToggle,
@@ -54,7 +55,7 @@ try:
     )
 except ImportError:
     from database import supabase
-    from auth import get_firebase_app, get_public_firebase_config, get_super_admin_uids, require_firebase_user
+    from auth import delete_firebase_user, get_firebase_app, get_public_firebase_config, get_super_admin_uids, require_firebase_user
     from models import (
         Evaluation,
         PlayEvent,
@@ -67,6 +68,7 @@ except ImportError:
         PasswordResetRequest,
         SendLoginIdEmailRequest,
         SocialProvidersUpdate,
+        AccountDeletionRequest,
         CommentReactionToggle,
         CommentReplyCreate,
         AdminBlindToggle,
@@ -859,6 +861,64 @@ def _update_profile_social_providers(profile: dict, providers: list[str]):
         raise HTTPException(status_code=500, detail="Failed to update social providers") from exc
 
 
+def _anonymize_deleted_account(profile: dict):
+    profile_id = profile.get("id")
+    uid = profile.get("firebase_uid", "")
+    if not profile_id or not uid:
+        raise HTTPException(status_code=500, detail="profile_id_missing")
+
+    deleted_display_name = "탈퇴한 사용자"
+    unique_profile_display_name = f"deleted_user_{str(profile_id).replace('-', '')[:12]}"
+    deleted_uid = f"deleted:{uid}:{profile_id}"
+    update_payload = {
+        "firebase_uid": deleted_uid,
+        "login_id": None,
+        "real_name": None,
+        "display_name": unique_profile_display_name,
+        "display_name_set": False,
+        "avatar_url": None,
+        "role": "deleted",
+        "provider": None,
+        "social_providers": [],
+        "email": None,
+        "email_verified": False,
+        "email_verification_required": False,
+        "account_status": "deleted",
+        "profile_badge_key": None,
+        "updated_at": _now_iso(),
+        "last_active_at": _now_iso(),
+    }
+
+    if LOCAL_TEST_MODE:
+        profile.update(update_payload)
+        for row in LOCAL_DB["evaluations"]:
+            if row.get("user_id") == profile_id:
+                row["profile_display_name"] = deleted_display_name
+        for row in LOCAL_DB["comment_reactions"]:
+            if row.get("user_id") == profile_id:
+                row["profile_display_name"] = deleted_display_name
+        for row in LOCAL_DB["comment_replies"]:
+            if row.get("user_id") == profile_id:
+                row["profile_display_name"] = deleted_display_name
+        for row in LOCAL_DB["user_views"]:
+            if row.get("user_id") == profile_id:
+                row["display_name"] = deleted_display_name
+        return profile
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    try:
+        updated_res = supabase.table("profiles").update(update_payload).eq("id", profile_id).execute()
+        supabase.table("evaluations").update({"profile_display_name": deleted_display_name}).eq("user_id", profile_id).execute()
+        supabase.table("comment_reactions").update({"profile_display_name": deleted_display_name}).eq("user_id", profile_id).execute()
+        supabase.table("comment_replies").update({"profile_display_name": deleted_display_name}).eq("user_id", profile_id).execute()
+        supabase.table("user_views").update({"display_name": deleted_display_name}).eq("user_id", profile_id).execute()
+        return (updated_res.data or [None])[0] or {**profile, **update_payload}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="account_delete_failed") from exc
+
+
 def _find_actual_model(game_type: str, blind_model_id: str, preferred_lang: str = "ko", blind_model_token: str | None = None):
     lang_games = GAMES_DATA.get(preferred_lang, GAMES_DATA.get('ko', {}))
     if blind_model_token:
@@ -1060,15 +1120,15 @@ async def serve_index():
         return f.read()
 
 
-@app.get("/api/nickname-blocklist.csv")
-async def get_nickname_blocklist():
-    blocklist_path = BASE_DIR / "data" / "nickname_blocklist.csv"
+@app.get("/api/display-name-blocklist.csv")
+async def get_display_name_blocklist():
+    blocklist_path = BASE_DIR / "data" / "display_name_blocklist.csv"
     if not blocklist_path.exists():
-        raise HTTPException(status_code=404, detail="nickname_blocklist_not_found")
+        raise HTTPException(status_code=404, detail="display_name_blocklist_not_found")
     return FileResponse(
         str(blocklist_path),
         media_type="text/csv; charset=utf-8",
-        filename="nickname_blocklist.csv",
+        filename="display_name_blocklist.csv",
     )
 
 
@@ -1253,6 +1313,17 @@ async def update_profile_social_providers(payload: SocialProvidersUpdate, reques
         "profile": updated_profile,
         "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
     }
+
+
+@app.delete("/api/profile/account")
+async def delete_profile_account(payload: AccountDeletionRequest, request: Request):
+    if not payload.confirm:
+        raise HTTPException(status_code=400, detail="account_delete_confirm_required")
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    _anonymize_deleted_account(profile)
+    delete_firebase_user(user.get("uid", ""))
+    return {"deleted": True}
 
 
 @app.get("/api/games")

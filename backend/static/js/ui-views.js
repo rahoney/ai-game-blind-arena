@@ -22,7 +22,7 @@ function renderLogin() {
             <div class="auth-form">
                 ${isDisplayName ? `
                     <label for="auth-display-name">${t('auth_display_name_label')}</label>
-                    <input type="text" id="auth-display-name" autocomplete="nickname" placeholder="${t('auth_display_name_placeholder')}" onkeypress="if(event.keyCode==13) handleDisplayNameSubmit()" ${disabled ? 'disabled' : ''}>
+                    <input type="text" id="auth-display-name" autocomplete="off" placeholder="${t('auth_display_name_placeholder')}" onkeypress="if(event.keyCode==13) handleDisplayNameSubmit()" ${disabled ? 'disabled' : ''}>
                 ` : ''}
                 ${isHelp ? `
                     <button type="button" onclick="setAuthMode('find_id')" ${disabled ? 'disabled' : ''}>${t('auth_find_id')}</button>
@@ -32,7 +32,7 @@ function renderLogin() {
                     <label for="auth-real-name">${t('auth_real_name_label')}</label>
                     <input type="text" id="auth-real-name" autocomplete="name" placeholder="${t('auth_real_name_placeholder')}" ${disabled ? 'disabled' : ''}>
                     <label for="auth-display-name">${t('auth_display_name_label')}</label>
-                    <input type="text" id="auth-display-name" autocomplete="nickname" placeholder="${t('auth_display_name_placeholder')}" ${disabled ? 'disabled' : ''}>
+                    <input type="text" id="auth-display-name" autocomplete="off" placeholder="${t('auth_display_name_placeholder')}" ${disabled ? 'disabled' : ''}>
                     <label for="auth-email">${t('auth_email_candidate_label')}</label>
                     <input type="email" id="auth-email" autocomplete="email" placeholder="${t('auth_email_placeholder')}" ${disabled ? 'disabled' : ''}>
                     <button type="button" onclick="handleFindId()" ${disabled ? 'disabled' : ''}>${t('auth_find_id_check')}</button>
@@ -66,7 +66,7 @@ function renderLogin() {
                         <input type="text" id="auth-real-name" autocomplete="name" placeholder="${t('auth_real_name_placeholder')}" oninput="updateSignupSubmitState()" ${disabled ? 'disabled' : ''}>
                         ${renderAuthFieldLabel('auth-display-name', 'auth_display_name_label')}
                         <div class="auth-inline-control">
-                            <input type="text" id="auth-display-name" autocomplete="nickname" placeholder="${t('auth_display_name_placeholder')}" oninput="handleSignupDisplayNameInput()" ${disabled ? 'disabled' : ''}>
+                            <input type="text" id="auth-display-name" autocomplete="off" placeholder="${t('auth_display_name_placeholder')}" oninput="handleSignupDisplayNameInput()" ${disabled ? 'disabled' : ''}>
                             <button type="button" class="secondary" onclick="handleDisplayNameAvailabilityCheck()" ${disabled ? 'disabled' : ''}>${t('auth_display_name_check')}</button>
                         </div>
                         <p id="auth-display-name-availability" class="auth-field-message"></p>
@@ -109,7 +109,13 @@ function renderLogin() {
                 <div class="auth-help-actions">
                     <button type="button" onclick="setAuthMode('help')" ${disabled ? 'disabled' : ''}>${t('auth_login_help')}</button>
                 </div>
-                <button class="auth-google-button" onclick="handleGoogleLogin()" ${disabled ? 'disabled' : ''}>${t('auth_google_login')}</button>
+                <div class="auth-social-buttons">
+                    <button class="auth-google-button" onclick="handleSocialLogin('google')" ${disabled ? 'disabled' : ''}>${t('auth_google_login')}</button>
+                    <button class="auth-google-button" onclick="handleSocialLogin('kakao')" ${disabled ? 'disabled' : ''}>${t('auth_kakao_login')}</button>
+                    <button class="auth-google-button" onclick="handleSocialLogin('naver')" ${disabled ? 'disabled' : ''}>${t('auth_naver_login')}</button>
+                    <button class="auth-google-button" onclick="handleSocialLogin('discord')" ${disabled ? 'disabled' : ''}>${t('auth_discord_login')}</button>
+                    <button class="auth-google-button" onclick="handleSocialLogin('github')" ${disabled ? 'disabled' : ''}>${t('auth_github_login')}</button>
+                </div>
                 `}
             </div>
         </div>

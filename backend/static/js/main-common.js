@@ -8,23 +8,23 @@ document.addEventListener('keydown', event => {
     }
 });
 
-let CLIENT_RESERVED_NICKNAME_TERMS = [
+let CLIENT_RESERVED_DISPLAY_NAME_TERMS = [
     'admin', 'administrator', 'moderator', 'operator', 'staff', 'manager',
     '관리자', '운영자', '매니저', '스태프', '공식', '마스터'
 ];
 
-let CLIENT_BANNED_NICKNAME_TERMS = [
+let CLIENT_BANNED_DISPLAY_NAME_TERMS = [
     'fuck', 'shit', 'bitch', 'sex', 'porn', 'penis', 'vagina',
     '섹스', '야동', '보지', '자지', '씨발', '시발', '병신', '좆', '존나'
 ];
 
-async function loadNicknameBlocklist() {
+async function loadDisplayNameBlocklist() {
     try {
-        const response = await fetch('/api/nickname-blocklist.csv', { cache: 'no-store' });
+        const response = await fetch('/api/display-name-blocklist.csv', { cache: 'no-store' });
         const csvText = await response.text();
         const rows = csvText.replace(/^\uFEFF/, '').split(/\r?\n/).slice(1);
-        const reservedTerms = new Set(CLIENT_RESERVED_NICKNAME_TERMS);
-        const bannedTerms = new Set(CLIENT_BANNED_NICKNAME_TERMS);
+        const reservedTerms = new Set(CLIENT_RESERVED_DISPLAY_NAME_TERMS);
+        const bannedTerms = new Set(CLIENT_BANNED_DISPLAY_NAME_TERMS);
 
         for (const row of rows) {
             if (!row.trim()) continue;
@@ -35,31 +35,31 @@ async function loadNicknameBlocklist() {
             if (reservedValue) reservedTerms.add(reservedValue);
         }
 
-        CLIENT_RESERVED_NICKNAME_TERMS = [...reservedTerms];
-        CLIENT_BANNED_NICKNAME_TERMS = [...bannedTerms];
+        CLIENT_RESERVED_DISPLAY_NAME_TERMS = [...reservedTerms];
+        CLIENT_BANNED_DISPLAY_NAME_TERMS = [...bannedTerms];
     } catch (e) {
-        console.warn('Failed to load nickname blocklist CSV.', e);
+        console.warn('Failed to load display-name blocklist CSV.', e);
     }
 }
 
 function validateDisplayNameInput(displayName) {
     const trimmed = (displayName || '').trim();
-    if (!trimmed) return 'nickname_required';
+    if (!trimmed) return 'display_name_required';
 
     const lowered = trimmed.toLowerCase();
-    if (CLIENT_RESERVED_NICKNAME_TERMS.some(term => term.charCodeAt(0) < 128 ? lowered.includes(term) : trimmed.includes(term))) {
-        return 'nickname_reserved';
+    if (CLIENT_RESERVED_DISPLAY_NAME_TERMS.some(term => term.charCodeAt(0) < 128 ? lowered.includes(term) : trimmed.includes(term))) {
+        return 'display_name_reserved';
     }
-    if (CLIENT_BANNED_NICKNAME_TERMS.some(term => term.charCodeAt(0) < 128 ? lowered.includes(term) : trimmed.includes(term))) {
-        return 'nickname_banned';
+    if (CLIENT_BANNED_DISPLAY_NAME_TERMS.some(term => term.charCodeAt(0) < 128 ? lowered.includes(term) : trimmed.includes(term))) {
+        return 'display_name_banned';
     }
     if (/[\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uD7B0-\uD7FF]/.test(trimmed)) {
-        return 'nickname_jamo_only';
+        return 'display_name_jamo_only';
     }
     if (/^[A-Za-z0-9가-힣]{3,14}$/.test(trimmed)) {
         return null;
     }
-    return 'nickname_format';
+    return 'display_name_format';
 }
 
 function formatWaitTime(seconds) {
@@ -90,24 +90,24 @@ function getDisplayNameErrorMessage(errorKey) {
         const waitTime = parts[1] || '0';
         return t(key, { seconds: formatWaitTime(waitTime) });
     }
-    return t(errorKey || 'nickname_generic_error');
+    return t(errorKey || 'display_name_generic_error');
 }
 
 function translateApiDetail(detail) {
-    if (!detail) return t('nickname_generic_error');
+    if (!detail) return t('display_name_generic_error');
     return getDisplayNameErrorMessage(detail);
 }
 
-function handleNicknameFocus(input) {
+function handleDisplayNameFocus(input) {
     if (!input) return;
     input.dataset.placeholder = input.dataset.placeholder || input.getAttribute('placeholder') || '';
     input.setAttribute('placeholder', '');
 }
 
-function handleNicknameBlur(input) {
+function handleDisplayNameBlur(input) {
     if (!input) return;
     if (input.value) return;
-    input.setAttribute('placeholder', input.dataset.placeholder || t('nickname_placeholder'));
+    input.setAttribute('placeholder', input.dataset.placeholder || t('auth_display_name_placeholder'));
 }
 
 function showAppMessage(message, options = {}) {
@@ -179,7 +179,7 @@ function validateCommentInput(comment) {
     if (!trimmed) return 'comment_required';
 
     const lowered = trimmed.toLowerCase();
-    if (CLIENT_BANNED_NICKNAME_TERMS.some(term => term.charCodeAt(0) < 128 ? lowered.includes(term) : trimmed.includes(term))) {
+    if (CLIENT_BANNED_DISPLAY_NAME_TERMS.some(term => term.charCodeAt(0) < 128 ? lowered.includes(term) : trimmed.includes(term))) {
         return 'comment_banned';
     }
 

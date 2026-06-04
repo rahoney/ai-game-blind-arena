@@ -32,7 +32,7 @@ function t(key, params = {}) {
              ? langBucket[key]
              : (koBucket[key] || key);
 
-  // 파라미터 교체 (예: {nickname} -> 사용자 닉네임)
+  // 파라미터 교체 (예: {display_name} -> 사용자 표시명)
   for (const [k, v] of Object.entries(params)) {
     text = text.replace(`{${k}}`, v);
   }

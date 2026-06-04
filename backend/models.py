@@ -86,6 +86,10 @@ class SocialProvidersUpdate(BaseModel):
     def clean_providers(cls, value):
         return sorted({str(provider).strip() for provider in value if str(provider).strip()})
 
+
+class AccountDeletionRequest(BaseModel):
+    confirm: bool = False
+
 class Evaluation(BaseModel):
     game_type: str = Field(min_length=1, max_length=100)
     blind_model_id: str = Field(min_length=1, max_length=10)
