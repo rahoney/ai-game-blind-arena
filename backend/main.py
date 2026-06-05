@@ -11,6 +11,7 @@ import base64
 import secrets
 import random
 import re
+import logging
 from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
@@ -93,6 +94,7 @@ except ImportError:
     )
 
 app = FastAPI(title="LLM Game Evaluator")
+logger = logging.getLogger("veilplays")
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 COMMENT_REACTION_RATE_LIMITS = make_rate_limit_store()
@@ -894,7 +896,7 @@ def _anonymize_deleted_account(profile: dict):
         "display_name": unique_profile_display_name,
         "display_name_set": False,
         "avatar_url": None,
-        "role": "deleted",
+        "role": "user",
         "provider": None,
         "social_providers": [],
         "email": None,
@@ -938,6 +940,7 @@ def _anonymize_deleted_account(profile: dict):
         supabase.table("auth_provider_accounts").delete().eq("profile_id", profile_id).execute()
         return (updated_res.data or [None])[0] or {**profile, **update_payload}
     except Exception as exc:
+        logger.exception("Account anonymization failed for profile_id=%s", profile_id)
         raise HTTPException(status_code=500, detail="account_delete_failed") from exc
 
 
