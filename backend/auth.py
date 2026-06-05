@@ -5,7 +5,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import HTTPException, Request
 
-load_dotenv(Path(__file__).resolve().parent / ".env")
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+load_dotenv(BASE_DIR / ".env.local", override=True)
 
 
 class FirebaseAuthConfigurationError(RuntimeError):
@@ -104,6 +106,19 @@ def require_firebase_user(request: Request):
         return verify_firebase_id_token(extract_bearer_token(request))
     except FirebaseAuthConfigurationError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+def create_firebase_custom_token(uid: str, claims: dict | None = None) -> str:
+    try:
+        from firebase_admin import auth as firebase_auth
+
+        get_firebase_app()
+        token = firebase_auth.create_custom_token(uid, claims or {})
+        return token.decode("utf-8") if isinstance(token, bytes) else str(token)
+    except FirebaseAuthConfigurationError:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="firebase_custom_token_failed") from exc
 
 
 def delete_firebase_user(uid: str):

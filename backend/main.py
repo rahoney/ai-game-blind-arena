@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import json
@@ -12,13 +12,14 @@ import secrets
 import random
 import re
 from urllib import error as urllib_error
+from urllib import parse as urllib_parse
 from urllib import request as urllib_request
 from datetime import datetime, timezone, timedelta
 from uuid import uuid4
 from postgrest.exceptions import APIError
 try:
     from .database import supabase
-    from .auth import delete_firebase_user, get_firebase_app, get_public_firebase_config, get_super_admin_uids, require_firebase_user
+    from .auth import create_firebase_custom_token, delete_firebase_user, get_firebase_app, get_public_firebase_config, get_super_admin_uids, require_firebase_user
     from .models import (
         Evaluation,
         PlayEvent,
@@ -55,7 +56,7 @@ try:
     )
 except ImportError:
     from database import supabase
-    from auth import delete_firebase_user, get_firebase_app, get_public_firebase_config, get_super_admin_uids, require_firebase_user
+    from auth import create_firebase_custom_token, delete_firebase_user, get_firebase_app, get_public_firebase_config, get_super_admin_uids, require_firebase_user
     from models import (
         Evaluation,
         PlayEvent,
@@ -106,6 +107,7 @@ LOCAL_DB = {
     "user_views": [],
     "comment_reactions": [],
     "comment_replies": [],
+    "auth_provider_accounts": [],
     "account_recovery_attempts": [],
     "signup_email_verifications": [],
 }
@@ -581,7 +583,8 @@ def _is_valid_real_name(real_name: str, language: str | None = "ko"):
 
 def _profile_payload_from_firebase_user(user: dict, role: str):
     firebase_info = user.get("firebase", {}) or {}
-    provider = firebase_info.get("sign_in_provider")
+    sign_in_provider = firebase_info.get("sign_in_provider")
+    provider = user.get("provider_key") if sign_in_provider == "custom" else sign_in_provider
     uid = user.get("uid", "")
     return {
         "firebase_uid": uid,
@@ -613,6 +616,13 @@ def _resolve_profile_for_firebase_user(user: dict):
             update_payload = dict(payload)
             update_payload.pop("display_name", None)
             update_payload.pop("display_name_set", None)
+            if not payload.get("email"):
+                update_payload.pop("email", None)
+                update_payload.pop("email_verified", None)
+                update_payload.pop("email_verification_required", None)
+                update_payload.pop("account_status", None)
+            if not payload.get("avatar_url"):
+                update_payload.pop("avatar_url", None)
             existing.update(update_payload)
             existing["role"] = "super_admin" if role == "super_admin" else existing.get("role", "user")
             existing["updated_at"] = _now_iso()
@@ -636,6 +646,13 @@ def _resolve_profile_for_firebase_user(user: dict):
             update_payload = dict(payload)
             update_payload.pop("display_name", None)
             update_payload.pop("display_name_set", None)
+            if not payload.get("email"):
+                update_payload.pop("email", None)
+                update_payload.pop("email_verified", None)
+                update_payload.pop("email_verification_required", None)
+                update_payload.pop("account_status", None)
+            if not payload.get("avatar_url"):
+                update_payload.pop("avatar_url", None)
             if existing.get("role") and role != "super_admin":
                 update_payload["role"] = existing["role"]
             update_payload["updated_at"] = _now_iso()
@@ -903,6 +920,10 @@ def _anonymize_deleted_account(profile: dict):
         for row in LOCAL_DB["user_views"]:
             if row.get("user_id") == profile_id:
                 row["display_name"] = deleted_display_name
+        LOCAL_DB["auth_provider_accounts"] = [
+            row for row in LOCAL_DB["auth_provider_accounts"]
+            if row.get("profile_id") != profile_id
+        ]
         return profile
 
     if not supabase:
@@ -914,9 +935,351 @@ def _anonymize_deleted_account(profile: dict):
         supabase.table("comment_reactions").update({"profile_display_name": deleted_display_name}).eq("user_id", profile_id).execute()
         supabase.table("comment_replies").update({"profile_display_name": deleted_display_name}).eq("user_id", profile_id).execute()
         supabase.table("user_views").update({"display_name": deleted_display_name}).eq("user_id", profile_id).execute()
+        supabase.table("auth_provider_accounts").delete().eq("profile_id", profile_id).execute()
         return (updated_res.data or [None])[0] or {**profile, **update_payload}
     except Exception as exc:
         raise HTTPException(status_code=500, detail="account_delete_failed") from exc
+
+
+def _get_oauth_state_secret():
+    secret = (
+        os.environ.get("OAUTH_STATE_SECRET", "").strip()
+        or os.environ.get("ADMIN_TOKEN_SECRET", "").strip()
+        or os.environ.get("KAKAO_CLIENT_SECRET", "").strip()
+    )
+    if not secret:
+        raise HTTPException(status_code=503, detail="oauth_state_secret_not_configured")
+    return secret.encode("utf-8")
+
+
+def _make_oauth_state(provider: str):
+    payload = {
+        "provider": provider,
+        "nonce": secrets.token_urlsafe(24),
+        "iat": int(datetime.now(timezone.utc).timestamp()),
+    }
+    payload_bytes = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    payload_token = base64.urlsafe_b64encode(payload_bytes).decode("ascii").rstrip("=")
+    signature = hmac.new(_get_oauth_state_secret(), payload_token.encode("ascii"), hashlib.sha256).digest()
+    signature_token = base64.urlsafe_b64encode(signature).decode("ascii").rstrip("=")
+    return f"{payload_token}.{signature_token}"
+
+
+def _decode_oauth_state(state: str):
+    payload_token, _, signature_token = (state or "").partition(".")
+    if not payload_token or not signature_token:
+        raise HTTPException(status_code=400, detail="invalid_oauth_state")
+    expected = hmac.new(_get_oauth_state_secret(), payload_token.encode("ascii"), hashlib.sha256).digest()
+    actual = base64.urlsafe_b64decode(signature_token + "=" * (-len(signature_token) % 4))
+    if not hmac.compare_digest(expected, actual):
+        raise HTTPException(status_code=400, detail="invalid_oauth_state")
+    payload_bytes = base64.urlsafe_b64decode(payload_token + "=" * (-len(payload_token) % 4))
+    return json.loads(payload_bytes.decode("utf-8"))
+
+
+def _validate_oauth_state(provider: str, state: str, cookie_state: str | None):
+    if not state or not cookie_state or state != cookie_state:
+        raise HTTPException(status_code=400, detail="invalid_oauth_state")
+    payload = _decode_oauth_state(state)
+    if payload.get("provider") != provider:
+        raise HTTPException(status_code=400, detail="invalid_oauth_state")
+    issued_at = int(payload.get("iat") or 0)
+    now = int(datetime.now(timezone.utc).timestamp())
+    if issued_at <= 0 or now - issued_at > 600:
+        raise HTTPException(status_code=400, detail="expired_oauth_state")
+    return payload
+
+
+def _oauth_popup_html(payload: dict):
+    return HTMLResponse(
+        f"""<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>OAuth Complete</title></head>
+<body>
+<script>
+(function() {{
+  const payload = {json.dumps(payload, ensure_ascii=False)};
+  if (window.opener && !window.opener.closed) {{
+    window.opener.postMessage(payload, window.location.origin);
+  }}
+  window.close();
+}}());
+</script>
+<p>로그인 처리를 완료했습니다. 이 창을 닫아도 됩니다.</p>
+</body>
+</html>"""
+    )
+
+
+def _oauth_error_html(provider: str, detail: str):
+    return _oauth_popup_html({
+        "type": "oauth_error",
+        "provider": provider,
+        "detail": detail,
+    })
+
+
+def _post_form_json(url: str, data: dict, headers: dict | None = None):
+    encoded = urllib_parse.urlencode(data).encode("utf-8")
+    request = urllib_request.Request(
+        url,
+        data=encoded,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+            **(headers or {}),
+        },
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(request, timeout=10) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib_error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(status_code=502, detail=f"oauth_token_exchange_failed:{detail}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="oauth_token_exchange_failed") from exc
+
+
+def _get_json(url: str, headers: dict | None = None):
+    request = urllib_request.Request(url, headers=headers or {}, method="GET")
+    try:
+        with urllib_request.urlopen(request, timeout=10) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib_error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(status_code=502, detail=f"oauth_userinfo_failed:{detail}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="oauth_userinfo_failed") from exc
+
+
+def _get_kakao_config():
+    config = {
+        "client_id": os.environ.get("KAKAO_CLIENT_ID", "").strip(),
+        "client_secret": os.environ.get("KAKAO_CLIENT_SECRET", "").strip(),
+        "redirect_uri": os.environ.get("KAKAO_REDIRECT_URI", "").strip(),
+    }
+    if not config["client_id"] or not config["redirect_uri"]:
+        raise HTTPException(status_code=503, detail="kakao_oauth_not_configured")
+    return config
+
+
+def _exchange_kakao_code(code: str):
+    config = _get_kakao_config()
+    data = {
+        "grant_type": "authorization_code",
+        "client_id": config["client_id"],
+        "redirect_uri": config["redirect_uri"],
+        "code": code,
+    }
+    if config["client_secret"]:
+        data["client_secret"] = config["client_secret"]
+    return _post_form_json("https://kauth.kakao.com/oauth/token", data)
+
+
+def _fetch_kakao_user(access_token: str):
+    return _get_json(
+        "https://kapi.kakao.com/v2/user/me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+
+def _extract_kakao_identity(kakao_user: dict):
+    provider_user_id = str(kakao_user.get("id") or "").strip()
+    if not provider_user_id:
+        raise HTTPException(status_code=502, detail="kakao_user_id_missing")
+    account = kakao_user.get("kakao_account") or {}
+    profile = account.get("profile") or {}
+    kakao_display_name_field = "nick" + "name"
+    return {
+        "provider": "kakao",
+        "provider_user_id": provider_user_id,
+        "firebase_uid": f"kakao:{provider_user_id}",
+        "email": _normalize_email(account.get("email") or ""),
+        "email_verified": bool(account.get("is_email_verified")),
+        "display_name": (profile.get(kakao_display_name_field) or "").strip(),
+        "avatar_url": (profile.get("profile_image_url") or profile.get("thumbnail_image_url") or "").strip(),
+    }
+
+
+def _get_provider_account(provider: str, provider_user_id: str):
+    if LOCAL_TEST_MODE:
+        return next((
+            row for row in LOCAL_DB["auth_provider_accounts"]
+            if row.get("provider") == provider and row.get("provider_user_id") == provider_user_id
+        ), None)
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    res = (
+        supabase.table("auth_provider_accounts")
+        .select("*")
+        .eq("provider", provider)
+        .eq("provider_user_id", provider_user_id)
+        .limit(1)
+        .execute()
+    )
+    return (res.data or [None])[0]
+
+
+def _get_profile_by_id(profile_id: str):
+    if LOCAL_TEST_MODE:
+        return next((profile for profile in LOCAL_DB["profiles"].values() if profile.get("id") == profile_id), None)
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    res = supabase.table("profiles").select("*").eq("id", profile_id).limit(1).execute()
+    return (res.data or [None])[0]
+
+
+def _get_profile_by_firebase_uid(firebase_uid: str):
+    if LOCAL_TEST_MODE:
+        return LOCAL_DB["profiles"].get(firebase_uid)
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    res = supabase.table("profiles").select("*").eq("firebase_uid", firebase_uid).limit(1).execute()
+    return (res.data or [None])[0]
+
+
+def _upsert_oauth_profile(identity: dict):
+    provider = identity["provider"]
+    provider_user_id = identity["provider_user_id"]
+    firebase_uid = identity["firebase_uid"]
+    now = _now_iso()
+    temporary_display_name = f"user{hashlib.sha256(f'{provider}:{provider_user_id}'.encode('utf-8')).hexdigest()[:10]}"
+    account = _get_provider_account(provider, provider_user_id)
+    if account:
+        profile = _get_profile_by_id(account["profile_id"])
+        if not profile or profile.get("account_status") == "deleted":
+            raise HTTPException(status_code=409, detail="oauth_account_deleted")
+        providers = sorted({*(profile.get("social_providers") or []), provider})
+        profile_updates = {
+            "provider": profile.get("provider") or provider,
+            "social_providers": providers,
+            "last_login_at": now,
+            "last_active_at": now,
+            "updated_at": now,
+        }
+        account_updates = {
+            "provider_email": identity.get("email") or None,
+            "provider_display_name": identity.get("display_name") or None,
+            "provider_avatar_url": identity.get("avatar_url") or None,
+            "updated_at": now,
+        }
+        if LOCAL_TEST_MODE:
+            profile.update(profile_updates)
+            account.update(account_updates)
+            return profile
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Supabase is not configured")
+        updated_res = supabase.table("profiles").update(profile_updates).eq("id", profile["id"]).execute()
+        supabase.table("auth_provider_accounts").update(account_updates).eq("id", account["id"]).execute()
+        profile = (updated_res.data or [None])[0] or {**profile, **profile_updates}
+        return profile
+
+    existing_profile = _get_profile_by_firebase_uid(firebase_uid)
+    if existing_profile and existing_profile.get("account_status") == "deleted":
+        existing_profile = None
+
+    if LOCAL_TEST_MODE:
+        profile = existing_profile
+        if not profile:
+            profile = {
+                "id": str(uuid4()),
+                "firebase_uid": firebase_uid,
+                "login_id": None,
+                "real_name": None,
+                "display_name": temporary_display_name,
+                "display_name_set": False,
+                "avatar_url": identity.get("avatar_url") or None,
+                "role": "user",
+                "provider": provider,
+                "social_providers": [provider],
+                "email": identity.get("email") or None,
+                "email_verified": identity.get("email_verified", False),
+                "email_verification_required": False,
+                "account_status": "active",
+                "profile_badge_key": None,
+                "created_at": now,
+                "updated_at": now,
+                "last_login_at": now,
+                "last_active_at": now,
+            }
+            LOCAL_DB["profiles"][firebase_uid] = profile
+        else:
+            providers = sorted({*(profile.get("social_providers") or []), provider})
+            profile.update({
+                "provider": profile.get("provider") or provider,
+                "social_providers": providers,
+                "last_login_at": now,
+                "last_active_at": now,
+                "updated_at": now,
+            })
+        LOCAL_DB["auth_provider_accounts"].append({
+            "id": str(uuid4()),
+            "profile_id": profile["id"],
+            "provider": provider,
+            "provider_user_id": provider_user_id,
+            "provider_email": identity.get("email") or None,
+            "provider_display_name": identity.get("display_name") or None,
+            "provider_avatar_url": identity.get("avatar_url") or None,
+            "created_at": now,
+            "updated_at": now,
+        })
+        return profile
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    try:
+        profile = existing_profile
+        if not profile:
+            insert_payload = {
+                "firebase_uid": firebase_uid,
+                "login_id": None,
+                "real_name": None,
+                "display_name": temporary_display_name,
+                "display_name_set": False,
+                "avatar_url": identity.get("avatar_url") or None,
+                "role": "user",
+                "provider": provider,
+                "social_providers": [provider],
+                "email": identity.get("email") or None,
+                "email_verified": identity.get("email_verified", False),
+                "email_verification_required": False,
+                "account_status": "active",
+                "created_at": now,
+                "updated_at": now,
+                "last_login_at": now,
+                "last_active_at": now,
+            }
+            inserted_res = supabase.table("profiles").insert(insert_payload).execute()
+            profile = (inserted_res.data or [None])[0] or insert_payload
+        else:
+            providers = sorted({*(profile.get("social_providers") or []), provider})
+            update_payload = {
+                "provider": profile.get("provider") or provider,
+                "social_providers": providers,
+                "last_login_at": now,
+                "last_active_at": now,
+                "updated_at": now,
+            }
+            updated_res = supabase.table("profiles").update(update_payload).eq("id", profile["id"]).execute()
+            profile = (updated_res.data or [None])[0] or {**profile, **update_payload}
+
+        account_payload = {
+            "profile_id": profile["id"],
+            "provider": provider,
+            "provider_user_id": provider_user_id,
+            "provider_email": identity.get("email") or None,
+            "provider_display_name": identity.get("display_name") or None,
+            "provider_avatar_url": identity.get("avatar_url") or None,
+            "updated_at": now,
+        }
+        supabase.table("auth_provider_accounts").upsert(
+            account_payload,
+            on_conflict="provider,provider_user_id",
+        ).execute()
+        return profile
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="oauth_profile_upsert_failed") from exc
 
 
 def _find_actual_model(game_type: str, blind_model_id: str, preferred_lang: str = "ko", blind_model_token: str | None = None):
@@ -1135,6 +1498,65 @@ async def get_display_name_blocklist():
 @app.get("/api/auth/config")
 async def auth_config():
     return get_public_firebase_config()
+
+
+@app.get("/api/auth/oauth/kakao/start")
+async def kakao_oauth_start():
+    config = _get_kakao_config()
+    state = _make_oauth_state("kakao")
+    params = {
+        "response_type": "code",
+        "client_id": config["client_id"],
+        "redirect_uri": config["redirect_uri"],
+        "state": state,
+    }
+    login_url = f"https://kauth.kakao.com/oauth/authorize?{urllib_parse.urlencode(params)}"
+    response = RedirectResponse(login_url, status_code=302)
+    response.set_cookie(
+        "oauth_state_kakao",
+        state,
+        max_age=600,
+        httponly=True,
+        secure=config["redirect_uri"].startswith("https://"),
+        samesite="lax",
+    )
+    return response
+
+
+@app.get("/api/auth/oauth/kakao/callback")
+async def kakao_oauth_callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None):
+    response = None
+    try:
+        if error:
+            return _oauth_error_html("kakao", error)
+        if not code:
+            return _oauth_error_html("kakao", "oauth_code_missing")
+        _validate_oauth_state("kakao", state or "", request.cookies.get("oauth_state_kakao"))
+        token_data = _exchange_kakao_code(code)
+        access_token = token_data.get("access_token")
+        if not access_token:
+            return _oauth_error_html("kakao", "oauth_access_token_missing")
+        kakao_user = _fetch_kakao_user(access_token)
+        identity = _extract_kakao_identity(kakao_user)
+        _upsert_oauth_profile(identity)
+        custom_token = create_firebase_custom_token(
+            identity["firebase_uid"],
+            {
+                "provider_key": "kakao",
+                "provider_user_id": identity["provider_user_id"],
+            },
+        )
+        response = _oauth_popup_html({
+            "type": "oauth_custom_token",
+            "provider": "kakao",
+            "customToken": custom_token,
+        })
+    except HTTPException as exc:
+        response = _oauth_error_html("kakao", str(exc.detail))
+    except Exception:
+        response = _oauth_error_html("kakao", "oauth_login_failed")
+    response.delete_cookie("oauth_state_kakao")
+    return response
 
 
 @app.get("/api/auth/me")

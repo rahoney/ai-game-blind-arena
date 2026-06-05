@@ -112,8 +112,6 @@ function renderLogin() {
                 <div class="auth-social-buttons">
                     <button class="auth-google-button" onclick="handleSocialLogin('google')" ${disabled ? 'disabled' : ''}>${t('auth_google_login')}</button>
                     <button class="auth-google-button" onclick="handleSocialLogin('kakao')" ${disabled ? 'disabled' : ''}>${t('auth_kakao_login')}</button>
-                    <button class="auth-google-button" onclick="handleSocialLogin('naver')" ${disabled ? 'disabled' : ''}>${t('auth_naver_login')}</button>
-                    <button class="auth-google-button" onclick="handleSocialLogin('discord')" ${disabled ? 'disabled' : ''}>${t('auth_discord_login')}</button>
                     <button class="auth-google-button" onclick="handleSocialLogin('github')" ${disabled ? 'disabled' : ''}>${t('auth_github_login')}</button>
                 </div>
                 `}

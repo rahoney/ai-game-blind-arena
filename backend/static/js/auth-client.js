@@ -25,21 +25,15 @@ const SOCIAL_AUTH_PROVIDERS = {
         providerId: 'google.com',
         createProvider: () => new firebase.auth.GoogleAuthProvider(),
     },
-    kakao: {
-        providerId: 'oidc.kakao',
-        createProvider: () => new firebase.auth.OAuthProvider('oidc.kakao'),
-    },
-    naver: {
-        providerId: 'oidc.naver',
-        createProvider: () => new firebase.auth.OAuthProvider('oidc.naver'),
-    },
-    discord: {
-        providerId: 'oidc.discord',
-        createProvider: () => new firebase.auth.OAuthProvider('oidc.discord'),
-    },
     github: {
         providerId: 'github.com',
         createProvider: () => new firebase.auth.GithubAuthProvider(),
+    },
+};
+
+const BACKEND_OAUTH_PROVIDERS = {
+    kakao: {
+        startUrl: '/api/auth/oauth/kakao/start',
     },
 };
 
@@ -639,6 +633,9 @@ async function handleGoogleLogin() {
 
 async function handleSocialLogin(providerKey) {
     if (!firebaseAuth || state.isLoginSubmitting) return;
+    if (BACKEND_OAUTH_PROVIDERS[providerKey]) {
+        return handleBackendOAuthLogin(providerKey);
+    }
     const providerConfig = SOCIAL_AUTH_PROVIDERS[providerKey];
     if (!providerConfig) return;
     try {
@@ -659,6 +656,48 @@ async function handleSocialLogin(providerKey) {
         state.isLoginSubmitting = false;
     }
 }
+
+function handleBackendOAuthLogin(providerKey) {
+    const providerConfig = BACKEND_OAUTH_PROVIDERS[providerKey];
+    if (!providerConfig) return;
+    const popup = window.open(providerConfig.startUrl, `${providerKey}_login`, 'width=480,height=720');
+    if (!popup) {
+        showAppMessage(t('auth_popup_blocked'), { tone: 'error' });
+    }
+}
+
+async function handleBackendOAuthMessage(event) {
+    if (event.origin !== window.location.origin) return;
+    const data = event.data || {};
+    if (!data || typeof data !== 'object') return;
+
+    if (data.type === 'oauth_error') {
+        showAppMessage(t('auth_social_login_error'), { tone: 'error' });
+        return;
+    }
+
+    if (data.type !== 'oauth_custom_token' || !data.customToken) return;
+    if (!firebaseAuth || state.isLoginSubmitting) return;
+
+    try {
+        state.isLoginSubmitting = true;
+        await firebaseAuth.signInWithCustomToken(data.customToken);
+        await refreshAccountFromFirebaseUser();
+        if (state.account?.profile && !state.account.profile.display_name_set) {
+            state.authMode = 'display_name';
+            navigateTo('login', renderLogin);
+            return;
+        }
+        await refreshSignedInGameState();
+        navigateTo('category', renderCategorySelection);
+    } catch (e) {
+        showAppMessage(getFriendlyAuthError(e, 'login'), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+    }
+}
+
+window.addEventListener('message', handleBackendOAuthMessage);
 
 async function handlePasswordReset() {
     if (!firebaseAuth || state.isLoginSubmitting) return;
