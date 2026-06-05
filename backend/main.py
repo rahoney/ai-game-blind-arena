@@ -900,7 +900,7 @@ def _anonymize_deleted_account(profile: dict):
         "email": None,
         "email_verified": False,
         "email_verification_required": False,
-        "account_status": "deleted",
+        "account_status": "withdrawn",
         "profile_badge_key": None,
         "updated_at": _now_iso(),
         "last_active_at": _now_iso(),
@@ -1147,7 +1147,7 @@ def _upsert_oauth_profile(identity: dict):
     account = _get_provider_account(provider, provider_user_id)
     if account:
         profile = _get_profile_by_id(account["profile_id"])
-        if not profile or profile.get("account_status") == "deleted":
+        if not profile or profile.get("account_status") in ("deleted", "withdrawn"):
             raise HTTPException(status_code=409, detail="oauth_account_deleted")
         providers = sorted({*(profile.get("social_providers") or []), provider})
         profile_updates = {
@@ -1175,7 +1175,7 @@ def _upsert_oauth_profile(identity: dict):
         return profile
 
     existing_profile = _get_profile_by_firebase_uid(firebase_uid)
-    if existing_profile and existing_profile.get("account_status") == "deleted":
+    if existing_profile and existing_profile.get("account_status") in ("deleted", "withdrawn"):
         existing_profile = None
 
     if LOCAL_TEST_MODE:
