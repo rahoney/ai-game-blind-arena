@@ -22,6 +22,7 @@ DEFAULT_BANNED_DISPLAY_NAME_TERMS = (
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
+load_dotenv(BASE_DIR / ".env.local", override=True)
 BLOCKLIST_CSV_PATH = BASE_DIR / "data" / "display_name_blocklist.csv"
 
 

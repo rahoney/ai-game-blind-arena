@@ -54,9 +54,6 @@ function renderMyPage() {
     const selectedBadgeKey = state.profileBadgeSelection || currentProfileBadgeKey;
     const providerButtons = [
         ['google', 'google.com', 'auth_link_google'],
-        ['kakao', 'oidc.kakao', 'auth_link_kakao'],
-        ['naver', 'oidc.naver', 'auth_link_naver'],
-        ['discord', 'oidc.discord', 'auth_link_discord'],
         ['github', 'github.com', 'auth_link_github'],
     ].map(([providerKey, providerId, labelKey]) => (
         state.account && !hasLinkedProvider(providerId)

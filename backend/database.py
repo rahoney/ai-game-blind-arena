@@ -4,7 +4,9 @@ from typing import Optional
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent / ".env")
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+load_dotenv(BASE_DIR / ".env.local", override=True)
 
 url: str = os.environ.get("SUPABASE_URL", "")
 key: str = (

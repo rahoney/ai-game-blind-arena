@@ -32,6 +32,27 @@ CREATE UNIQUE INDEX unique_profiles_login_id_ci
 ON profiles (LOWER(login_id))
 WHERE login_id IS NOT NULL;
 
+CREATE TABLE auth_provider_accounts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    provider_user_id TEXT NOT NULL,
+    provider_email TEXT,
+    provider_display_name TEXT,
+    provider_avatar_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT unique_auth_provider_account UNIQUE (provider, provider_user_id),
+    CONSTRAINT unique_profile_provider UNIQUE (profile_id, provider)
+);
+
+CREATE INDEX idx_auth_provider_accounts_profile_id
+ON auth_provider_accounts (profile_id);
+
+CREATE INDEX idx_auth_provider_accounts_provider_email
+ON auth_provider_accounts (provider, provider_email)
+WHERE provider_email IS NOT NULL;
+
 CREATE TABLE evaluations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
