@@ -35,6 +35,9 @@ const BACKEND_OAUTH_PROVIDERS = {
     kakao: {
         startUrl: '/api/auth/oauth/kakao/start',
     },
+    naver: {
+        startUrl: '/api/auth/oauth/naver/start',
+    },
 };
 
 function setSignedOutState() {

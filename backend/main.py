@@ -949,6 +949,7 @@ def _get_oauth_state_secret():
         os.environ.get("OAUTH_STATE_SECRET", "").strip()
         or os.environ.get("ADMIN_TOKEN_SECRET", "").strip()
         or os.environ.get("KAKAO_CLIENT_SECRET", "").strip()
+        or os.environ.get("NAVER_CLIENT_SECRET", "").strip()
     )
     if not secret:
         raise HTTPException(status_code=503, detail="oauth_state_secret_not_configured")
@@ -1101,6 +1102,53 @@ def _extract_kakao_identity(kakao_user: dict):
         "email_verified": bool(account.get("is_email_verified")),
         "display_name": (profile.get(kakao_display_name_field) or "").strip(),
         "avatar_url": (profile.get("profile_image_url") or profile.get("thumbnail_image_url") or "").strip(),
+    }
+
+
+def _get_naver_config():
+    config = {
+        "client_id": os.environ.get("NAVER_CLIENT_ID", "").strip(),
+        "client_secret": os.environ.get("NAVER_CLIENT_SECRET", "").strip(),
+        "redirect_uri": os.environ.get("NAVER_REDIRECT_URI", "").strip(),
+    }
+    if not config["client_id"] or not config["client_secret"] or not config["redirect_uri"]:
+        raise HTTPException(status_code=503, detail="naver_oauth_not_configured")
+    return config
+
+
+def _exchange_naver_code(code: str, state: str):
+    config = _get_naver_config()
+    data = {
+        "grant_type": "authorization_code",
+        "client_id": config["client_id"],
+        "client_secret": config["client_secret"],
+        "redirect_uri": config["redirect_uri"],
+        "code": code,
+        "state": state,
+    }
+    return _post_form_json("https://nid.naver.com/oauth2.0/token", data)
+
+
+def _fetch_naver_user(access_token: str):
+    return _get_json(
+        "https://openapi.naver.com/v1/nid/me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+
+def _extract_naver_identity(naver_user: dict):
+    response = naver_user.get("response") or {}
+    provider_user_id = str(response.get("id") or "").strip()
+    if not provider_user_id:
+        raise HTTPException(status_code=502, detail="naver_user_id_missing")
+    return {
+        "provider": "naver",
+        "provider_user_id": provider_user_id,
+        "firebase_uid": f"naver:{provider_user_id}",
+        "email": _normalize_email(response.get("email") or ""),
+        "email_verified": bool(response.get("email")),
+        "display_name": ((response.get("nickname") or response.get("name") or "")).strip(),
+        "avatar_url": (response.get("profile_image") or "").strip(),
     }
 
 
@@ -1559,6 +1607,71 @@ async def kakao_oauth_callback(request: Request, code: str | None = None, state:
     except Exception:
         response = _oauth_error_html("kakao", "oauth_login_failed")
     response.delete_cookie("oauth_state_kakao")
+    return response
+
+
+@app.get("/api/auth/oauth/naver/start")
+async def naver_oauth_start():
+    config = _get_naver_config()
+    state = _make_oauth_state("naver")
+    params = {
+        "response_type": "code",
+        "client_id": config["client_id"],
+        "redirect_uri": config["redirect_uri"],
+        "state": state,
+    }
+    login_url = f"https://nid.naver.com/oauth2.0/authorize?{urllib_parse.urlencode(params)}"
+    response = RedirectResponse(login_url, status_code=302)
+    response.set_cookie(
+        "oauth_state_naver",
+        state,
+        max_age=600,
+        httponly=True,
+        secure=config["redirect_uri"].startswith("https://"),
+        samesite="lax",
+    )
+    return response
+
+
+@app.get("/api/auth/oauth/naver/callback")
+async def naver_oauth_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+):
+    response = None
+    try:
+        if error:
+            return _oauth_error_html("naver", error_description or error)
+        if not code:
+            return _oauth_error_html("naver", "oauth_code_missing")
+        _validate_oauth_state("naver", state or "", request.cookies.get("oauth_state_naver"))
+        token_data = _exchange_naver_code(code, state or "")
+        access_token = token_data.get("access_token")
+        if not access_token:
+            return _oauth_error_html("naver", "oauth_access_token_missing")
+        naver_user = _fetch_naver_user(access_token)
+        identity = _extract_naver_identity(naver_user)
+        _upsert_oauth_profile(identity)
+        custom_token = create_firebase_custom_token(
+            identity["firebase_uid"],
+            {
+                "provider_key": "naver",
+                "provider_user_id": identity["provider_user_id"],
+            },
+        )
+        response = _oauth_popup_html({
+            "type": "oauth_custom_token",
+            "provider": "naver",
+            "customToken": custom_token,
+        })
+    except HTTPException as exc:
+        response = _oauth_error_html("naver", str(exc.detail))
+    except Exception:
+        response = _oauth_error_html("naver", "oauth_login_failed")
+    response.delete_cookie("oauth_state_naver")
     return response
 
 
