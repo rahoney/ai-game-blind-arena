@@ -951,6 +951,7 @@ def _get_oauth_state_secret():
         or os.environ.get("KAKAO_CLIENT_SECRET", "").strip()
         or os.environ.get("NAVER_CLIENT_SECRET", "").strip()
         or os.environ.get("GITHUB_CLIENT_SECRET", "").strip()
+        or os.environ.get("STEAM_API_KEY", "").strip()
     )
     if not secret:
         raise HTTPException(status_code=503, detail="oauth_state_secret_not_configured")
@@ -1055,6 +1056,27 @@ def _get_json(url: str, headers: dict | None = None):
         raise HTTPException(status_code=502, detail=f"oauth_userinfo_failed:{detail}") from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail="oauth_userinfo_failed") from exc
+
+
+def _post_form_text(url: str, data: dict, headers: dict | None = None):
+    encoded = urllib_parse.urlencode(data).encode("utf-8")
+    request = urllib_request.Request(
+        url,
+        data=encoded,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+            **(headers or {}),
+        },
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(request, timeout=10) as response:
+            return response.read().decode("utf-8", errors="replace")
+    except urllib_error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(status_code=502, detail=f"openid_check_failed:{detail}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="openid_check_failed") from exc
 
 
 def _get_kakao_config():
@@ -1235,6 +1257,94 @@ def _extract_github_identity(github_user: dict, github_emails: list[dict]):
         "email_verified": email_verified,
         "display_name": ((github_user.get("name") or github_user.get("login") or "")).strip(),
         "avatar_url": (github_user.get("avatar_url") or "").strip(),
+    }
+
+
+def _get_steam_config():
+    config = {
+        "api_key": os.environ.get("STEAM_API_KEY", "").strip(),
+        "return_url": os.environ.get("STEAM_RETURN_URL", "").strip(),
+        "realm": os.environ.get("STEAM_REALM", "").strip(),
+    }
+    if not config["return_url"] or not config["realm"]:
+        raise HTTPException(status_code=503, detail="steam_openid_not_configured")
+    return config
+
+
+def _make_steam_return_to(state: str):
+    config = _get_steam_config()
+    separator = "&" if "?" in config["return_url"] else "?"
+    return f"{config['return_url']}{separator}{urllib_parse.urlencode({'state': state})}"
+
+
+def _extract_steam_id(claimed_id: str):
+    match = re.fullmatch(r"https://steamcommunity\.com/openid/id/(\d{15,25})", claimed_id or "")
+    if not match:
+        raise HTTPException(status_code=400, detail="invalid_steam_claimed_id")
+    return match.group(1)
+
+
+def _parse_openid_text_response(response_text: str):
+    parsed = {}
+    for line in (response_text or "").splitlines():
+        key, separator, value = line.partition(":")
+        if separator:
+            parsed[key.strip()] = value.strip()
+    return parsed
+
+
+def _validate_steam_openid_assertion(request: Request, state: str):
+    query_items = list(request.query_params.multi_items())
+    openid_values = {
+        key: value
+        for key, value in query_items
+        if key.startswith("openid.")
+    }
+    if openid_values.get("openid.mode") != "id_res":
+        raise HTTPException(status_code=400, detail="invalid_steam_openid_mode")
+    if openid_values.get("openid.op_endpoint") != "https://steamcommunity.com/openid/login":
+        raise HTTPException(status_code=400, detail="invalid_steam_openid_endpoint")
+    claimed_id = openid_values.get("openid.claimed_id", "")
+    if openid_values.get("openid.identity") != claimed_id:
+        raise HTTPException(status_code=400, detail="invalid_steam_identity")
+    if openid_values.get("openid.return_to") != _make_steam_return_to(state):
+        raise HTTPException(status_code=400, detail="invalid_steam_return_to")
+    steam_id = _extract_steam_id(claimed_id)
+    check_payload = dict(openid_values)
+    check_payload["openid.mode"] = "check_authentication"
+    response_text = _post_form_text("https://steamcommunity.com/openid/login", check_payload)
+    parsed = _parse_openid_text_response(response_text)
+    if parsed.get("is_valid") != "true":
+        raise HTTPException(status_code=400, detail="invalid_steam_assertion")
+    return steam_id
+
+
+def _fetch_steam_player_summary(steam_id: str):
+    config = _get_steam_config()
+    if not config["api_key"]:
+        return {}
+    params = urllib_parse.urlencode({
+        "key": config["api_key"],
+        "steamids": steam_id,
+        "format": "json",
+    })
+    try:
+        data = _get_json(f"https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?{params}")
+        players = (((data or {}).get("response") or {}).get("players") or [])
+        return players[0] if players else {}
+    except HTTPException:
+        return {}
+
+
+def _extract_steam_identity(steam_id: str, player_summary: dict):
+    return {
+        "provider": "steam",
+        "provider_user_id": steam_id,
+        "firebase_uid": f"steam:{steam_id}",
+        "email": "",
+        "email_verified": False,
+        "display_name": (player_summary.get("personaname") or "").strip(),
+        "avatar_url": (player_summary.get("avatarfull") or player_summary.get("avatarmedium") or "").strip(),
     }
 
 
@@ -1824,6 +1934,60 @@ async def github_oauth_callback(
     except Exception:
         response = _oauth_error_html("github", "oauth_login_failed")
     response.delete_cookie("oauth_state_github")
+    return response
+
+
+@app.get("/api/auth/oauth/steam/start")
+async def steam_openid_start():
+    config = _get_steam_config()
+    state = _make_oauth_state("steam")
+    params = {
+        "openid.ns": "http://specs.openid.net/auth/2.0",
+        "openid.mode": "checkid_setup",
+        "openid.return_to": _make_steam_return_to(state),
+        "openid.realm": config["realm"],
+        "openid.identity": "http://specs.openid.net/auth/2.0/identifier_select",
+        "openid.claimed_id": "http://specs.openid.net/auth/2.0/identifier_select",
+    }
+    login_url = f"https://steamcommunity.com/openid/login?{urllib_parse.urlencode(params)}"
+    response = RedirectResponse(login_url, status_code=302)
+    response.set_cookie(
+        "oauth_state_steam",
+        state,
+        max_age=600,
+        httponly=True,
+        secure=config["return_url"].startswith("https://"),
+        samesite="lax",
+    )
+    return response
+
+
+@app.get("/api/auth/oauth/steam/callback")
+async def steam_openid_callback(request: Request, state: str | None = None):
+    response = None
+    try:
+        _validate_oauth_state("steam", state or "", request.cookies.get("oauth_state_steam"))
+        steam_id = _validate_steam_openid_assertion(request, state or "")
+        player_summary = _fetch_steam_player_summary(steam_id)
+        identity = _extract_steam_identity(steam_id, player_summary)
+        _upsert_oauth_profile(identity)
+        custom_token = create_firebase_custom_token(
+            identity["firebase_uid"],
+            {
+                "provider_key": "steam",
+                "provider_user_id": identity["provider_user_id"],
+            },
+        )
+        response = _oauth_popup_html({
+            "type": "oauth_custom_token",
+            "provider": "steam",
+            "customToken": custom_token,
+        })
+    except HTTPException as exc:
+        response = _oauth_error_html("steam", str(exc.detail))
+    except Exception:
+        response = _oauth_error_html("steam", "openid_login_failed")
+    response.delete_cookie("oauth_state_steam")
     return response
 
 

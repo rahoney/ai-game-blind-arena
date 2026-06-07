@@ -37,6 +37,9 @@ const BACKEND_OAUTH_PROVIDERS = {
     github: {
         startUrl: '/api/auth/oauth/github/start',
     },
+    steam: {
+        startUrl: '/api/auth/oauth/steam/start',
+    },
 };
 
 function setSignedOutState() {
