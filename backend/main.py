@@ -950,6 +950,7 @@ def _get_oauth_state_secret():
         or os.environ.get("ADMIN_TOKEN_SECRET", "").strip()
         or os.environ.get("KAKAO_CLIENT_SECRET", "").strip()
         or os.environ.get("NAVER_CLIENT_SECRET", "").strip()
+        or os.environ.get("GITHUB_CLIENT_SECRET", "").strip()
     )
     if not secret:
         raise HTTPException(status_code=503, detail="oauth_state_secret_not_configured")
@@ -1149,6 +1150,91 @@ def _extract_naver_identity(naver_user: dict):
         "email_verified": bool(response.get("email")),
         "display_name": ((response.get("nickname") or response.get("name") or "")).strip(),
         "avatar_url": (response.get("profile_image") or "").strip(),
+    }
+
+
+def _get_github_config():
+    config = {
+        "client_id": os.environ.get("GITHUB_CLIENT_ID", "").strip(),
+        "client_secret": os.environ.get("GITHUB_CLIENT_SECRET", "").strip(),
+        "redirect_uri": os.environ.get("GITHUB_REDIRECT_URI", "").strip(),
+    }
+    if not config["client_id"] or not config["client_secret"] or not config["redirect_uri"]:
+        raise HTTPException(status_code=503, detail="github_oauth_not_configured")
+    return config
+
+
+def _exchange_github_code(code: str):
+    config = _get_github_config()
+    data = {
+        "client_id": config["client_id"],
+        "client_secret": config["client_secret"],
+        "redirect_uri": config["redirect_uri"],
+        "code": code,
+    }
+    token_data = _post_form_json(
+        "https://github.com/login/oauth/access_token",
+        data,
+        headers={"Accept": "application/json"},
+    )
+    if token_data.get("error"):
+        raise HTTPException(
+            status_code=502,
+            detail=f"github_token_exchange_failed:{token_data.get('error_description') or token_data.get('error')}",
+        )
+    return token_data
+
+
+def _github_api_headers(access_token: str):
+    return {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def _fetch_github_user(access_token: str):
+    return _get_json(
+        "https://api.github.com/user",
+        headers=_github_api_headers(access_token),
+    )
+
+
+def _fetch_github_emails(access_token: str):
+    try:
+        emails = _get_json(
+            "https://api.github.com/user/emails",
+            headers=_github_api_headers(access_token),
+        )
+        return emails if isinstance(emails, list) else []
+    except HTTPException:
+        return []
+
+
+def _pick_github_email(github_user: dict, github_emails: list[dict]):
+    for email_row in github_emails:
+        if email_row.get("primary") and email_row.get("verified") and email_row.get("email"):
+            return _normalize_email(email_row.get("email")), True
+    for email_row in github_emails:
+        if email_row.get("verified") and email_row.get("email"):
+            return _normalize_email(email_row.get("email")), True
+    public_email = _normalize_email(github_user.get("email") or "")
+    return public_email, False
+
+
+def _extract_github_identity(github_user: dict, github_emails: list[dict]):
+    provider_user_id = str(github_user.get("id") or "").strip()
+    if not provider_user_id:
+        raise HTTPException(status_code=502, detail="github_user_id_missing")
+    email, email_verified = _pick_github_email(github_user, github_emails)
+    return {
+        "provider": "github",
+        "provider_user_id": provider_user_id,
+        "firebase_uid": f"github:{provider_user_id}",
+        "email": email,
+        "email_verified": email_verified,
+        "display_name": ((github_user.get("name") or github_user.get("login") or "")).strip(),
+        "avatar_url": (github_user.get("avatar_url") or "").strip(),
     }
 
 
@@ -1672,6 +1758,72 @@ async def naver_oauth_callback(
     except Exception:
         response = _oauth_error_html("naver", "oauth_login_failed")
     response.delete_cookie("oauth_state_naver")
+    return response
+
+
+@app.get("/api/auth/oauth/github/start")
+async def github_oauth_start():
+    config = _get_github_config()
+    state = _make_oauth_state("github")
+    params = {
+        "client_id": config["client_id"],
+        "redirect_uri": config["redirect_uri"],
+        "scope": "read:user user:email",
+        "state": state,
+    }
+    login_url = f"https://github.com/login/oauth/authorize?{urllib_parse.urlencode(params)}"
+    response = RedirectResponse(login_url, status_code=302)
+    response.set_cookie(
+        "oauth_state_github",
+        state,
+        max_age=600,
+        httponly=True,
+        secure=config["redirect_uri"].startswith("https://"),
+        samesite="lax",
+    )
+    return response
+
+
+@app.get("/api/auth/oauth/github/callback")
+async def github_oauth_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+):
+    response = None
+    try:
+        if error:
+            return _oauth_error_html("github", error_description or error)
+        if not code:
+            return _oauth_error_html("github", "oauth_code_missing")
+        _validate_oauth_state("github", state or "", request.cookies.get("oauth_state_github"))
+        token_data = _exchange_github_code(code)
+        access_token = token_data.get("access_token")
+        if not access_token:
+            return _oauth_error_html("github", "oauth_access_token_missing")
+        github_user = _fetch_github_user(access_token)
+        github_emails = _fetch_github_emails(access_token)
+        identity = _extract_github_identity(github_user, github_emails)
+        _upsert_oauth_profile(identity)
+        custom_token = create_firebase_custom_token(
+            identity["firebase_uid"],
+            {
+                "provider_key": "github",
+                "provider_user_id": identity["provider_user_id"],
+            },
+        )
+        response = _oauth_popup_html({
+            "type": "oauth_custom_token",
+            "provider": "github",
+            "customToken": custom_token,
+        })
+    except HTTPException as exc:
+        response = _oauth_error_html("github", str(exc.detail))
+    except Exception:
+        response = _oauth_error_html("github", "oauth_login_failed")
+    response.delete_cookie("oauth_state_github")
     return response
 
 

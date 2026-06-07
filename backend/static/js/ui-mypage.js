@@ -54,7 +54,6 @@ function renderMyPage() {
     const selectedBadgeKey = state.profileBadgeSelection || currentProfileBadgeKey;
     const providerButtons = [
         ['google', 'google.com', 'auth_link_google'],
-        ['github', 'github.com', 'auth_link_github'],
     ].map(([providerKey, providerId, labelKey]) => (
         state.account && !hasLinkedProvider(providerId)
             ? `<button class="secondary" style="width:auto; padding:0.85rem 1rem;" onclick="handleLinkSocialProvider('${providerKey}')">${t(labelKey)}</button>`

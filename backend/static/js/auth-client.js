@@ -25,10 +25,6 @@ const SOCIAL_AUTH_PROVIDERS = {
         providerId: 'google.com',
         createProvider: () => new firebase.auth.GoogleAuthProvider(),
     },
-    github: {
-        providerId: 'github.com',
-        createProvider: () => new firebase.auth.GithubAuthProvider(),
-    },
 };
 
 const BACKEND_OAUTH_PROVIDERS = {
@@ -37,6 +33,9 @@ const BACKEND_OAUTH_PROVIDERS = {
     },
     naver: {
         startUrl: '/api/auth/oauth/naver/start',
+    },
+    github: {
+        startUrl: '/api/auth/oauth/github/start',
     },
 };
 
