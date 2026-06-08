@@ -1,9 +1,159 @@
+const MYPAGE_PROVIDER_META = [
+    { key: 'google', label: 'Google', icon: 'google' },
+    { key: 'steam', label: 'Steam', iconPath: '/static/social/steam_icon_square.svg' },
+    { key: 'kakao', label: 'Kakao', iconText: 'K' },
+    { key: 'naver', label: 'Naver', iconText: 'N' },
+    { key: 'discord', label: 'Discord', iconPath: '/static/social/discord_symbol_white.svg' },
+    { key: 'github', label: 'GitHub', iconPath: '/static/social/github_invertocat_white.svg' },
+];
+
+function getMyPageProfileValue(key, fallback = '') {
+    return state.account?.profile?.[key] || fallback || '';
+}
+
+function renderMyPageInfoTile(labelKey, value, extraClass = '') {
+    return `
+        <div class="mypage-info-tile ${extraClass}">
+            <div class="mypage-info-label">${t(labelKey)}</div>
+            <div class="mypage-info-value">${escapeHtml(value || '-')}</div>
+        </div>
+    `;
+}
+
+function renderMyPageAccountManageTile() {
+    return `
+        <button type="button" class="mypage-info-tile mypage-account-manage-tile" onclick="toggleMyPageAccountManagement()">
+            <div class="mypage-info-label">${t('mypage_account_manage')}</div>
+            <div class="mypage-info-value">${state.mypageAccountManagementOpen ? t('mypage_account_manage_close') : t('mypage_account_manage_open')}</div>
+        </button>
+    `;
+}
+
+function renderMyPageProviderIcon(provider) {
+    if (provider.icon === 'google') {
+        return `
+            <span class="mypage-provider-icon google" aria-hidden="true">
+                <svg viewBox="0 0 48 48">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                </svg>
+            </span>
+        `;
+    }
+    if (provider.iconPath) {
+        return `<span class="mypage-provider-icon ${provider.key}" aria-hidden="true"><img src="${provider.iconPath}" alt=""></span>`;
+    }
+    return `<span class="mypage-provider-icon ${provider.key}" aria-hidden="true">${provider.iconText}</span>`;
+}
+
+function renderMyPageProviderRow(provider) {
+    const linked = hasLinkedProvider(provider.key);
+    return `
+        <div class="mypage-provider-row">
+            <div class="mypage-provider-name">
+                ${renderMyPageProviderIcon(provider)}
+                <span>${provider.label}</span>
+            </div>
+            ${linked
+                ? `<span class="mypage-provider-status">${t('mypage_provider_linked')}</span>`
+                : `<button type="button" class="mypage-provider-link-button" onclick="handleLinkSocialProvider('${provider.key}')">${t('mypage_provider_link')}</button>`
+            }
+        </div>
+    `;
+}
+
+function renderAccountEmailChangeDialog() {
+    if (!state.accountEmailChange?.open) return '';
+    const email = state.accountEmailChange.email || getMyPageProfileValue('email', firebaseAuth?.currentUser?.email || '');
+    const codeSent = !!state.accountEmailChange.codeSent;
+    return `
+        <div class="mypage-dialog-backdrop" role="presentation">
+            <div class="mypage-dialog" role="dialog" aria-modal="true" aria-labelledby="account-email-change-title">
+                <div class="mypage-dialog-header">
+                    <h3 id="account-email-change-title">${t('account_email_change_title')}</h3>
+                    <button type="button" class="mypage-dialog-close" onclick="closeAccountEmailChangeDialog()" aria-label="${t('btn_back')}">×</button>
+                </div>
+                <p class="mypage-dialog-desc">${t('account_email_change_desc')}</p>
+                <label class="mypage-dialog-label" for="account-email-change-email">${t('account_email_change_new_email')}</label>
+                <input type="email" id="account-email-change-email" value="${escapeHtml(email)}" placeholder="${t('auth_email_placeholder')}" ${codeSent || state.isLoginSubmitting ? 'disabled' : ''}>
+                ${codeSent ? `
+                    <label class="mypage-dialog-label" for="account-email-change-code">${t('auth_signup_code_label')}</label>
+                    <input type="text" id="account-email-change-code" inputmode="numeric" maxlength="6" placeholder="${t('auth_signup_code_placeholder')}" oninput="updateAccountEmailChangeCodeState()" ${state.isLoginSubmitting ? 'disabled' : ''}>
+                    <p id="account-email-change-countdown" class="auth-inline-status">${t('auth_signup_code_countdown', { time: getAccountEmailChangeCountdownText() })}</p>
+                    <div class="mypage-dialog-actions">
+                        <button id="account-email-change-confirm-btn" type="button" onclick="handleAccountEmailChangeConfirm()" disabled>${t('auth_signup_code_confirm')}</button>
+                        <button type="button" class="secondary" onclick="handleAccountEmailChangeCodeRequest()" ${state.isLoginSubmitting ? 'disabled' : ''}>${t('auth_signup_code_resend')}</button>
+                    </div>
+                ` : `
+                    <div class="mypage-dialog-actions">
+                        <button type="button" onclick="handleAccountEmailChangeCodeRequest()" ${state.isLoginSubmitting ? 'disabled' : ''}>${t('auth_signup_code_send')}</button>
+                        <button type="button" class="secondary" onclick="closeAccountEmailChangeDialog()">${t('admin_password_cancel')}</button>
+                    </div>
+                `}
+            </div>
+        </div>
+    `;
+}
+
+function renderMyPageAccountManagementPanel() {
+    if (!state.mypageAccountManagementOpen) return '';
+    const realName = getMyPageProfileValue('real_name');
+    const email = getMyPageProfileValue('email', firebaseAuth?.currentUser?.email || '');
+    return `
+        <section class="mypage-account-panel">
+            <div class="mypage-account-panel-header">
+                <h3>${t('mypage_account_manage')}</h3>
+                <button type="button" class="secondary mypage-account-close-button" onclick="toggleMyPageAccountManagement(false)">${t('mypage_account_manage_close')}</button>
+            </div>
+            <div class="mypage-account-section">
+                <h4>${t('mypage_account_basic_info')}</h4>
+                <dl class="mypage-account-definition-list">
+                    <div>
+                        <dt>${t('auth_real_name_label')}</dt>
+                        <dd>${escapeHtml(realName || '-')}</dd>
+                    </div>
+                    <div>
+                        <dt>${t('mypage_registered_email')}</dt>
+                        <dd>
+                            <span>${escapeHtml(email || '-')}</span>
+                            <button type="button" class="mypage-inline-link" onclick="openAccountEmailChangeDialog()">${t('account_email_change_link')}</button>
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+            <div class="mypage-account-section">
+                <h4>${t('mypage_login_security')}</h4>
+                <button type="button" class="secondary mypage-compact-action" onclick="handleCurrentUserPasswordReset()">${t('mypage_password_reset')}</button>
+            </div>
+            <div class="mypage-account-section">
+                <h4>${t('mypage_social_login')}</h4>
+                <div class="mypage-provider-list">
+                    ${MYPAGE_PROVIDER_META.map(renderMyPageProviderRow).join('')}
+                </div>
+            </div>
+            <div class="mypage-account-section danger">
+                <h4>${t('mypage_delete_account')}</h4>
+                <p>${t('mypage_delete_account_desc')}</p>
+                <button type="button" class="secondary mypage-delete-button" onclick="handleDeleteAccount()">${t('mypage_delete_account')}</button>
+            </div>
+        </section>
+    `;
+}
+
+function toggleMyPageAccountManagement(forceOpen) {
+    state.mypageAccountManagementOpen = typeof forceOpen === 'boolean'
+        ? forceOpen
+        : !state.mypageAccountManagementOpen;
+    renderMyPage();
+}
+
 function renderMyPage() {
     const el = document.getElementById('view-mypage');
     const accountProfile = state.account?.profile || {};
     const displayName = accountProfile.display_name || '';
     const loginId = accountProfile.login_id || '';
-    const realName = accountProfile.real_name || '';
     const data = state.myPageData || {
         display_name: displayName,
         unique_eval_model_count: 0,
@@ -14,24 +164,24 @@ function renderMyPage() {
 
     const evalsByGameHtml = data.evaluations_by_game_type.length
         ? data.evaluations_by_game_type.map(item => `
-            <li style="padding: 0.9rem 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; gap: 1rem;">
+            <li class="mypage-stat-list-item">
                 <span>${escapeHtml(getCategoryDisplayName(item.game_type))}</span>
                 <strong>${item.count}</strong>
             </li>
         `).join('')
-        : `<li style="padding: 0.9rem 0; color: var(--text-muted);">${t('mypage_empty_evals')}</li>`;
+        : `<li class="mypage-empty-list-item">${t('mypage_empty_evals')}</li>`;
 
     const topModelsHtml = data.top_models.length
         ? data.top_models.map((item, index) => `
-            <li style="padding: 1rem 0; border-bottom: 1px solid var(--border-color);">
-                <div style="display:flex; justify-content:space-between; gap: 1rem;">
+            <li class="mypage-model-list-item">
+                <div>
                     <strong>#${index + 1} ${escapeHtml(item.actual_model_name)}</strong>
                     <span>${item.views}</span>
                 </div>
-                <div style="color: var(--text-muted); font-size: 0.95rem; margin-top: 0.25rem;">${escapeHtml(getCategoryDisplayName(item.game_type))}</div>
+                <p>${escapeHtml(getCategoryDisplayName(item.game_type))}</p>
             </li>
         `).join('')
-        : `<li style="padding: 1rem 0; color: var(--text-muted);">${t('mypage_empty_views')}</li>`;
+        : `<li class="mypage-empty-list-item">${t('mypage_empty_views')}</li>`;
 
     const topGameTypeLabel = data.top_game_type
         ? `${escapeHtml(getCategoryDisplayName(data.top_game_type.game_type))} (${data.top_game_type.views})`
@@ -52,111 +202,90 @@ function renderMyPage() {
     const unlockedBadgeKeys = data.unlocked_badge_keys || ['badge_egg'];
     const unlockedBadgeCountText = String(data.unlocked_badge_count || unlockedBadgeKeys.length).padStart(2, '0');
     const selectedBadgeKey = state.profileBadgeSelection || currentProfileBadgeKey;
-    const providerButtons = [
-        ['google', 'auth_link_google'],
-        ['kakao', 'auth_link_kakao'],
-        ['naver', 'auth_link_naver'],
-        ['github', 'auth_link_github'],
-        ['discord', 'auth_link_discord'],
-        ['steam', 'auth_link_steam'],
-    ].map(([providerKey, labelKey]) => (
-        state.account && !hasLinkedProvider(providerKey)
-            ? `<button class="secondary" style="width:auto; padding:0.85rem 1rem;" onclick="handleLinkSocialProvider('${providerKey}')">${t(labelKey)}</button>`
-            : ''
-    )).join('');
 
     el.innerHTML = `
-        <div class="card" style="max-width: 1000px; margin-top: 2rem;">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap: 1rem; margin-bottom: 2rem;">
-                <button class="secondary" style="width: auto;" onclick="navigateTo('list', renderGameList)">← ${t('btn_back')}</button>
-                <h2 style="margin:0; color: var(--primary); font-size: 2rem;">${t('menu_mypage')}</h2>
-                <div style="width: 90px;"></div>
+        <div class="card mypage-card">
+            <div class="mypage-header">
+                <button class="secondary mypage-back-button" onclick="navigateTo('list', renderGameList)">← ${t('btn_back')}</button>
+                <h2>${t('menu_mypage')}</h2>
+                <div class="mypage-header-spacer"></div>
             </div>
 
-            <div style="display:grid; grid-template-columns: 180px 1fr; gap: 2rem; align-items:start; margin-bottom: 2rem; padding:1.5rem; border-radius:28px; background:var(--surface-bg); border:1px solid var(--border-color); box-shadow:0 18px 40px rgba(0, 0, 0, 0.22);">
-                <div>
-                    <div style="width:160px; height:160px; border-radius: 24px; display:flex; align-items:center; justify-content:center; background:var(--card-bg); border:1px solid var(--border-color);">
-                        ${renderBadgeSvg(currentProfileBadgeKey)}
-                    </div>
-                    <div style="width:160px; margin-top:0.85rem; padding:0.9rem; border:1px solid var(--border-color); border-radius:16px; background:var(--card-bg); text-align:center;">
-                        <div style="font-size:0.82rem; color:var(--text-muted); font-weight:800; margin-bottom:0.25rem;">${t('mypage_badge_title')}</div>
-                        <div style="font-size:1.05rem; font-weight:900; color:var(--text-color);">${badgeLabel}</div>
-                        <div style="font-size:0.85rem; color:var(--text-muted); margin-top:0.35rem; line-height:1.35;">${badgeProgressText}</div>
+            <div class="mypage-profile-shell">
+                <div class="mypage-badge-column">
+                    <div class="mypage-badge-preview">${renderBadgeSvg(currentProfileBadgeKey)}</div>
+                    <div class="mypage-badge-summary">
+                        <div>${t('mypage_badge_title')}</div>
+                        <strong>${badgeLabel}</strong>
+                        <p>${badgeProgressText}</p>
                     </div>
                 </div>
-                <div>
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom:1rem;">
-                        <div style="padding:0.85rem 1rem; border:1px solid var(--border-color); border-radius:14px; background:var(--card-bg);">
-                            <div style="font-size:0.82rem; color:var(--text-muted); font-weight:800; margin-bottom:0.25rem;">${t('display_name_label')}</div>
-                            <div style="font-size:1.25rem; color:var(--text-color); font-weight:900; word-break:break-word;">${escapeHtml(data.display_name || displayName || '-')}</div>
-                        </div>
-                        <div style="padding:0.85rem 1rem; border:1px solid var(--border-color); border-radius:14px; background:var(--card-bg);">
-                            <div style="font-size:0.82rem; color:var(--text-muted); font-weight:800; margin-bottom:0.25rem;">${t('auth_real_name_label')}</div>
-                            <div style="font-size:1.25rem; color:var(--text-color); font-weight:900; word-break:break-word;">${escapeHtml(realName || '-')}</div>
-                        </div>
-                        <div style="padding:0.85rem 1rem; border:1px solid var(--border-color); border-radius:14px; background:var(--card-bg);">
-                            <div style="font-size:0.82rem; color:var(--text-muted); font-weight:800; margin-bottom:0.25rem;">${t('auth_login_id_label')}</div>
-                            <div style="font-size:1.25rem; color:var(--text-color); font-weight:900; word-break:break-word;">${escapeHtml(loginId || '-')}</div>
-                        </div>
+                <div class="mypage-profile-main">
+                    <div class="mypage-info-grid">
+                        ${renderMyPageInfoTile('display_name_label', data.display_name || displayName || '-')}
+                        ${renderMyPageInfoTile('auth_login_id_label', loginId || '-')}
+                        ${renderMyPageAccountManageTile()}
                     </div>
-                    <div style="display:flex; gap:0.6rem; align-items:stretch; flex-wrap:wrap; margin-bottom:1rem;">
-                        <button class="secondary" style="width:auto; padding:0.85rem 1rem;" onclick="handleCurrentUserPasswordReset()">${t('mypage_password_reset')}</button>
-                        ${providerButtons}
-                        <button class="secondary" style="width:auto; padding:0.85rem 1rem; color:#ef4444;" onclick="handleDeleteAccount()">${t('mypage_delete_account')}</button>
-                    </div>
-                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-                        <div style="padding: 1rem; border: 1px solid var(--border-color); border-radius: 16px; background: var(--card-bg); box-shadow:0 10px 24px rgba(0, 0, 0, 0.18);">
-                            <div style="font-size: 0.9rem; color: var(--text-muted);">${t('mypage_unique_eval_models')}</div>
-                            <div style="font-size: 1.8rem; font-weight: 700; color:var(--text-color);">${data.unique_eval_model_count}</div>
+                    <div class="mypage-metrics-grid">
+                        <div class="mypage-metric-card">
+                            <div>${t('mypage_unique_eval_models')}</div>
+                            <strong>${data.unique_eval_model_count}</strong>
                         </div>
-                        <div style="padding: 1rem; border: 1px solid var(--border-color); border-radius: 16px; background: var(--card-bg); box-shadow:0 10px 24px rgba(0, 0, 0, 0.18);">
-                            <div style="font-size: 0.9rem; color: var(--text-muted);">${t('mypage_top_game_type')}</div>
-                            <div style="font-size: 1.15rem; font-weight: 700; color:var(--text-color);">${topGameTypeLabel}</div>
+                        <div class="mypage-metric-card">
+                            <div>${t('mypage_top_game_type')}</div>
+                            <strong>${topGameTypeLabel}</strong>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
-                <div style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 18px;">
-                    <h3 style="margin-bottom: 1rem; color: var(--primary);">${t('mypage_eval_by_category')}</h3>
-                    <ul style="list-style:none; padding:0; margin:0;">${evalsByGameHtml}</ul>
+            ${renderMyPageAccountManagementPanel()}
+
+            <div class="mypage-stats-grid">
+                <div class="mypage-subsection">
+                    <h3>${t('mypage_eval_by_category')}</h3>
+                    <ul>${evalsByGameHtml}</ul>
                 </div>
-                <div style="padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 18px;">
-                    <h3 style="margin-bottom: 1rem; color: var(--primary);">${t('mypage_top_models')}</h3>
-                    <ul style="list-style:none; padding:0; margin:0;">${topModelsHtml}</ul>
+                <div class="mypage-subsection">
+                    <h3>${t('mypage_top_models')}</h3>
+                    <ul>${topModelsHtml}</ul>
                 </div>
             </div>
 
-            <div style="margin-top:2.5rem; padding:2rem; background:var(--surface-bg); border:1px solid var(--border-color); border-radius:24px; color:var(--text-color); box-shadow:0 10px 15px -3px rgba(0,0,0,0.18);">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1.5rem;">
+            <div class="mypage-badge-collection">
+                <div class="mypage-badge-collection-header">
                     <div>
-                        <h3 style="margin:0; color:var(--text-color); font-size:1.6rem; font-weight:900;">${t('mypage_badge_collection')} <span style="display:inline-flex; align-items:center; margin-left:0.5rem; padding:0.2rem 0.55rem; border-radius:999px; background:var(--card-bg); border:1px solid var(--border-color); font-size:0.9rem; color:var(--text-muted); vertical-align:middle;">${t('mypage_unlocked_badges')} ${unlockedBadgeCountText}</span></h3>
-                        <div style="font-size:0.95rem; color:var(--text-muted); margin-top:0.4rem; font-weight:600;">${t('mypage_badge_collection_desc')}</div>
+                        <h3>${t('mypage_badge_collection')} <span>${t('mypage_unlocked_badges')} ${unlockedBadgeCountText}</span></h3>
+                        <p>${t('mypage_badge_collection_desc')}</p>
                     </div>
-                    <button onclick="saveProfileBadge()" style="width:auto; padding:0.9rem 1.5rem; background:var(--primary); color:var(--bg-color); border-radius:14px; font-weight:800;">${t('mypage_set_profile_badge')}</button>
+                    <button onclick="saveProfileBadge()" class="mypage-save-badge-button">${t('mypage_set_profile_badge')}</button>
                 </div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:1.2rem;">
+                <div class="mypage-badge-grid">
                     ${BADGE_DISPLAY_ORDER.map((badgeKey) => {
                         const isUnlocked = unlockedBadgeKeys.includes(badgeKey);
                         const isSelected = selectedBadgeKey === badgeKey;
                         if (!isUnlocked) {
                             return `
-                                <div style="padding:1rem; border-radius:20px; border:2px dashed var(--border-color); background:var(--card-bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.7rem; opacity:0.72; min-height:162px;">
-                                    <div style="width:90px; height:90px; border-radius:24px; background:var(--bg-color); color:var(--text-muted); display:flex; align-items:center; justify-content:center; font-size:3rem; font-weight:900;">?</div>
-                                    <div style="font-size:0.9rem; font-weight:800; text-align:center; color:var(--text-muted);">${t('badge_locked_placeholder')}</div>
+                                <div class="mypage-badge-locked">
+                                    <div>?</div>
+                                    <strong>${t('badge_locked_placeholder')}</strong>
                                 </div>
                             `;
                         }
                         return `
-                            <button onclick="selectProfileBadge('${badgeKey}')" style="padding:1rem; border-radius:20px; border:2px solid ${isSelected ? 'var(--primary)' : 'var(--border-color)'}; background:${isSelected ? 'var(--bg-color)' : 'var(--card-bg)'}; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:0.7rem; transition:all 0.2s;">
-                                <div style="width:90px; height:90px;">${renderBadgeSvg(badgeKey, 90)}</div>
-                                <div style="font-size:0.9rem; font-weight:800; text-align:center; color:${isSelected ? 'var(--primary)' : 'var(--text-color)'};">${t(badgeKey)}</div>
+                            <button onclick="selectProfileBadge('${badgeKey}')" class="mypage-badge-option ${isSelected ? 'selected' : ''}">
+                                <span>${renderBadgeSvg(badgeKey, 90)}</span>
+                                <strong>${t(badgeKey)}</strong>
                             </button>
                         `;
                     }).join('')}
                 </div>
             </div>
         </div>
+        ${renderAccountEmailChangeDialog()}
     `;
+
+    if (state.accountEmailChange?.open && state.accountEmailChange?.codeSent) {
+        startAccountEmailChangeCountdown();
+    }
 }

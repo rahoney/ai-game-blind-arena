@@ -168,6 +168,38 @@ async function apiSendCurrentUserPasswordReset(idToken) {
     return data;
 }
 
+async function apiRequestCurrentUserEmailChangeCode(idToken, email) {
+    const res = await fetch(`${API_BASE}/auth/me/email-change/code`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'mail_send_failed');
+    }
+    return data;
+}
+
+async function apiConfirmCurrentUserEmailChange(idToken, email, code) {
+    const res = await fetch(`${API_BASE}/auth/me/email-change/confirm`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ email, code })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'invalid_verification_code');
+    }
+    return data;
+}
+
 async function apiSendLoginIdEmail(payload) {
     const res = await fetch(`${API_BASE}/auth/recovery/send-login-id-email`, {
         method: 'POST',

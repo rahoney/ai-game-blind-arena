@@ -890,6 +890,65 @@ def _update_profile_social_providers(profile: dict, providers: list[str]):
         raise HTTPException(status_code=500, detail="Failed to update social providers") from exc
 
 
+def _is_email_taken(email: str, current_uid: str | None = None):
+    normalized_email = _normalize_email(email)
+    if not EMAIL_RE.fullmatch(normalized_email):
+        raise HTTPException(status_code=400, detail="invalid_email")
+    if LOCAL_TEST_MODE:
+        return any(
+            _normalize_email(profile.get("email", "")) == normalized_email
+            and profile.get("firebase_uid") != current_uid
+            for profile in LOCAL_DB["profiles"].values()
+        )
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    query = supabase.table("profiles").select("firebase_uid").eq("email", normalized_email).limit(1)
+    if current_uid:
+        query = query.neq("firebase_uid", current_uid)
+    res = query.execute()
+    return bool(res.data)
+
+
+def _update_profile_email(profile: dict, email: str):
+    normalized_email = _normalize_email(email)
+    uid = profile.get("firebase_uid")
+    if not uid:
+        raise HTTPException(status_code=500, detail="profile_uid_missing")
+    if _normalize_email(profile.get("email", "")) == normalized_email:
+        raise HTTPException(status_code=400, detail="email_unchanged")
+    if _is_email_taken(normalized_email, uid):
+        raise HTTPException(status_code=409, detail="email_taken")
+
+    update_payload = {
+        "email": normalized_email,
+        "email_verified": True,
+        "email_verification_required": False,
+        "account_status": "active",
+        "updated_at": _now_iso(),
+    }
+    if LOCAL_TEST_MODE:
+        profile.update(update_payload)
+        return profile
+
+    try:
+        from firebase_admin import auth as firebase_auth
+
+        get_firebase_app()
+        firebase_auth.update_user(uid, email=normalized_email, email_verified=True)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="firebase_email_update_failed") from exc
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    try:
+        updated_res = supabase.table("profiles").update(update_payload).eq("firebase_uid", uid).execute()
+        return (updated_res.data or [None])[0] or {**profile, **update_payload}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="profile_email_update_failed") from exc
+
+
 def _anonymize_deleted_account(profile: dict):
     profile_id = profile.get("id")
     uid = profile.get("firebase_uid", "")
@@ -2514,6 +2573,39 @@ async def send_current_user_password_reset(request: Request):
     language = request.query_params.get("lang") or request.headers.get("X-Client-Language") or "ko"
     _send_password_reset_email(email, language)
     return {"sent": True}
+
+
+@app.post("/api/auth/me/email-change/code")
+async def request_current_user_email_change_code(payload: SignupEmailVerificationRequest, request: Request):
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    normalized_email = _normalize_email(payload.email)
+    if _normalize_email(profile.get("email", "")) == normalized_email:
+        raise HTTPException(status_code=400, detail="email_unchanged")
+    if _is_email_taken(normalized_email, profile.get("firebase_uid")):
+        raise HTTPException(status_code=409, detail="email_taken")
+    identifier_hash = _hash_recovery_identifier("email_change_code", profile.get("id", ""), normalized_email)
+    _check_recovery_rate_limit("email_change_code", identifier_hash, request)
+    return _create_signup_email_verification(normalized_email, request)
+
+
+@app.post("/api/auth/me/email-change/confirm")
+async def confirm_current_user_email_change(payload: SignupEmailVerificationConfirm, request: Request):
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    normalized_email = _normalize_email(payload.email)
+    if not re.fullmatch(r"\d{6}", payload.code):
+        raise HTTPException(status_code=400, detail="invalid_verification_code")
+    if _normalize_email(profile.get("email", "")) == normalized_email:
+        raise HTTPException(status_code=400, detail="email_unchanged")
+    identifier_hash = _hash_recovery_identifier("email_change_confirm", profile.get("id", ""), normalized_email)
+    _check_recovery_rate_limit("email_change_confirm", identifier_hash, request)
+    _confirm_signup_email_verification(normalized_email, payload.code)
+    updated_profile = _update_profile_email(profile, normalized_email)
+    return {
+        "profile": updated_profile,
+        "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
+    }
 
 
 @app.patch("/api/profile/social-providers")

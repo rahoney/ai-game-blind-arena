@@ -12,6 +12,12 @@ let state = {
         expiresAt: 0,
         token: '',
     },
+    accountEmailChange: {
+        open: false,
+        email: '',
+        codeSent: false,
+        expiresAt: 0,
+    },
     loginIdAvailability: {
         value: '',
         status: 'idle',
@@ -23,6 +29,7 @@ let state = {
         message: '',
     },
     signupEmailTimerId: null,
+    accountEmailChangeTimerId: null,
     games: {},
     categories: [],
     selectedCategory: null,
@@ -31,6 +38,7 @@ let state = {
     isPlayLaunching: false,
     userEvals: [],
     myPageData: null,
+    mypageAccountManagementOpen: false,
     resultsData: [],
     playModelCommentsResult: null,
     playCommentsLoading: false,

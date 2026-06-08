@@ -396,6 +396,49 @@ function startSignupEmailCountdown() {
     }, 1000);
 }
 
+function getAccountEmailChangeCountdownText() {
+    const remaining = Math.max(0, Math.ceil((Number(state.accountEmailChange?.expiresAt || 0) - Date.now()) / 1000));
+    const minutes = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const seconds = String(remaining % 60).padStart(2, '0');
+    return `${minutes}:${seconds}`;
+}
+
+function updateAccountEmailChangeCodeState() {
+    const button = document.getElementById('account-email-change-confirm-btn');
+    const countdown = document.getElementById('account-email-change-countdown');
+    const code = document.getElementById('account-email-change-code')?.value.trim() || '';
+    const expiresAt = Number(state.accountEmailChange?.expiresAt || 0);
+    const isExpired = expiresAt > 0 && Date.now() >= expiresAt;
+    if (countdown) {
+        countdown.textContent = t('auth_signup_code_countdown', { time: getAccountEmailChangeCountdownText() });
+    }
+    if (button) {
+        button.disabled = !state.authConfigured || state.isLoginSubmitting || isExpired || !/^\d{6}$/.test(code);
+    }
+}
+
+function stopAccountEmailChangeCountdown() {
+    if (state.accountEmailChangeTimerId) {
+        window.clearInterval(state.accountEmailChangeTimerId);
+        state.accountEmailChangeTimerId = null;
+    }
+}
+
+function startAccountEmailChangeCountdown() {
+    stopAccountEmailChangeCountdown();
+    if (!state.accountEmailChange?.open || !state.accountEmailChange?.codeSent) {
+        return;
+    }
+    updateAccountEmailChangeCodeState();
+    state.accountEmailChangeTimerId = window.setInterval(() => {
+        updateAccountEmailChangeCodeState();
+        const expiresAt = Number(state.accountEmailChange?.expiresAt || 0);
+        if (expiresAt && Date.now() >= expiresAt) {
+            stopAccountEmailChangeCountdown();
+        }
+    }, 1000);
+}
+
 async function initializeFirebaseAuth() {
     if (typeof firebase === 'undefined') {
         state.authReady = true;
@@ -783,6 +826,104 @@ async function handleCurrentUserPasswordReset() {
         showAppMessage(getFriendlyAuthError({ code: e?.message || 'mail_send_failed' }, 'login'), { tone: 'error' });
     } finally {
         state.isLoginSubmitting = false;
+        renderMyPage();
+    }
+}
+
+function openAccountEmailChangeDialog() {
+    const currentEmail = state.account?.profile?.email || firebaseAuth?.currentUser?.email || '';
+    state.accountEmailChange = {
+        open: true,
+        email: currentEmail,
+        codeSent: false,
+        expiresAt: 0,
+    };
+    stopAccountEmailChangeCountdown();
+    renderMyPage();
+}
+
+function closeAccountEmailChangeDialog() {
+    state.accountEmailChange = {
+        open: false,
+        email: '',
+        codeSent: false,
+        expiresAt: 0,
+    };
+    stopAccountEmailChangeCountdown();
+    renderMyPage();
+}
+
+async function handleAccountEmailChangeCodeRequest() {
+    if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    const email = document.getElementById('account-email-change-email')?.value.trim() || '';
+    const currentEmail = state.account?.profile?.email || firebaseAuth.currentUser.email || '';
+    if (!isValidEmailInput(email)) {
+        showAppMessage(t('account_email_change_invalid'), { tone: 'error' });
+        return;
+    }
+    if (email.toLowerCase() === String(currentEmail || '').toLowerCase()) {
+        showAppMessage(t('account_email_change_same'), { tone: 'error' });
+        return;
+    }
+    try {
+        state.isLoginSubmitting = true;
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        const data = await apiRequestCurrentUserEmailChangeCode(token, email);
+        state.accountEmailChange = {
+            open: true,
+            email,
+            codeSent: true,
+            expiresAt: data.expires_at ? Date.parse(data.expires_at) : Date.now() + 10 * 60 * 1000,
+        };
+        showAppMessage(t('auth_signup_code_sent'), { tone: 'success' });
+        renderMyPage();
+        startAccountEmailChangeCountdown();
+    } catch (e) {
+        const key = e?.message === 'email_taken'
+            ? 'account_email_change_taken'
+            : e?.message === 'email_unchanged'
+                ? 'account_email_change_same'
+                : 'auth_mail_send_failed';
+        showAppMessage(t(key), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+        updateAccountEmailChangeCodeState();
+    }
+}
+
+async function handleAccountEmailChangeConfirm() {
+    if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    const email = state.accountEmailChange?.email || '';
+    const code = document.getElementById('account-email-change-code')?.value.trim() || '';
+    if (!email || !/^\d{6}$/.test(code)) {
+        showAppMessage(t('auth_signup_code_invalid'), { tone: 'error' });
+        return;
+    }
+    try {
+        state.isLoginSubmitting = true;
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        state.account = await apiConfirmCurrentUserEmailChange(token, email, code);
+        state.isAdmin = !!state.account?.is_admin;
+        await firebaseAuth.currentUser.reload();
+        await refreshAccountFromFirebaseUser();
+        state.accountEmailChange = {
+            open: false,
+            email: '',
+            codeSent: false,
+            expiresAt: 0,
+        };
+        stopAccountEmailChangeCountdown();
+        showAppMessage(t('account_email_change_success'), { tone: 'success' });
+    } catch (e) {
+        const key = e?.message === 'email_taken'
+            ? 'account_email_change_taken'
+            : e?.message === 'firebase_email_update_failed' || e?.message === 'profile_email_update_failed'
+                ? 'account_email_change_failed'
+                : 'auth_signup_code_invalid';
+        showAppMessage(t(key), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+        renderSidebar();
         renderMyPage();
     }
 }
