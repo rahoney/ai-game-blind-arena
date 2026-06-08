@@ -53,9 +53,13 @@ function renderMyPage() {
     const unlockedBadgeCountText = String(data.unlocked_badge_count || unlockedBadgeKeys.length).padStart(2, '0');
     const selectedBadgeKey = state.profileBadgeSelection || currentProfileBadgeKey;
     const providerButtons = [
-        ['google', 'google.com', 'auth_link_google'],
-    ].map(([providerKey, providerId, labelKey]) => (
-        state.account && !hasLinkedProvider(providerId)
+        ['google', 'auth_link_google'],
+        ['kakao', 'auth_link_kakao'],
+        ['naver', 'auth_link_naver'],
+        ['github', 'auth_link_github'],
+        ['steam', 'auth_link_steam'],
+    ].map(([providerKey, labelKey]) => (
+        state.account && !hasLinkedProvider(providerKey)
             ? `<button class="secondary" style="width:auto; padding:0.85rem 1rem;" onclick="handleLinkSocialProvider('${providerKey}')">${t(labelKey)}</button>`
             : ''
     )).join('');
