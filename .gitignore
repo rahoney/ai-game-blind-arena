@@ -33,4 +33,6 @@ google_adsense_guide.md
 
 # Source badge artwork kept outside the runtime static assets
 *.png
+!backend/static/social/
+!backend/static/social/*.png
 배지 이미지/
