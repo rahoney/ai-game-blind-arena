@@ -961,6 +961,7 @@ def _get_oauth_state_secret():
         or os.environ.get("KAKAO_CLIENT_SECRET", "").strip()
         or os.environ.get("NAVER_CLIENT_SECRET", "").strip()
         or os.environ.get("GITHUB_CLIENT_SECRET", "").strip()
+        or os.environ.get("DISCORD_CLIENT_SECRET", "").strip()
         or os.environ.get("STEAM_API_KEY", "").strip()
     )
     if not secret:
@@ -1318,6 +1319,81 @@ def _extract_github_identity(github_user: dict, github_emails: list[dict]):
     }
 
 
+def _get_discord_config():
+    config = {
+        "client_id": os.environ.get("DISCORD_CLIENT_ID", "").strip(),
+        "client_secret": os.environ.get("DISCORD_CLIENT_SECRET", "").strip(),
+        "redirect_uri": os.environ.get("DISCORD_REDIRECT_URI", "").strip(),
+    }
+    if not config["client_id"] or not config["client_secret"] or not config["redirect_uri"]:
+        raise HTTPException(status_code=503, detail="discord_oauth_not_configured")
+    return config
+
+
+def _exchange_discord_code(code: str):
+    config = _get_discord_config()
+    data = {
+        "grant_type": "authorization_code",
+        "client_id": config["client_id"],
+        "client_secret": config["client_secret"],
+        "redirect_uri": config["redirect_uri"],
+        "code": code,
+    }
+    return _post_form_json("https://discord.com/api/oauth2/token", data)
+
+
+def _discord_api_headers(access_token: str):
+    return {"Authorization": f"Bearer {access_token}"}
+
+
+def _fetch_discord_user(access_token: str):
+    return _get_json(
+        "https://discord.com/api/users/@me",
+        headers=_discord_api_headers(access_token),
+    )
+
+
+def _revoke_discord_access_token(access_token: str):
+    token = (access_token or "").strip()
+    if not token:
+        return False
+    config = _get_discord_config()
+    _post_form_json(
+        "https://discord.com/api/oauth2/token/revoke",
+        {
+            "client_id": config["client_id"],
+            "client_secret": config["client_secret"],
+            "token": token,
+            "token_type_hint": "access_token",
+        },
+    )
+    return True
+
+
+def _make_discord_avatar_url(discord_user: dict):
+    user_id = str(discord_user.get("id") or "").strip()
+    avatar_hash = str(discord_user.get("avatar") or "").strip()
+    if not user_id or not avatar_hash:
+        return ""
+    extension = "gif" if avatar_hash.startswith("a_") else "png"
+    return f"https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.{extension}?size=256"
+
+
+def _extract_discord_identity(discord_user: dict):
+    provider_user_id = str(discord_user.get("id") or "").strip()
+    if not provider_user_id:
+        raise HTTPException(status_code=502, detail="discord_user_id_missing")
+    return {
+        "provider": "discord",
+        "provider_user_id": provider_user_id,
+        "firebase_uid": f"discord:{provider_user_id}",
+        "email": _normalize_email(discord_user.get("email") or ""),
+        "email_verified": bool(discord_user.get("verified")),
+        "display_name": ((discord_user.get("global_name") or discord_user.get("username") or "")).strip(),
+        "avatar_url": _make_discord_avatar_url(discord_user),
+    }
+
+
 def _get_steam_config():
     config = {
         "api_key": os.environ.get("STEAM_API_KEY", "").strip(),
@@ -1434,6 +1510,16 @@ def _build_oauth_login_url(provider: str, state: str):
             "state": state,
         }
         return f"https://github.com/login/oauth/authorize?{urllib_parse.urlencode(params)}"
+    if provider == "discord":
+        config = _get_discord_config()
+        params = {
+            "response_type": "code",
+            "client_id": config["client_id"],
+            "redirect_uri": config["redirect_uri"],
+            "scope": "identify email",
+            "state": state,
+        }
+        return f"https://discord.com/oauth2/authorize?{urllib_parse.urlencode(params)}"
     if provider == "steam":
         config = _get_steam_config()
         params = {
@@ -1457,6 +1543,8 @@ def _provider_callback_is_secure(provider: str):
         return _get_naver_config()["redirect_uri"].startswith("https://")
     if provider == "github":
         return _get_github_config()["redirect_uri"].startswith("https://")
+    if provider == "discord":
+        return _get_discord_config()["redirect_uri"].startswith("https://")
     return False
 
 
@@ -2074,7 +2162,7 @@ async def auth_config():
 @app.post("/api/auth/oauth/{provider}/link/start")
 async def oauth_link_start(provider: str, request: Request):
     provider = _normalize_provider_key(provider)
-    if provider not in {"kakao", "naver", "github", "steam"}:
+    if provider not in {"kakao", "naver", "github", "discord", "steam"}:
         raise HTTPException(status_code=404, detail="oauth_provider_not_supported")
     user = require_firebase_user(request)
     profile = _resolve_profile_for_firebase_user(user)
@@ -2192,6 +2280,48 @@ async def github_oauth_callback(
     except Exception:
         response = _oauth_error_html("github", "oauth_login_failed")
     response.delete_cookie("oauth_state_github")
+    return response
+
+
+@app.get("/api/auth/oauth/discord/start")
+async def discord_oauth_start():
+    return _oauth_start_redirect("discord")
+
+
+@app.get("/api/auth/oauth/discord/callback")
+async def discord_oauth_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+):
+    response = None
+    access_token = ""
+    try:
+        if error:
+            return _oauth_error_html("discord", error_description or error)
+        if not code:
+            return _oauth_error_html("discord", "oauth_code_missing")
+        state_payload = _validate_oauth_state("discord", state or "", request.cookies.get("oauth_state_discord"))
+        token_data = _exchange_discord_code(code)
+        access_token = token_data.get("access_token") or ""
+        if not access_token:
+            return _oauth_error_html("discord", "oauth_access_token_missing")
+        discord_user = _fetch_discord_user(access_token)
+        identity = _extract_discord_identity(discord_user)
+        response = _handle_oauth_identity("discord", identity, state_payload)
+    except HTTPException as exc:
+        response = _oauth_error_html("discord", str(exc.detail))
+    except Exception:
+        response = _oauth_error_html("discord", "oauth_login_failed")
+    finally:
+        if access_token:
+            try:
+                _revoke_discord_access_token(access_token)
+            except Exception:
+                logger.exception("Discord access token revoke failed")
+    response.delete_cookie("oauth_state_discord")
     return response
 
 

@@ -51,6 +51,9 @@ const BACKEND_OAUTH_PROVIDERS = {
     github: {
         startUrl: '/api/auth/oauth/github/start',
     },
+    discord: {
+        startUrl: '/api/auth/oauth/discord/start',
+    },
     steam: {
         startUrl: '/api/auth/oauth/steam/start',
     },

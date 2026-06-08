@@ -57,6 +57,7 @@ function renderMyPage() {
         ['kakao', 'auth_link_kakao'],
         ['naver', 'auth_link_naver'],
         ['github', 'auth_link_github'],
+        ['discord', 'auth_link_discord'],
         ['steam', 'auth_link_steam'],
     ].map(([providerKey, labelKey]) => (
         state.account && !hasLinkedProvider(providerKey)
