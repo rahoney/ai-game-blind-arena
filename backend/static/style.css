@@ -1315,7 +1315,7 @@ html.sidebar-open {
     align-items: center;
     justify-content: center;
     padding: 1rem;
-    background: rgba(15, 23, 42, 0.76);
+    background: rgba(0, 0, 0, 0.88);
 }
 
 .mypage-dialog {

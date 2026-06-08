@@ -738,7 +738,10 @@ async function handleBackendOAuthMessage(event) {
 
     if (data.type === 'oauth_error') {
         const isLinking = state.isLoginSubmitting && !!firebaseAuth?.currentUser;
-        showAppMessage(t(isLinking ? 'auth_social_link_error' : 'auth_social_login_error'), { tone: 'error' });
+        console.error('OAuth popup error', data.provider, data.detail);
+        const baseMessage = t(isLinking ? 'auth_social_link_error' : 'auth_social_login_error');
+        const detail = data.detail ? ` (${data.detail})` : '';
+        showAppMessage(`${baseMessage}${detail}`, { tone: 'error' });
         state.isLoginSubmitting = false;
         if (isLinking) renderMyPage();
         return;

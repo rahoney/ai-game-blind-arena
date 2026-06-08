@@ -101,6 +101,12 @@ function renderAccountEmailChangeDialog() {
     `;
 }
 
+function renderMyPageModalRoot() {
+    const root = document.getElementById('global-modal-root');
+    if (!root) return;
+    root.innerHTML = renderAccountEmailChangeDialog();
+}
+
 function renderMyPageAccountManagementPanel() {
     if (!state.mypageAccountManagementOpen) return '';
     const realName = getMyPageProfileValue('real_name');
@@ -285,8 +291,9 @@ function renderMyPage() {
                 </div>
             </div>
         </div>
-        ${renderAccountEmailChangeDialog()}
     `;
+
+    renderMyPageModalRoot();
 
     if (state.accountEmailChange?.open && state.accountEmailChange?.codeSent) {
         startAccountEmailChangeCountdown();

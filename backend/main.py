@@ -1798,6 +1798,30 @@ def _update_profile_provider_fields(profile: dict, providers: list[str]):
     return (updated_res.data or [None])[0] or {**profile, **update_payload}
 
 
+def _remove_profile_provider_field(profile: dict | None, provider: str):
+    if not profile or not profile.get("id"):
+        return profile
+    provider = _normalize_provider_key(provider)
+    providers = [
+        _normalize_provider_key(item)
+        for item in (profile.get("social_providers") or [])
+        if _normalize_provider_key(item) != provider
+    ]
+    update_payload = {
+        "social_providers": sorted(set(providers)),
+        "updated_at": _now_iso(),
+    }
+    if _normalize_provider_key(profile.get("provider")) == provider:
+        update_payload["provider"] = update_payload["social_providers"][0] if update_payload["social_providers"] else None
+    if LOCAL_TEST_MODE:
+        profile.update(update_payload)
+        return profile
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    updated_res = supabase.table("profiles").update(update_payload).eq("id", profile["id"]).execute()
+    return (updated_res.data or [None])[0] or {**profile, **update_payload}
+
+
 def _link_oauth_profile(identity: dict, profile: dict):
     provider = identity["provider"]
     provider_user_id = identity["provider_user_id"]
@@ -1812,7 +1836,7 @@ def _link_oauth_profile(identity: dict, profile: dict):
     if existing_account and existing_account.get("profile_id") != profile_id:
         other_profile = _get_profile_by_id(existing_account.get("profile_id"))
         if other_profile and other_profile.get("account_status") not in ("deleted", "withdrawn"):
-            raise HTTPException(status_code=409, detail="oauth_provider_already_linked_to_other_account")
+            _remove_profile_provider_field(other_profile, provider)
 
     current_provider_account = _get_provider_account_for_profile(profile_id, provider)
     if current_provider_account and current_provider_account.get("provider_user_id") != provider_user_id:
