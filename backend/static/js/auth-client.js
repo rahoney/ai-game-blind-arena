@@ -1,5 +1,6 @@
 let firebaseAuth = null;
 let firebaseAnalytics = null;
+let backendOAuthPopupTimerId = null;
 
 function getAccountDisplayName() {
     const profile = state.account?.profile || {};
@@ -728,7 +729,25 @@ function handleBackendOAuthLogin(providerKey) {
     const popup = window.open(providerConfig.startUrl, `${providerKey}_login`, 'width=480,height=720');
     if (!popup) {
         showAppMessage(t('auth_popup_blocked'), { tone: 'error' });
+        return;
     }
+    watchBackendOAuthPopup(popup, false);
+}
+
+function watchBackendOAuthPopup(popup, isLinking) {
+    if (backendOAuthPopupTimerId) {
+        clearInterval(backendOAuthPopupTimerId);
+        backendOAuthPopupTimerId = null;
+    }
+    backendOAuthPopupTimerId = setInterval(() => {
+        if (!popup || !popup.closed) return;
+        clearInterval(backendOAuthPopupTimerId);
+        backendOAuthPopupTimerId = null;
+        if (isLinking && state.isLoginSubmitting) {
+            state.isLoginSubmitting = false;
+            renderMyPage();
+        }
+    }, 500);
 }
 
 async function handleBackendOAuthMessage(event) {
@@ -736,8 +755,23 @@ async function handleBackendOAuthMessage(event) {
     const data = event.data || {};
     if (!data || typeof data !== 'object') return;
 
+    if (data.type === 'oauth_cancelled') {
+        const isLinking = state.isLoginSubmitting && !!firebaseAuth?.currentUser;
+        if (backendOAuthPopupTimerId) {
+            clearInterval(backendOAuthPopupTimerId);
+            backendOAuthPopupTimerId = null;
+        }
+        state.isLoginSubmitting = false;
+        if (isLinking) renderMyPage();
+        return;
+    }
+
     if (data.type === 'oauth_error') {
         const isLinking = state.isLoginSubmitting && !!firebaseAuth?.currentUser;
+        if (backendOAuthPopupTimerId) {
+            clearInterval(backendOAuthPopupTimerId);
+            backendOAuthPopupTimerId = null;
+        }
         console.error('OAuth popup error', data.provider, data.detail);
         const baseMessage = t(isLinking ? 'auth_social_link_error' : 'auth_social_login_error');
         const detail = data.detail ? ` (${data.detail})` : '';
@@ -748,6 +782,10 @@ async function handleBackendOAuthMessage(event) {
     }
 
     if (data.type === 'oauth_link_success') {
+        if (backendOAuthPopupTimerId) {
+            clearInterval(backendOAuthPopupTimerId);
+            backendOAuthPopupTimerId = null;
+        }
         try {
             await refreshAccountFromFirebaseUser();
             showAppMessage(t('auth_social_link_success'), { tone: 'success' });
@@ -766,6 +804,10 @@ async function handleBackendOAuthMessage(event) {
     try {
         state.isLoginSubmitting = true;
         await firebaseAuth.signInWithCustomToken(data.customToken);
+        if (backendOAuthPopupTimerId) {
+            clearInterval(backendOAuthPopupTimerId);
+            backendOAuthPopupTimerId = null;
+        }
         await refreshAccountFromFirebaseUser();
         if (state.account?.profile && !state.account.profile.display_name_set) {
             state.authMode = 'display_name';
@@ -1007,7 +1049,9 @@ async function handleBackendOAuthLink(providerKey) {
         if (!popup) {
             showAppMessage(t('auth_popup_blocked'), { tone: 'error' });
             state.isLoginSubmitting = false;
+            return;
         }
+        watchBackendOAuthPopup(popup, true);
     } catch (e) {
         console.error('Backend OAuth link start failed', providerKey, e);
         const detail = e?.message ? ` (${e.message})` : '';

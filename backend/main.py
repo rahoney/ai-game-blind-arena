@@ -1101,6 +1101,13 @@ def _oauth_error_html(provider: str, detail: str):
     })
 
 
+def _oauth_cancelled_html(provider: str):
+    return _oauth_popup_html({
+        "type": "oauth_cancelled",
+        "provider": provider,
+    })
+
+
 def _oauth_state_cookie_name(provider: str):
     return f"oauth_state_{provider}"
 
@@ -2276,7 +2283,9 @@ async def kakao_oauth_callback(request: Request, code: str | None = None, state:
     response = None
     try:
         if error:
-            return _oauth_error_html("kakao", error)
+            response = _oauth_cancelled_html("kakao")
+            response.delete_cookie("oauth_state_kakao")
+            return response
         if not code:
             return _oauth_error_html("kakao", "oauth_code_missing")
         state_payload = _validate_oauth_state("kakao", state or "", request.cookies.get("oauth_state_kakao"))
@@ -2311,7 +2320,9 @@ async def naver_oauth_callback(
     response = None
     try:
         if error:
-            return _oauth_error_html("naver", error_description or error)
+            response = _oauth_cancelled_html("naver")
+            response.delete_cookie("oauth_state_naver")
+            return response
         if not code:
             return _oauth_error_html("naver", "oauth_code_missing")
         state_payload = _validate_oauth_state("naver", state or "", request.cookies.get("oauth_state_naver"))
@@ -2346,7 +2357,9 @@ async def github_oauth_callback(
     response = None
     try:
         if error:
-            return _oauth_error_html("github", error_description or error)
+            response = _oauth_cancelled_html("github")
+            response.delete_cookie("oauth_state_github")
+            return response
         if not code:
             return _oauth_error_html("github", "oauth_code_missing")
         state_payload = _validate_oauth_state("github", state or "", request.cookies.get("oauth_state_github"))
@@ -2383,7 +2396,9 @@ async def discord_oauth_callback(
     access_token = ""
     try:
         if error:
-            return _oauth_error_html("discord", error_description or error)
+            response = _oauth_cancelled_html("discord")
+            response.delete_cookie("oauth_state_discord")
+            return response
         if not code:
             return _oauth_error_html("discord", "oauth_code_missing")
         state_payload = _validate_oauth_state("discord", state or "", request.cookies.get("oauth_state_discord"))
@@ -2417,6 +2432,10 @@ async def steam_openid_start():
 async def steam_openid_callback(request: Request, state: str | None = None):
     response = None
     try:
+        if request.query_params.get("openid.mode") == "cancel":
+            response = _oauth_cancelled_html("steam")
+            response.delete_cookie("oauth_state_steam")
+            return response
         state_payload = _validate_oauth_state("steam", state or "", request.cookies.get("oauth_state_steam"))
         steam_id = _validate_steam_openid_assertion(request, state or "")
         player_summary = _fetch_steam_player_summary(steam_id)
