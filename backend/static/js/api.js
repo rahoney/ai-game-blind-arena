@@ -229,13 +229,21 @@ async function apiUpdateSocialProviders(idToken, providers) {
     return data;
 }
 
-async function apiStartBackendOAuthLink(idToken, providerKey) {
-    const res = await fetch(`${API_BASE}/auth/oauth/${encodeURIComponent(providerKey)}/link/start`, {
+async function apiStartBackendOAuthLink(providerKey) {
+    const url = `${API_BASE}/auth/oauth/${encodeURIComponent(providerKey)}/link/start`;
+    let res = await fetch(url, {
         method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${idToken}`
-        }
+        headers: await getCurrentAuthHeaders()
     });
+    if (res.status === 401 && firebaseAuth?.currentUser) {
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+    }
     const data = await res.json();
     if (!res.ok) {
         throw new Error(data?.detail || 'oauth_link_start_failed');

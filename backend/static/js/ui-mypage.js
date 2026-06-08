@@ -233,7 +233,7 @@ function renderMyPage() {
                 <div class="mypage-profile-main">
                     <div class="mypage-info-grid">
                         ${renderMyPageInfoTile('display_name_label', data.display_name || displayName || '-')}
-                        ${renderMyPageInfoTile('auth_login_id_label', loginId || '-')}
+                        ${renderMyPageInfoTile('mypage_login_id_label', loginId || '-')}
                         ${renderMyPageAccountManageTile()}
                     </div>
                     ${renderMyPageAccountManagementPanel()}

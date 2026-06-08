@@ -1002,8 +1002,7 @@ async function handleBackendOAuthLink(providerKey) {
     if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
     try {
         state.isLoginSubmitting = true;
-        const token = await firebaseAuth.currentUser.getIdToken(true);
-        const data = await apiStartBackendOAuthLink(token, providerKey);
+        const data = await apiStartBackendOAuthLink(providerKey);
         const popup = window.open(data.url, `${providerKey}_link`, 'width=480,height=720');
         if (!popup) {
             showAppMessage(t('auth_popup_blocked'), { tone: 'error' });
@@ -1011,7 +1010,8 @@ async function handleBackendOAuthLink(providerKey) {
         }
     } catch (e) {
         console.error('Backend OAuth link start failed', providerKey, e);
-        showAppMessage(t('auth_social_link_error'), { tone: 'error' });
+        const detail = e?.message ? ` (${e.message})` : '';
+        showAppMessage(`${t('auth_social_link_error')}${detail}`, { tone: 'error' });
         state.isLoginSubmitting = false;
         renderMyPage();
     }
