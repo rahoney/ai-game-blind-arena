@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import json
@@ -583,10 +583,20 @@ def _is_valid_real_name(real_name: str, language: str | None = "ko"):
     return bool(re.fullmatch(r"[가-힣]{2,}", name))
 
 
+def _normalize_provider_key(provider: str | None):
+    provider_key = (provider or "").strip().lower()
+    aliases = {
+        "google.com": "google",
+        "password": "password",
+    }
+    return aliases.get(provider_key, provider_key)
+
+
 def _profile_payload_from_firebase_user(user: dict, role: str):
     firebase_info = user.get("firebase", {}) or {}
     sign_in_provider = firebase_info.get("sign_in_provider")
     provider = user.get("provider_key") if sign_in_provider == "custom" else sign_in_provider
+    provider = _normalize_provider_key(provider)
     uid = user.get("uid", "")
     return {
         "firebase_uid": uid,
@@ -859,7 +869,7 @@ def _find_profile_for_password_reset(payload: PasswordResetRequest):
 
 
 def _update_profile_social_providers(profile: dict, providers: list[str]):
-    cleaned = sorted({provider for provider in providers if provider})
+    cleaned = sorted({_normalize_provider_key(provider) for provider in providers if provider})
     uid = profile.get("firebase_uid")
     if LOCAL_TEST_MODE:
         profile.update({
@@ -949,18 +959,28 @@ def _get_oauth_state_secret():
         os.environ.get("OAUTH_STATE_SECRET", "").strip()
         or os.environ.get("ADMIN_TOKEN_SECRET", "").strip()
         or os.environ.get("KAKAO_CLIENT_SECRET", "").strip()
+        or os.environ.get("NAVER_CLIENT_SECRET", "").strip()
+        or os.environ.get("GITHUB_CLIENT_SECRET", "").strip()
+        or os.environ.get("DISCORD_CLIENT_SECRET", "").strip()
+        or os.environ.get("STEAM_API_KEY", "").strip()
     )
     if not secret:
         raise HTTPException(status_code=503, detail="oauth_state_secret_not_configured")
     return secret.encode("utf-8")
 
 
-def _make_oauth_state(provider: str):
+def _make_oauth_state(provider: str, mode: str = "login", profile: dict | None = None):
     payload = {
         "provider": provider,
+        "mode": mode,
         "nonce": secrets.token_urlsafe(24),
         "iat": int(datetime.now(timezone.utc).timestamp()),
     }
+    if mode == "link":
+        if not profile or not profile.get("id") or not profile.get("firebase_uid"):
+            raise HTTPException(status_code=500, detail="profile_id_missing")
+        payload["profile_id"] = profile["id"]
+        payload["firebase_uid"] = profile["firebase_uid"]
     payload_bytes = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     payload_token = base64.urlsafe_b64encode(payload_bytes).decode("ascii").rstrip("=")
     signature = hmac.new(_get_oauth_state_secret(), payload_token.encode("ascii"), hashlib.sha256).digest()
@@ -1022,6 +1042,10 @@ def _oauth_error_html(provider: str, detail: str):
     })
 
 
+def _oauth_state_cookie_name(provider: str):
+    return f"oauth_state_{provider}"
+
+
 def _post_form_json(url: str, data: dict, headers: dict | None = None):
     encoded = urllib_parse.urlencode(data).encode("utf-8")
     request = urllib_request.Request(
@@ -1053,6 +1077,65 @@ def _get_json(url: str, headers: dict | None = None):
         raise HTTPException(status_code=502, detail=f"oauth_userinfo_failed:{detail}") from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail="oauth_userinfo_failed") from exc
+
+
+def _post_form_text(url: str, data: dict, headers: dict | None = None):
+    encoded = urllib_parse.urlencode(data).encode("utf-8")
+    request = urllib_request.Request(
+        url,
+        data=encoded,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+            **(headers or {}),
+        },
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(request, timeout=10) as response:
+            return response.read().decode("utf-8", errors="replace")
+    except urllib_error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(status_code=502, detail=f"openid_check_failed:{detail}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="openid_check_failed") from exc
+
+
+def _revoke_kakao_provider_account(account: dict):
+    admin_key = os.environ.get("KAKAO_ADMIN_KEY", "").strip()
+    provider_user_id = str(account.get("provider_user_id") or "").strip()
+    if not admin_key or not provider_user_id:
+        return False
+    _post_form_json(
+        "https://kapi.kakao.com/v1/user/unlink",
+        {
+            "target_id_type": "user_id",
+            "target_id": provider_user_id,
+        },
+        headers={"Authorization": f"KakaoAK {admin_key}"},
+    )
+    return True
+
+
+def _revoke_provider_account(account: dict):
+    provider = account.get("provider")
+    try:
+        if provider == "kakao":
+            return _revoke_kakao_provider_account(account)
+    except Exception:
+        logger.exception(
+            "Provider revoke failed provider=%s provider_user_id=%s",
+            provider,
+            account.get("provider_user_id"),
+        )
+    return False
+
+
+def _revoke_provider_accounts(accounts: list[dict]):
+    revoked = []
+    for account in accounts:
+        if _revoke_provider_account(account):
+            revoked.append(account.get("provider"))
+    return revoked
 
 
 def _get_kakao_config():
@@ -1104,6 +1187,455 @@ def _extract_kakao_identity(kakao_user: dict):
     }
 
 
+def _get_naver_config():
+    config = {
+        "client_id": os.environ.get("NAVER_CLIENT_ID", "").strip(),
+        "client_secret": os.environ.get("NAVER_CLIENT_SECRET", "").strip(),
+        "redirect_uri": os.environ.get("NAVER_REDIRECT_URI", "").strip(),
+    }
+    if not config["client_id"] or not config["client_secret"] or not config["redirect_uri"]:
+        raise HTTPException(status_code=503, detail="naver_oauth_not_configured")
+    return config
+
+
+def _exchange_naver_code(code: str, state: str):
+    config = _get_naver_config()
+    data = {
+        "grant_type": "authorization_code",
+        "client_id": config["client_id"],
+        "client_secret": config["client_secret"],
+        "redirect_uri": config["redirect_uri"],
+        "code": code,
+        "state": state,
+    }
+    return _post_form_json("https://nid.naver.com/oauth2.0/token", data)
+
+
+def _fetch_naver_user(access_token: str):
+    return _get_json(
+        "https://openapi.naver.com/v1/nid/me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+
+def _extract_naver_identity(naver_user: dict):
+    response = naver_user.get("response") or {}
+    provider_user_id = str(response.get("id") or "").strip()
+    if not provider_user_id:
+        raise HTTPException(status_code=502, detail="naver_user_id_missing")
+    return {
+        "provider": "naver",
+        "provider_user_id": provider_user_id,
+        "firebase_uid": f"naver:{provider_user_id}",
+        "email": _normalize_email(response.get("email") or ""),
+        "email_verified": bool(response.get("email")),
+        "display_name": ((response.get("nickname") or response.get("name") or "")).strip(),
+        "avatar_url": (response.get("profile_image") or "").strip(),
+    }
+
+
+def _get_github_config():
+    config = {
+        "client_id": os.environ.get("GITHUB_CLIENT_ID", "").strip(),
+        "client_secret": os.environ.get("GITHUB_CLIENT_SECRET", "").strip(),
+        "redirect_uri": os.environ.get("GITHUB_REDIRECT_URI", "").strip(),
+    }
+    if not config["client_id"] or not config["client_secret"] or not config["redirect_uri"]:
+        raise HTTPException(status_code=503, detail="github_oauth_not_configured")
+    return config
+
+
+def _exchange_github_code(code: str):
+    config = _get_github_config()
+    data = {
+        "client_id": config["client_id"],
+        "client_secret": config["client_secret"],
+        "redirect_uri": config["redirect_uri"],
+        "code": code,
+    }
+    token_data = _post_form_json(
+        "https://github.com/login/oauth/access_token",
+        data,
+        headers={"Accept": "application/json"},
+    )
+    if token_data.get("error"):
+        raise HTTPException(
+            status_code=502,
+            detail=f"github_token_exchange_failed:{token_data.get('error_description') or token_data.get('error')}",
+        )
+    return token_data
+
+
+def _github_api_headers(access_token: str):
+    return {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def _fetch_github_user(access_token: str):
+    return _get_json(
+        "https://api.github.com/user",
+        headers=_github_api_headers(access_token),
+    )
+
+
+def _fetch_github_emails(access_token: str):
+    try:
+        emails = _get_json(
+            "https://api.github.com/user/emails",
+            headers=_github_api_headers(access_token),
+        )
+        return emails if isinstance(emails, list) else []
+    except HTTPException:
+        return []
+
+
+def _pick_github_email(github_user: dict, github_emails: list[dict]):
+    for email_row in github_emails:
+        if email_row.get("primary") and email_row.get("verified") and email_row.get("email"):
+            return _normalize_email(email_row.get("email")), True
+    for email_row in github_emails:
+        if email_row.get("verified") and email_row.get("email"):
+            return _normalize_email(email_row.get("email")), True
+    public_email = _normalize_email(github_user.get("email") or "")
+    return public_email, False
+
+
+def _extract_github_identity(github_user: dict, github_emails: list[dict]):
+    provider_user_id = str(github_user.get("id") or "").strip()
+    if not provider_user_id:
+        raise HTTPException(status_code=502, detail="github_user_id_missing")
+    email, email_verified = _pick_github_email(github_user, github_emails)
+    return {
+        "provider": "github",
+        "provider_user_id": provider_user_id,
+        "firebase_uid": f"github:{provider_user_id}",
+        "email": email,
+        "email_verified": email_verified,
+        "display_name": ((github_user.get("name") or github_user.get("login") or "")).strip(),
+        "avatar_url": (github_user.get("avatar_url") or "").strip(),
+    }
+
+
+def _get_discord_config():
+    config = {
+        "client_id": os.environ.get("DISCORD_CLIENT_ID", "").strip(),
+        "client_secret": os.environ.get("DISCORD_CLIENT_SECRET", "").strip(),
+        "redirect_uri": os.environ.get("DISCORD_REDIRECT_URI", "").strip(),
+    }
+    if not config["client_id"] or not config["client_secret"] or not config["redirect_uri"]:
+        raise HTTPException(status_code=503, detail="discord_oauth_not_configured")
+    return config
+
+
+def _exchange_discord_code(code: str):
+    config = _get_discord_config()
+    data = {
+        "grant_type": "authorization_code",
+        "client_id": config["client_id"],
+        "client_secret": config["client_secret"],
+        "redirect_uri": config["redirect_uri"],
+        "code": code,
+    }
+    return _post_form_json("https://discord.com/api/oauth2/token", data)
+
+
+def _discord_api_headers(access_token: str):
+    return {"Authorization": f"Bearer {access_token}"}
+
+
+def _fetch_discord_user(access_token: str):
+    return _get_json(
+        "https://discord.com/api/users/@me",
+        headers=_discord_api_headers(access_token),
+    )
+
+
+def _revoke_discord_access_token(access_token: str):
+    token = (access_token or "").strip()
+    if not token:
+        return False
+    config = _get_discord_config()
+    _post_form_json(
+        "https://discord.com/api/oauth2/token/revoke",
+        {
+            "client_id": config["client_id"],
+            "client_secret": config["client_secret"],
+            "token": token,
+            "token_type_hint": "access_token",
+        },
+    )
+    return True
+
+
+def _make_discord_avatar_url(discord_user: dict):
+    user_id = str(discord_user.get("id") or "").strip()
+    avatar_hash = str(discord_user.get("avatar") or "").strip()
+    if not user_id or not avatar_hash:
+        return ""
+    extension = "gif" if avatar_hash.startswith("a_") else "png"
+    return f"https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.{extension}?size=256"
+
+
+def _extract_discord_identity(discord_user: dict):
+    provider_user_id = str(discord_user.get("id") or "").strip()
+    if not provider_user_id:
+        raise HTTPException(status_code=502, detail="discord_user_id_missing")
+    return {
+        "provider": "discord",
+        "provider_user_id": provider_user_id,
+        "firebase_uid": f"discord:{provider_user_id}",
+        "email": _normalize_email(discord_user.get("email") or ""),
+        "email_verified": bool(discord_user.get("verified")),
+        "display_name": ((discord_user.get("global_name") or discord_user.get("username") or "")).strip(),
+        "avatar_url": _make_discord_avatar_url(discord_user),
+    }
+
+
+def _get_steam_config():
+    config = {
+        "api_key": os.environ.get("STEAM_API_KEY", "").strip(),
+        "return_url": os.environ.get("STEAM_RETURN_URL", "").strip(),
+        "realm": os.environ.get("STEAM_REALM", "").strip(),
+    }
+    if not config["return_url"] or not config["realm"]:
+        raise HTTPException(status_code=503, detail="steam_openid_not_configured")
+    return config
+
+
+def _make_steam_return_to(state: str):
+    config = _get_steam_config()
+    separator = "&" if "?" in config["return_url"] else "?"
+    return f"{config['return_url']}{separator}{urllib_parse.urlencode({'state': state})}"
+
+
+def _extract_steam_id(claimed_id: str):
+    match = re.fullmatch(r"https://steamcommunity\.com/openid/id/(\d{15,25})", claimed_id or "")
+    if not match:
+        raise HTTPException(status_code=400, detail="invalid_steam_claimed_id")
+    return match.group(1)
+
+
+def _parse_openid_text_response(response_text: str):
+    parsed = {}
+    for line in (response_text or "").splitlines():
+        key, separator, value = line.partition(":")
+        if separator:
+            parsed[key.strip()] = value.strip()
+    return parsed
+
+
+def _validate_steam_openid_assertion(request: Request, state: str):
+    query_items = list(request.query_params.multi_items())
+    openid_values = {
+        key: value
+        for key, value in query_items
+        if key.startswith("openid.")
+    }
+    if openid_values.get("openid.mode") != "id_res":
+        raise HTTPException(status_code=400, detail="invalid_steam_openid_mode")
+    if openid_values.get("openid.op_endpoint") != "https://steamcommunity.com/openid/login":
+        raise HTTPException(status_code=400, detail="invalid_steam_openid_endpoint")
+    claimed_id = openid_values.get("openid.claimed_id", "")
+    if openid_values.get("openid.identity") != claimed_id:
+        raise HTTPException(status_code=400, detail="invalid_steam_identity")
+    if openid_values.get("openid.return_to") != _make_steam_return_to(state):
+        raise HTTPException(status_code=400, detail="invalid_steam_return_to")
+    steam_id = _extract_steam_id(claimed_id)
+    check_payload = dict(openid_values)
+    check_payload["openid.mode"] = "check_authentication"
+    response_text = _post_form_text("https://steamcommunity.com/openid/login", check_payload)
+    parsed = _parse_openid_text_response(response_text)
+    if parsed.get("is_valid") != "true":
+        raise HTTPException(status_code=400, detail="invalid_steam_assertion")
+    return steam_id
+
+
+def _fetch_steam_player_summary(steam_id: str):
+    config = _get_steam_config()
+    if not config["api_key"]:
+        return {}
+    params = urllib_parse.urlencode({
+        "key": config["api_key"],
+        "steamids": steam_id,
+        "format": "json",
+    })
+    try:
+        data = _get_json(f"https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?{params}")
+        players = (((data or {}).get("response") or {}).get("players") or [])
+        return players[0] if players else {}
+    except HTTPException:
+        return {}
+
+
+def _extract_steam_identity(steam_id: str, player_summary: dict):
+    return {
+        "provider": "steam",
+        "provider_user_id": steam_id,
+        "firebase_uid": f"steam:{steam_id}",
+        "email": "",
+        "email_verified": False,
+        "display_name": (player_summary.get("personaname") or "").strip(),
+        "avatar_url": (player_summary.get("avatarfull") or player_summary.get("avatarmedium") or "").strip(),
+    }
+
+
+def _build_oauth_login_url(provider: str, state: str):
+    if provider == "kakao":
+        config = _get_kakao_config()
+        params = {
+            "response_type": "code",
+            "client_id": config["client_id"],
+            "redirect_uri": config["redirect_uri"],
+            "state": state,
+        }
+        return f"https://kauth.kakao.com/oauth/authorize?{urllib_parse.urlencode(params)}"
+    if provider == "naver":
+        config = _get_naver_config()
+        params = {
+            "response_type": "code",
+            "client_id": config["client_id"],
+            "redirect_uri": config["redirect_uri"],
+            "state": state,
+        }
+        return f"https://nid.naver.com/oauth2.0/authorize?{urllib_parse.urlencode(params)}"
+    if provider == "github":
+        config = _get_github_config()
+        params = {
+            "client_id": config["client_id"],
+            "redirect_uri": config["redirect_uri"],
+            "scope": "read:user user:email",
+            "state": state,
+        }
+        return f"https://github.com/login/oauth/authorize?{urllib_parse.urlencode(params)}"
+    if provider == "discord":
+        config = _get_discord_config()
+        params = {
+            "response_type": "code",
+            "client_id": config["client_id"],
+            "redirect_uri": config["redirect_uri"],
+            "scope": "identify email",
+            "state": state,
+        }
+        return f"https://discord.com/oauth2/authorize?{urllib_parse.urlencode(params)}"
+    if provider == "steam":
+        config = _get_steam_config()
+        params = {
+            "openid.ns": "http://specs.openid.net/auth/2.0",
+            "openid.mode": "checkid_setup",
+            "openid.return_to": _make_steam_return_to(state),
+            "openid.realm": config["realm"],
+            "openid.identity": "http://specs.openid.net/auth/2.0/identifier_select",
+            "openid.claimed_id": "http://specs.openid.net/auth/2.0/identifier_select",
+        }
+        return f"https://steamcommunity.com/openid/login?{urllib_parse.urlencode(params)}"
+    raise HTTPException(status_code=404, detail="oauth_provider_not_supported")
+
+
+def _provider_callback_is_secure(provider: str):
+    if provider == "steam":
+        return _get_steam_config()["return_url"].startswith("https://")
+    if provider == "kakao":
+        return _get_kakao_config()["redirect_uri"].startswith("https://")
+    if provider == "naver":
+        return _get_naver_config()["redirect_uri"].startswith("https://")
+    if provider == "github":
+        return _get_github_config()["redirect_uri"].startswith("https://")
+    if provider == "discord":
+        return _get_discord_config()["redirect_uri"].startswith("https://")
+    return False
+
+
+def _oauth_start_redirect(provider: str, mode: str = "login", profile: dict | None = None):
+    state = _make_oauth_state(provider, mode=mode, profile=profile)
+    login_url = _build_oauth_login_url(provider, state)
+    response = RedirectResponse(login_url, status_code=302)
+    response.set_cookie(
+        _oauth_state_cookie_name(provider),
+        state,
+        max_age=600,
+        httponly=True,
+        secure=_provider_callback_is_secure(provider),
+        samesite="lax",
+    )
+    return response
+
+
+def _oauth_link_start_response(provider: str, profile: dict):
+    state = _make_oauth_state(provider, mode="link", profile=profile)
+    login_url = _build_oauth_login_url(provider, state)
+    response = JSONResponse({"url": login_url})
+    response.set_cookie(
+        _oauth_state_cookie_name(provider),
+        state,
+        max_age=600,
+        httponly=True,
+        secure=_provider_callback_is_secure(provider),
+        samesite="lax",
+    )
+    return response
+
+
+def _handle_oauth_identity(provider: str, identity: dict, state_payload: dict):
+    if state_payload.get("mode") == "link":
+        profile = _get_profile_by_id(str(state_payload.get("profile_id") or ""))
+        if (
+            not profile
+            or profile.get("firebase_uid") != state_payload.get("firebase_uid")
+            or profile.get("account_status") in ("deleted", "withdrawn")
+        ):
+            raise HTTPException(status_code=409, detail="oauth_link_profile_invalid")
+        _link_oauth_profile(identity, profile)
+        return _oauth_popup_html({
+            "type": "oauth_link_success",
+            "provider": provider,
+        })
+
+    _upsert_oauth_profile(identity)
+    custom_token = create_firebase_custom_token(
+        identity["firebase_uid"],
+        {
+            "provider_key": provider,
+            "provider_user_id": identity["provider_user_id"],
+        },
+    )
+    return _oauth_popup_html({
+        "type": "oauth_custom_token",
+        "provider": provider,
+        "customToken": custom_token,
+    })
+
+
+def _extract_firebase_linked_provider_identity(firebase_uid: str, provider: str):
+    if provider != "google":
+        raise HTTPException(status_code=404, detail="provider_link_record_not_supported")
+    try:
+        from firebase_admin import auth as firebase_auth
+
+        get_firebase_app()
+        firebase_user = firebase_auth.get_user(firebase_uid)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="firebase_provider_lookup_failed") from exc
+
+    for provider_info in firebase_user.provider_data or []:
+        if provider_info.provider_id == "google.com":
+            provider_user_id = str(provider_info.uid or "").strip()
+            if not provider_user_id:
+                raise HTTPException(status_code=502, detail="google_provider_user_id_missing")
+            return {
+                "provider": "google",
+                "provider_user_id": provider_user_id,
+                "firebase_uid": firebase_uid,
+                "email": _normalize_email(provider_info.email or firebase_user.email or ""),
+                "email_verified": bool(firebase_user.email_verified),
+                "display_name": (provider_info.display_name or firebase_user.display_name or "").strip(),
+                "avatar_url": (provider_info.photo_url or firebase_user.photo_url or "").strip(),
+            }
+    raise HTTPException(status_code=409, detail="google_provider_not_linked")
+
+
 def _get_provider_account(provider: str, provider_user_id: str):
     if LOCAL_TEST_MODE:
         return next((
@@ -1117,6 +1649,37 @@ def _get_provider_account(provider: str, provider_user_id: str):
         .select("*")
         .eq("provider", provider)
         .eq("provider_user_id", provider_user_id)
+        .limit(1)
+        .execute()
+    )
+    return (res.data or [None])[0]
+
+
+def _get_provider_accounts_for_profile(profile_id: str):
+    if LOCAL_TEST_MODE:
+        return [
+            row for row in LOCAL_DB["auth_provider_accounts"]
+            if row.get("profile_id") == profile_id
+        ]
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    res = supabase.table("auth_provider_accounts").select("*").eq("profile_id", profile_id).execute()
+    return res.data or []
+
+
+def _get_provider_account_for_profile(profile_id: str, provider: str):
+    if LOCAL_TEST_MODE:
+        return next((
+            row for row in LOCAL_DB["auth_provider_accounts"]
+            if row.get("profile_id") == profile_id and row.get("provider") == provider
+        ), None)
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    res = (
+        supabase.table("auth_provider_accounts")
+        .select("*")
+        .eq("profile_id", profile_id)
+        .eq("provider", provider)
         .limit(1)
         .execute()
     )
@@ -1139,6 +1702,99 @@ def _get_profile_by_firebase_uid(firebase_uid: str):
         raise HTTPException(status_code=503, detail="Supabase is not configured")
     res = supabase.table("profiles").select("*").eq("firebase_uid", firebase_uid).limit(1).execute()
     return (res.data or [None])[0]
+
+
+def _linked_provider_keys_for_profile(profile: dict):
+    profile_id = profile.get("id")
+    providers = {_normalize_provider_key(provider) for provider in (profile.get("social_providers") or [])}
+    if profile.get("provider"):
+        providers.add(_normalize_provider_key(profile["provider"]))
+    if profile_id:
+        try:
+            providers.update(
+                _normalize_provider_key(row.get("provider"))
+                for row in _get_provider_accounts_for_profile(profile_id)
+                if row.get("provider")
+            )
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("Failed to read linked providers for profile_id=%s", profile_id)
+    return sorted(provider for provider in providers if provider)
+
+
+def _update_profile_provider_fields(profile: dict, providers: list[str]):
+    cleaned = sorted({_normalize_provider_key(provider) for provider in providers if provider})
+    update_payload = {
+        "provider": profile.get("provider") or (cleaned[0] if cleaned else None),
+        "social_providers": cleaned,
+        "updated_at": _now_iso(),
+    }
+    if LOCAL_TEST_MODE:
+        profile.update(update_payload)
+        return profile
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    updated_res = supabase.table("profiles").update(update_payload).eq("id", profile["id"]).execute()
+    return (updated_res.data or [None])[0] or {**profile, **update_payload}
+
+
+def _link_oauth_profile(identity: dict, profile: dict):
+    provider = identity["provider"]
+    provider_user_id = identity["provider_user_id"]
+    profile_id = profile.get("id")
+    if not profile_id:
+        raise HTTPException(status_code=500, detail="profile_id_missing")
+    if profile.get("account_status") in ("deleted", "withdrawn"):
+        raise HTTPException(status_code=409, detail="oauth_account_deleted")
+
+    now = _now_iso()
+    existing_account = _get_provider_account(provider, provider_user_id)
+    if existing_account and existing_account.get("profile_id") != profile_id:
+        other_profile = _get_profile_by_id(existing_account.get("profile_id"))
+        if other_profile and other_profile.get("account_status") not in ("deleted", "withdrawn"):
+            raise HTTPException(status_code=409, detail="oauth_provider_already_linked_to_other_account")
+
+    current_provider_account = _get_provider_account_for_profile(profile_id, provider)
+    if current_provider_account and current_provider_account.get("provider_user_id") != provider_user_id:
+        raise HTTPException(status_code=409, detail="oauth_provider_already_linked")
+
+    account_payload = {
+        "profile_id": profile_id,
+        "provider": provider,
+        "provider_user_id": provider_user_id,
+        "provider_email": identity.get("email") or None,
+        "provider_display_name": identity.get("display_name") or None,
+        "provider_avatar_url": identity.get("avatar_url") or None,
+        "updated_at": now,
+    }
+
+    if LOCAL_TEST_MODE:
+        target_account = existing_account or current_provider_account
+        if target_account:
+            target_account.update(account_payload)
+        else:
+            LOCAL_DB["auth_provider_accounts"].append({
+                "id": str(uuid4()),
+                **account_payload,
+                "created_at": now,
+            })
+        return _update_profile_provider_fields(profile, [*_linked_provider_keys_for_profile(profile), provider])
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    try:
+        supabase.table("auth_provider_accounts").upsert(
+            account_payload,
+            on_conflict="provider,provider_user_id",
+        ).execute()
+        refreshed_profile = _get_profile_by_id(profile_id) or profile
+        return _update_profile_provider_fields(refreshed_profile, [*_linked_provider_keys_for_profile(refreshed_profile), provider])
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("OAuth account link failed provider=%s profile_id=%s", provider, profile_id)
+        raise HTTPException(status_code=500, detail="oauth_link_failed") from exc
 
 
 def _upsert_oauth_profile(identity: dict):
@@ -1503,27 +2159,33 @@ async def auth_config():
     return get_public_firebase_config()
 
 
+@app.post("/api/auth/oauth/{provider}/link/start")
+async def oauth_link_start(provider: str, request: Request):
+    provider = _normalize_provider_key(provider)
+    if provider not in {"kakao", "naver", "github", "discord", "steam"}:
+        raise HTTPException(status_code=404, detail="oauth_provider_not_supported")
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    return _oauth_link_start_response(provider, profile)
+
+
+@app.post("/api/auth/provider/{provider}/link-record")
+async def record_firebase_provider_link(provider: str, request: Request):
+    provider = _normalize_provider_key(provider)
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    identity = _extract_firebase_linked_provider_identity(user.get("uid", ""), provider)
+    updated_profile = _link_oauth_profile(identity, profile)
+    return {
+        "profile": updated_profile,
+        "linked_providers": _linked_provider_keys_for_profile(updated_profile),
+        "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
+    }
+
+
 @app.get("/api/auth/oauth/kakao/start")
 async def kakao_oauth_start():
-    config = _get_kakao_config()
-    state = _make_oauth_state("kakao")
-    params = {
-        "response_type": "code",
-        "client_id": config["client_id"],
-        "redirect_uri": config["redirect_uri"],
-        "state": state,
-    }
-    login_url = f"https://kauth.kakao.com/oauth/authorize?{urllib_parse.urlencode(params)}"
-    response = RedirectResponse(login_url, status_code=302)
-    response.set_cookie(
-        "oauth_state_kakao",
-        state,
-        max_age=600,
-        httponly=True,
-        secure=config["redirect_uri"].startswith("https://"),
-        samesite="lax",
-    )
-    return response
+    return _oauth_start_redirect("kakao")
 
 
 @app.get("/api/auth/oauth/kakao/callback")
@@ -1534,26 +2196,14 @@ async def kakao_oauth_callback(request: Request, code: str | None = None, state:
             return _oauth_error_html("kakao", error)
         if not code:
             return _oauth_error_html("kakao", "oauth_code_missing")
-        _validate_oauth_state("kakao", state or "", request.cookies.get("oauth_state_kakao"))
+        state_payload = _validate_oauth_state("kakao", state or "", request.cookies.get("oauth_state_kakao"))
         token_data = _exchange_kakao_code(code)
         access_token = token_data.get("access_token")
         if not access_token:
             return _oauth_error_html("kakao", "oauth_access_token_missing")
         kakao_user = _fetch_kakao_user(access_token)
         identity = _extract_kakao_identity(kakao_user)
-        _upsert_oauth_profile(identity)
-        custom_token = create_firebase_custom_token(
-            identity["firebase_uid"],
-            {
-                "provider_key": "kakao",
-                "provider_user_id": identity["provider_user_id"],
-            },
-        )
-        response = _oauth_popup_html({
-            "type": "oauth_custom_token",
-            "provider": "kakao",
-            "customToken": custom_token,
-        })
+        response = _handle_oauth_identity("kakao", identity, state_payload)
     except HTTPException as exc:
         response = _oauth_error_html("kakao", str(exc.detail))
     except Exception:
@@ -1562,10 +2212,146 @@ async def kakao_oauth_callback(request: Request, code: str | None = None, state:
     return response
 
 
+@app.get("/api/auth/oauth/naver/start")
+async def naver_oauth_start():
+    return _oauth_start_redirect("naver")
+
+
+@app.get("/api/auth/oauth/naver/callback")
+async def naver_oauth_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+):
+    response = None
+    try:
+        if error:
+            return _oauth_error_html("naver", error_description or error)
+        if not code:
+            return _oauth_error_html("naver", "oauth_code_missing")
+        state_payload = _validate_oauth_state("naver", state or "", request.cookies.get("oauth_state_naver"))
+        token_data = _exchange_naver_code(code, state or "")
+        access_token = token_data.get("access_token")
+        if not access_token:
+            return _oauth_error_html("naver", "oauth_access_token_missing")
+        naver_user = _fetch_naver_user(access_token)
+        identity = _extract_naver_identity(naver_user)
+        response = _handle_oauth_identity("naver", identity, state_payload)
+    except HTTPException as exc:
+        response = _oauth_error_html("naver", str(exc.detail))
+    except Exception:
+        response = _oauth_error_html("naver", "oauth_login_failed")
+    response.delete_cookie("oauth_state_naver")
+    return response
+
+
+@app.get("/api/auth/oauth/github/start")
+async def github_oauth_start():
+    return _oauth_start_redirect("github")
+
+
+@app.get("/api/auth/oauth/github/callback")
+async def github_oauth_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+):
+    response = None
+    try:
+        if error:
+            return _oauth_error_html("github", error_description or error)
+        if not code:
+            return _oauth_error_html("github", "oauth_code_missing")
+        state_payload = _validate_oauth_state("github", state or "", request.cookies.get("oauth_state_github"))
+        token_data = _exchange_github_code(code)
+        access_token = token_data.get("access_token")
+        if not access_token:
+            return _oauth_error_html("github", "oauth_access_token_missing")
+        github_user = _fetch_github_user(access_token)
+        github_emails = _fetch_github_emails(access_token)
+        identity = _extract_github_identity(github_user, github_emails)
+        response = _handle_oauth_identity("github", identity, state_payload)
+    except HTTPException as exc:
+        response = _oauth_error_html("github", str(exc.detail))
+    except Exception:
+        response = _oauth_error_html("github", "oauth_login_failed")
+    response.delete_cookie("oauth_state_github")
+    return response
+
+
+@app.get("/api/auth/oauth/discord/start")
+async def discord_oauth_start():
+    return _oauth_start_redirect("discord")
+
+
+@app.get("/api/auth/oauth/discord/callback")
+async def discord_oauth_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+):
+    response = None
+    access_token = ""
+    try:
+        if error:
+            return _oauth_error_html("discord", error_description or error)
+        if not code:
+            return _oauth_error_html("discord", "oauth_code_missing")
+        state_payload = _validate_oauth_state("discord", state or "", request.cookies.get("oauth_state_discord"))
+        token_data = _exchange_discord_code(code)
+        access_token = token_data.get("access_token") or ""
+        if not access_token:
+            return _oauth_error_html("discord", "oauth_access_token_missing")
+        discord_user = _fetch_discord_user(access_token)
+        identity = _extract_discord_identity(discord_user)
+        response = _handle_oauth_identity("discord", identity, state_payload)
+    except HTTPException as exc:
+        response = _oauth_error_html("discord", str(exc.detail))
+    except Exception:
+        response = _oauth_error_html("discord", "oauth_login_failed")
+    finally:
+        if access_token:
+            try:
+                _revoke_discord_access_token(access_token)
+            except Exception:
+                logger.exception("Discord access token revoke failed")
+    response.delete_cookie("oauth_state_discord")
+    return response
+
+
+@app.get("/api/auth/oauth/steam/start")
+async def steam_openid_start():
+    return _oauth_start_redirect("steam")
+
+
+@app.get("/api/auth/oauth/steam/callback")
+async def steam_openid_callback(request: Request, state: str | None = None):
+    response = None
+    try:
+        state_payload = _validate_oauth_state("steam", state or "", request.cookies.get("oauth_state_steam"))
+        steam_id = _validate_steam_openid_assertion(request, state or "")
+        player_summary = _fetch_steam_player_summary(steam_id)
+        identity = _extract_steam_identity(steam_id, player_summary)
+        response = _handle_oauth_identity("steam", identity, state_payload)
+    except HTTPException as exc:
+        response = _oauth_error_html("steam", str(exc.detail))
+    except Exception:
+        response = _oauth_error_html("steam", "openid_login_failed")
+    response.delete_cookie("oauth_state_steam")
+    return response
+
+
 @app.get("/api/auth/me")
 async def auth_me(request: Request):
     user = require_firebase_user(request)
     profile = _resolve_profile_for_firebase_user(user)
+    linked_providers = _linked_provider_keys_for_profile(profile)
     return {
         "uid": user.get("uid", ""),
         "email": user.get("email"),
@@ -1574,6 +2360,7 @@ async def auth_me(request: Request):
         "picture": user.get("picture"),
         "provider": user.get("firebase", {}).get("sign_in_provider"),
         "profile": profile,
+        "linked_providers": linked_providers,
         "is_admin": profile.get("role") in ("admin", "super_admin"),
     }
 
@@ -1746,6 +2533,8 @@ async def delete_profile_account(payload: AccountDeletionRequest, request: Reque
         raise HTTPException(status_code=400, detail="account_delete_confirm_required")
     user = require_firebase_user(request)
     profile = _resolve_profile_for_firebase_user(user)
+    provider_accounts = _get_provider_accounts_for_profile(profile.get("id"))
+    _revoke_provider_accounts(provider_accounts)
     _anonymize_deleted_account(profile)
     delete_firebase_user(user.get("uid", ""))
     return {"deleted": True}

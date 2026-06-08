@@ -197,6 +197,34 @@ async function apiUpdateSocialProviders(idToken, providers) {
     return data;
 }
 
+async function apiStartBackendOAuthLink(idToken, providerKey) {
+    const res = await fetch(`${API_BASE}/auth/oauth/${encodeURIComponent(providerKey)}/link/start`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${idToken}`
+        }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'oauth_link_start_failed');
+    }
+    return data;
+}
+
+async function apiRecordFirebaseProviderLink(idToken, providerKey) {
+    const res = await fetch(`${API_BASE}/auth/provider/${encodeURIComponent(providerKey)}/link-record`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${idToken}`
+        }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'provider_link_record_failed');
+    }
+    return data;
+}
+
 async function apiDeleteAccount(idToken) {
     const res = await fetch(`${API_BASE}/profile/account`, {
         method: 'DELETE',

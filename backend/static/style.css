@@ -329,20 +329,194 @@ html.sidebar-open {
 }
 
 .auth-google-button {
+    height: 44px;
     margin-top: 0.2rem;
     background: rgba(255, 255, 255, 0.56);
     color: var(--text-color);
     border: 1px solid rgba(255, 255, 255, 0.66);
+    border-radius: 4px;
+    font-size: 0.92rem;
+    white-space: nowrap;
 }
 
 .auth-google-button:hover {
-    background: rgba(255, 255, 255, 0.68);
+    background: rgba(255, 255, 255, 0.56);
 }
 
 .auth-social-buttons {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.55rem;
+}
+
+.auth-provider-button {
+    height: 44px;
+    width: 100%;
+    min-width: 0;
+}
+
+.auth-provider-image-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0.2rem;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    box-shadow: none;
+    overflow: hidden;
+}
+
+.auth-provider-image-button img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.auth-provider-image-button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.auth-provider-brand-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    margin-top: 0.2rem;
+    padding: 0 0.8rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.auth-provider-brand-button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.auth-provider-brand-icon {
+    display: block;
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    flex: 0 0 auto;
+}
+
+.auth-provider-brand-button.steam {
+    background: #171a21;
+    border-color: #2a475e;
+    color: #fff;
+}
+
+.auth-provider-brand-button.steam .auth-provider-brand-icon {
+    width: clamp(52px, 42%, 76px);
+    height: 27px;
+}
+
+.auth-provider-brand-button.steam {
+    gap: 0.42rem;
+    padding: 0 0.55rem;
+    font-size: 0.82rem;
+}
+
+.auth-provider-brand-button.discord {
+    background: #5865f2;
+    border-color: #5865f2;
+    color: #fff;
+}
+
+.auth-provider-brand-button.github {
+    background: #24292f;
+    border-color: #24292f;
+    color: #fff;
+}
+
+.gsi-material-button {
+    -moz-user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    -webkit-appearance: none;
+    appearance: none;
+    background-color: #fff;
+    background-image: none;
+    border: 1px solid #747775;
+    border-radius: 4px;
+    box-sizing: border-box;
+    color: #1f1f1f;
+    cursor: pointer;
+    font-family: Roboto, Arial, sans-serif;
+    font-size: 14px;
+    letter-spacing: 0.25px;
+    margin-top: 0.2rem;
+    outline: none;
+    overflow: hidden;
+    padding: 0 12px;
+    position: relative;
+    text-align: center;
+    transition: background-color .218s, border-color .218s, box-shadow .218s;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.gsi-material-button .gsi-material-button-icon {
+    height: 20px;
+    margin-right: 10px;
+    min-width: 20px;
+    width: 20px;
+}
+
+.gsi-material-button .gsi-material-button-content-wrapper {
+    align-items: center;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    height: 100%;
+    justify-content: space-between;
+    position: relative;
+    width: 100%;
+}
+
+.gsi-material-button .gsi-material-button-contents {
+    flex-grow: 1;
+    font-family: Roboto, Arial, sans-serif;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: top;
+}
+
+.gsi-material-button .gsi-material-button-state {
+    bottom: 0;
+    left: 0;
+    opacity: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    transition: opacity .218s;
+}
+
+.gsi-material-button:disabled {
+    background-color: #ffffff61;
+    border-color: #1f1f1f1f;
+    cursor: default;
+}
+
+.gsi-material-button:disabled .gsi-material-button-contents,
+.gsi-material-button:disabled .gsi-material-button-icon {
+    opacity: 38%;
+}
+
+.gsi-material-button:not(:disabled):active .gsi-material-button-state,
+.gsi-material-button:not(:disabled):focus .gsi-material-button-state {
+    background-color: #303030;
+    opacity: 12%;
 }
 
 .message-action-button {
@@ -1007,6 +1181,43 @@ button:hover {
     box-shadow:
         inset 0 1px 1px rgba(255,255,255,0.52),
         0 18px 34px rgba(80, 150, 200, 0.18);
+}
+
+.auth-social-buttons button:hover {
+    transform: none;
+    box-shadow: none;
+}
+
+.auth-social-buttons .gsi-material-button:hover {
+    background: #fff;
+    color: #1f1f1f;
+}
+
+.auth-social-buttons .auth-provider-image-button:hover {
+    background: transparent;
+    color: inherit;
+}
+
+.auth-social-buttons .auth-provider-brand-button.steam:hover {
+    background: #171a21;
+    border-color: #2a475e;
+    color: #fff;
+}
+
+.auth-social-buttons .auth-provider-brand-button.discord:hover {
+    background: #5865f2;
+    border-color: #5865f2;
+    color: #fff;
+}
+
+.auth-social-buttons .auth-provider-brand-button.github:hover {
+    background: #24292f;
+    border-color: #24292f;
+    color: #fff;
+}
+
+.auth-social-buttons .gsi-material-button:hover .gsi-material-button-state {
+    opacity: 0;
 }
 button.primary-action {
     background:

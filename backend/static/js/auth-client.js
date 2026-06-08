@@ -16,8 +16,22 @@ function getLinkedProviderIds() {
         .filter(Boolean);
 }
 
-function hasLinkedProvider(providerId) {
-    return getLinkedProviderIds().includes(providerId);
+function normalizeProviderKey(providerKey) {
+    const aliases = {
+        'google.com': 'google',
+        password: 'password',
+    };
+    return aliases[providerKey] || providerKey;
+}
+
+function getLinkedProviderKeys() {
+    const backendProviders = state.account?.linked_providers || state.account?.profile?.social_providers || [];
+    const firebaseProviders = getLinkedProviderIds().map(normalizeProviderKey);
+    return Array.from(new Set([...backendProviders.map(normalizeProviderKey), ...firebaseProviders])).filter(Boolean);
+}
+
+function hasLinkedProvider(providerKey) {
+    return getLinkedProviderKeys().includes(normalizeProviderKey(providerKey));
 }
 
 const SOCIAL_AUTH_PROVIDERS = {
@@ -25,15 +39,23 @@ const SOCIAL_AUTH_PROVIDERS = {
         providerId: 'google.com',
         createProvider: () => new firebase.auth.GoogleAuthProvider(),
     },
-    github: {
-        providerId: 'github.com',
-        createProvider: () => new firebase.auth.GithubAuthProvider(),
-    },
 };
 
 const BACKEND_OAUTH_PROVIDERS = {
     kakao: {
         startUrl: '/api/auth/oauth/kakao/start',
+    },
+    naver: {
+        startUrl: '/api/auth/oauth/naver/start',
+    },
+    github: {
+        startUrl: '/api/auth/oauth/github/start',
+    },
+    discord: {
+        startUrl: '/api/auth/oauth/discord/start',
+    },
+    steam: {
+        startUrl: '/api/auth/oauth/steam/start',
     },
 };
 
@@ -672,7 +694,23 @@ async function handleBackendOAuthMessage(event) {
     if (!data || typeof data !== 'object') return;
 
     if (data.type === 'oauth_error') {
-        showAppMessage(t('auth_social_login_error'), { tone: 'error' });
+        const isLinking = state.isLoginSubmitting && !!firebaseAuth?.currentUser;
+        showAppMessage(t(isLinking ? 'auth_social_link_error' : 'auth_social_login_error'), { tone: 'error' });
+        state.isLoginSubmitting = false;
+        if (isLinking) renderMyPage();
+        return;
+    }
+
+    if (data.type === 'oauth_link_success') {
+        try {
+            await refreshAccountFromFirebaseUser();
+            showAppMessage(t('auth_social_link_success'), { tone: 'success' });
+        } catch (e) {
+            showAppMessage(t('auth_social_link_error'), { tone: 'error' });
+        } finally {
+            state.isLoginSubmitting = false;
+            renderMyPage();
+        }
         return;
     }
 
@@ -768,7 +806,7 @@ async function saveProfileIdentity(identity) {
 async function syncSocialProviders() {
     if (!firebaseAuth?.currentUser) return null;
     const token = await firebaseAuth.currentUser.getIdToken(true);
-    state.account = await apiUpdateSocialProviders(token, getLinkedProviderIds());
+    state.account = await apiUpdateSocialProviders(token, getLinkedProviderIds().map(normalizeProviderKey));
     state.isAdmin = !!state.account?.is_admin;
     renderSidebar();
     return state.account;
@@ -780,21 +818,54 @@ async function handleLinkGoogleProvider() {
 
 async function handleLinkSocialProvider(providerKey) {
     if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    if (BACKEND_OAUTH_PROVIDERS[providerKey]) {
+        return handleBackendOAuthLink(providerKey);
+    }
     const providerConfig = SOCIAL_AUTH_PROVIDERS[providerKey];
     if (!providerConfig) return;
+    let firebaseLinked = false;
     try {
         state.isLoginSubmitting = true;
         const provider = providerConfig.createProvider();
         await firebaseAuth.currentUser.linkWithPopup(provider);
-        await syncSocialProviders();
+        firebaseLinked = true;
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        state.account = await apiRecordFirebaseProviderLink(token, providerKey);
+        state.isAdmin = !!state.account?.is_admin;
+        renderSidebar();
         showAppMessage(t('auth_social_link_success'), { tone: 'success' });
     } catch (e) {
+        if (firebaseLinked && providerKey === 'google') {
+            try {
+                await firebaseAuth.currentUser.unlink('google.com');
+            } catch (unlinkError) {
+                console.error('Firebase provider rollback failed', unlinkError);
+            }
+        }
         const code = e?.code || '';
         const message = code === 'auth/provider-already-linked'
             ? t('auth_social_already_linked')
             : t('auth_social_link_error');
         showAppMessage(message, { tone: 'error' });
     } finally {
+        state.isLoginSubmitting = false;
+        renderMyPage();
+    }
+}
+
+async function handleBackendOAuthLink(providerKey) {
+    if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    try {
+        state.isLoginSubmitting = true;
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        const data = await apiStartBackendOAuthLink(token, providerKey);
+        const popup = window.open(data.url, `${providerKey}_link`, 'width=480,height=720');
+        if (!popup) {
+            showAppMessage(t('auth_popup_blocked'), { tone: 'error' });
+            state.isLoginSubmitting = false;
+        }
+    } catch (e) {
+        showAppMessage(t('auth_social_link_error'), { tone: 'error' });
         state.isLoginSubmitting = false;
         renderMyPage();
     }
