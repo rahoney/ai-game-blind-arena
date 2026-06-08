@@ -23,8 +23,7 @@ function renderMyPageInfoTile(labelKey, value, extraClass = '') {
 function renderMyPageAccountManageTile() {
     return `
         <button type="button" class="mypage-info-tile mypage-account-manage-tile" onclick="toggleMyPageAccountManagement()">
-            <div class="mypage-info-label">${t('mypage_account_manage')}</div>
-            <div class="mypage-info-value">${state.mypageAccountManagementOpen ? t('mypage_account_manage_close') : t('mypage_account_manage_open')}</div>
+            <span>${t('mypage_account_manage')}</span>
         </button>
     `;
 }
@@ -58,10 +57,15 @@ function renderMyPageProviderRow(provider) {
             </div>
             ${linked
                 ? `<span class="mypage-provider-status">${t('mypage_provider_linked')}</span>`
-                : `<button type="button" class="mypage-provider-link-button" onclick="handleLinkSocialProvider('${provider.key}')">${t('mypage_provider_link')}</button>`
+                : `<button type="button" class="mypage-provider-link-button" onclick="handleMyPageProviderLink('${provider.key}')" ${state.isLoginSubmitting ? 'disabled' : ''}>${t('mypage_provider_link')}</button>`
             }
         </div>
     `;
+}
+
+async function handleMyPageProviderLink(providerKey) {
+    if (state.isLoginSubmitting) return;
+    await handleLinkSocialProvider(providerKey);
 }
 
 function renderAccountEmailChangeDialog() {
@@ -226,6 +230,7 @@ function renderMyPage() {
                         ${renderMyPageInfoTile('auth_login_id_label', loginId || '-')}
                         ${renderMyPageAccountManageTile()}
                     </div>
+                    ${renderMyPageAccountManagementPanel()}
                     <div class="mypage-metrics-grid">
                         <div class="mypage-metric-card">
                             <div>${t('mypage_unique_eval_models')}</div>
@@ -238,8 +243,6 @@ function renderMyPage() {
                     </div>
                 </div>
             </div>
-
-            ${renderMyPageAccountManagementPanel()}
 
             <div class="mypage-stats-grid">
                 <div class="mypage-subsection">

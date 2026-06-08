@@ -941,11 +941,16 @@ html.sidebar-open {
 }
 
 .mypage-account-manage-tile {
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
+    text-align: center;
 }
 
-.mypage-account-manage-tile .mypage-info-value {
+.mypage-account-manage-tile span {
     color: var(--primary);
+    font-size: 1.08rem;
+    font-weight: 900;
 }
 
 .mypage-metrics-grid {
@@ -982,6 +987,11 @@ html.sidebar-open {
     border: 1px solid var(--border-color);
     border-radius: 20px;
     background: var(--surface-bg);
+}
+
+.mypage-profile-main .mypage-account-panel {
+    margin-top: 0;
+    margin-bottom: 1rem;
 }
 
 .mypage-account-panel-header,
@@ -1300,20 +1310,20 @@ html.sidebar-open {
 .mypage-dialog-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 1000;
+    z-index: 10000;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 1rem;
-    background: rgba(15, 23, 42, 0.58);
+    background: rgba(15, 23, 42, 0.76);
 }
 
 .mypage-dialog {
     width: min(100%, 440px);
-    padding: 1.5rem;
-    border: 1px solid var(--border-color);
+    padding: 1.7rem;
+    border: 1px solid rgba(47, 169, 157, 0.22);
     border-radius: 22px;
-    background: var(--surface-bg);
+    background: #f8fffe;
     box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
 }
 
@@ -1327,7 +1337,7 @@ html.sidebar-open {
 
 .mypage-dialog-header h3 {
     margin: 0;
-    color: var(--text-color);
+    color: #205f5a;
 }
 
 .mypage-dialog-close {
@@ -1339,15 +1349,27 @@ html.sidebar-open {
 
 .mypage-dialog-desc {
     margin: 0 0 1rem;
-    color: var(--text-muted);
+    color: #456f6c;
     line-height: 1.45;
 }
 
 .mypage-dialog-label {
     display: block;
     margin: 0.8rem 0 0.35rem;
-    color: var(--text-color);
+    color: #205f5a;
     font-weight: 800;
+}
+
+.mypage-dialog input[type="email"],
+.mypage-dialog input[type="text"] {
+    width: 100%;
+    min-height: 48px;
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(47, 169, 157, 0.28);
+    border-radius: 12px;
+    background: #fff;
+    color: #1f4f4b;
+    font-size: 1rem;
 }
 
 .mypage-dialog-actions {

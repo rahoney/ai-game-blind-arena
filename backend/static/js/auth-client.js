@@ -976,6 +976,7 @@ async function handleLinkSocialProvider(providerKey) {
         renderSidebar();
         showAppMessage(t('auth_social_link_success'), { tone: 'success' });
     } catch (e) {
+        console.error('Social provider link failed', providerKey, e);
         if (firebaseLinked && providerKey === 'google') {
             try {
                 await firebaseAuth.currentUser.unlink('google.com');
@@ -1006,6 +1007,7 @@ async function handleBackendOAuthLink(providerKey) {
             state.isLoginSubmitting = false;
         }
     } catch (e) {
+        console.error('Backend OAuth link start failed', providerKey, e);
         showAppMessage(t('auth_social_link_error'), { tone: 'error' });
         state.isLoginSubmitting = false;
         renderMyPage();
