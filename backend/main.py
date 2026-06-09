@@ -1666,9 +1666,9 @@ def _handle_oauth_identity(provider: str, identity: dict, state_payload: dict):
             "provider": provider,
         })
 
-    _upsert_oauth_profile(identity)
+    profile = _upsert_oauth_profile(identity)
     custom_token = create_firebase_custom_token(
-        identity["firebase_uid"],
+        profile["firebase_uid"],
         {
             "provider_key": provider,
             "provider_user_id": identity["provider_user_id"],

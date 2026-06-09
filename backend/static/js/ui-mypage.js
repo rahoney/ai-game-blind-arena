@@ -49,6 +49,7 @@ function renderMyPageProviderIcon(provider) {
 
 function renderMyPageProviderRow(provider) {
     const linked = hasLinkedProvider(provider.key);
+    const canUnlink = canUnlinkProvider(provider.key);
     return `
         <div class="mypage-provider-row">
             <div class="mypage-provider-name">
@@ -56,10 +57,10 @@ function renderMyPageProviderRow(provider) {
                 <span>${provider.label}</span>
             </div>
             ${linked
-                ? `<div class="mypage-provider-actions">
+                ? (canUnlink ? `<div class="mypage-provider-actions">
                     <span class="mypage-provider-status">${t('mypage_provider_linked')}</span>
                     <button type="button" class="mypage-provider-unlink-button" onclick="handleMyPageProviderUnlink('${provider.key}')" ${state.isLoginSubmitting ? 'disabled' : ''}>${t('mypage_provider_unlink')}</button>
-                </div>`
+                </div>` : `<span class="mypage-provider-status">${t('mypage_provider_linked')}</span>`)
                 : `<button type="button" class="mypage-provider-link-button" onclick="handleMyPageProviderLink('${provider.key}')" ${state.isLoginSubmitting ? 'disabled' : ''}>${t('mypage_provider_link')}</button>`
             }
         </div>

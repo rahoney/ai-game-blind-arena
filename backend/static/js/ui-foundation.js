@@ -526,10 +526,10 @@ function renderSidebar() {
     bindSidebarGlassTarget();
 }
 
-function sidebarSelectCategory(category) { toggleSidebar(); selectCategory(category); }
-function sidebarSelectAbout() { toggleSidebar(); navigateTo('about', renderAbout); }
+function sidebarSelectCategory(category) { toggleSidebar(); if (!ensureDisplayNameSetupComplete()) return; selectCategory(category); }
+function sidebarSelectAbout() { toggleSidebar(); if (!ensureDisplayNameSetupComplete()) return; navigateTo('about', renderAbout); }
 function sidebarSelectLogin() { toggleSidebar(); navigateTo('login', renderLogin); }
-function sidebarSelectMyPage() { toggleSidebar(); openMyPage(); }
+function sidebarSelectMyPage() { toggleSidebar(); if (!ensureDisplayNameSetupComplete()) return; openMyPage(); }
 function sidebarLinkGoogle() { toggleSidebar(); handleLinkGoogleProvider(); }
 function sidebarLogout() { toggleSidebar(); handleLogout(); }
 async function sidebarChangeLanguage(lang) {

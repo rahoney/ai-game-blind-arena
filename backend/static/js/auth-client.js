@@ -28,11 +28,39 @@ function normalizeProviderKey(providerKey) {
 function getLinkedProviderKeys() {
     const backendProviders = state.account?.linked_providers || state.account?.profile?.social_providers || [];
     const firebaseProviders = getLinkedProviderIds().map(normalizeProviderKey);
-    return Array.from(new Set([...backendProviders.map(normalizeProviderKey), ...firebaseProviders])).filter(Boolean);
+    return Array.from(new Set([...backendProviders.map(normalizeProviderKey), ...firebaseProviders]))
+        .filter((provider) => provider && provider !== 'password');
 }
 
 function hasLinkedProvider(providerKey) {
     return getLinkedProviderKeys().includes(normalizeProviderKey(providerKey));
+}
+
+function hasPasswordLoginMethod() {
+    return !!state.account?.profile?.login_id || getLinkedProviderIds().includes('password');
+}
+
+function getLoginMethodCount() {
+    return (hasPasswordLoginMethod() ? 1 : 0) + getLinkedProviderKeys().length;
+}
+
+function canUnlinkProvider(providerKey) {
+    return hasLinkedProvider(providerKey) && getLoginMethodCount() >= 2;
+}
+
+function requiresDisplayNameSetup() {
+    return !!state.account?.profile && state.account.profile.display_name_set === false;
+}
+
+function redirectToDisplayNameSetup() {
+    state.authMode = 'display_name';
+    navigateTo('login', renderLogin);
+}
+
+function ensureDisplayNameSetupComplete() {
+    if (!requiresDisplayNameSetup()) return true;
+    redirectToDisplayNameSetup();
+    return false;
 }
 
 const SOCIAL_AUTH_PROVIDERS = {
