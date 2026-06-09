@@ -18,6 +18,13 @@ let state = {
         codeSent: false,
         expiresAt: 0,
     },
+    accountLoginIdSetup: {
+        open: false,
+        email: '',
+        codeSent: false,
+        expiresAt: 0,
+        token: '',
+    },
     loginIdAvailability: {
         value: '',
         status: 'idle',
@@ -30,6 +37,7 @@ let state = {
     },
     signupEmailTimerId: null,
     accountEmailChangeTimerId: null,
+    accountLoginIdSetupTimerId: null,
     games: {},
     categories: [],
     selectedCategory: null,

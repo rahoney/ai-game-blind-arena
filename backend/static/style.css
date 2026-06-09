@@ -1374,7 +1374,8 @@ html.sidebar-open {
 }
 
 .mypage-dialog input[type="email"],
-.mypage-dialog input[type="text"] {
+.mypage-dialog input[type="text"],
+.mypage-dialog input[type="password"] {
     width: 100%;
     min-height: 48px;
     padding: 0.9rem 1rem;
@@ -1383,6 +1384,18 @@ html.sidebar-open {
     background: #fff;
     color: #1f4f4b;
     font-size: 1rem;
+}
+
+.mypage-dialog-inline-field {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.6rem;
+    align-items: stretch;
+}
+
+.mypage-dialog-inline-field button {
+    min-height: 48px;
+    white-space: nowrap;
 }
 
 .mypage-dialog-actions {

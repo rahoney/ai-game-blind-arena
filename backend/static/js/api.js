@@ -200,6 +200,38 @@ async function apiConfirmCurrentUserEmailChange(idToken, email, code) {
     return data;
 }
 
+async function apiRequestCurrentUserLoginIdCode(idToken, email) {
+    const res = await fetch(`${API_BASE}/auth/me/login-id/code`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'mail_send_failed');
+    }
+    return data;
+}
+
+async function apiCreateCurrentUserLoginId(idToken, payload) {
+    const res = await fetch(`${API_BASE}/auth/me/login-id`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'login_id_create_failed');
+    }
+    return data;
+}
+
 async function apiSendLoginIdEmail(payload) {
     const res = await fetch(`${API_BASE}/auth/recovery/send-login-id-email`, {
         method: 'POST',

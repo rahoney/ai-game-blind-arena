@@ -24,6 +24,7 @@ try:
     from .models import (
         Evaluation,
         PlayEvent,
+        AccountLoginIdCreate,
         ProfileDisplayNameUpdate,
         ProfileIdentityUpdate,
         SignupEmailVerificationRequest,
@@ -61,6 +62,7 @@ except ImportError:
     from models import (
         Evaluation,
         PlayEvent,
+        AccountLoginIdCreate,
         ProfileDisplayNameUpdate,
         ProfileIdentityUpdate,
         SignupEmailVerificationRequest,
@@ -816,6 +818,53 @@ def _update_profile_identity(profile: dict, payload: ProfileIdentityUpdate):
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Failed to update profile identity") from exc
+
+
+def _create_profile_login_id(profile: dict, payload: AccountLoginIdCreate, email: str):
+    if profile.get("login_id"):
+        raise HTTPException(status_code=409, detail="login_id_already_set")
+    if not LOGIN_ID_RE.fullmatch(payload.login_id):
+        raise HTTPException(status_code=400, detail="login_id_format")
+    if not _is_valid_real_name(payload.real_name, payload.language):
+        raise HTTPException(status_code=400, detail="real_name_format")
+
+    uid = profile.get("firebase_uid")
+    if not uid:
+        raise HTTPException(status_code=500, detail="profile_uid_missing")
+    normalized_email = _normalize_email(email)
+    if not EMAIL_RE.fullmatch(normalized_email):
+        raise HTTPException(status_code=400, detail="invalid_email")
+    if _is_email_taken(normalized_email, uid):
+        raise HTTPException(status_code=409, detail="email_taken")
+
+    update_payload = {
+        "login_id": payload.login_id,
+        "real_name": payload.real_name,
+        "email": normalized_email,
+        "email_verified": True,
+        "email_verification_required": False,
+        "account_status": "active",
+        "updated_at": _now_iso(),
+    }
+
+    if LOCAL_TEST_MODE:
+        if _is_login_id_taken(payload.login_id, uid):
+            raise HTTPException(status_code=409, detail="login_id_taken")
+        profile.update(update_payload)
+        return profile
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    try:
+        if _is_login_id_taken(payload.login_id, uid):
+            raise HTTPException(status_code=409, detail="login_id_taken")
+        updated_res = supabase.table("profiles").update(update_payload).eq("firebase_uid", uid).execute()
+        return (updated_res.data or [None])[0] or {**profile, **update_payload}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="profile_login_id_create_failed") from exc
 
 
 def _find_profile_for_login_id_recovery(payload: FindLoginIdRequest):
@@ -2708,6 +2757,47 @@ async def confirm_current_user_email_change(payload: SignupEmailVerificationConf
     updated_profile = _update_profile_email(profile, normalized_email)
     return {
         "profile": updated_profile,
+        "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
+    }
+
+
+@app.post("/api/auth/me/login-id/code")
+async def request_current_user_login_id_code(payload: SignupEmailVerificationRequest, request: Request):
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    if profile.get("login_id"):
+        raise HTTPException(status_code=409, detail="login_id_already_set")
+    normalized_email = _normalize_email(payload.email)
+    if _is_email_taken(normalized_email, profile.get("firebase_uid")):
+        raise HTTPException(status_code=409, detail="email_taken")
+    identifier_hash = _hash_recovery_identifier("login_id_create_code", profile.get("id", ""), normalized_email)
+    _check_recovery_rate_limit("login_id_create_code", identifier_hash, request)
+    return _create_signup_email_verification(normalized_email, request)
+
+
+@app.post("/api/auth/me/login-id")
+async def create_current_user_login_id(payload: AccountLoginIdCreate, request: Request):
+    user = require_firebase_user(request)
+    user_email = _normalize_email(user.get("email") or "")
+    if not EMAIL_RE.fullmatch(user_email):
+        raise HTTPException(status_code=400, detail="email_required_after_credential_link")
+    if not _verify_signup_email_token(payload.email_verification_token, user_email):
+        raise HTTPException(status_code=403, detail="email_verification_required")
+
+    try:
+        from firebase_admin import auth as firebase_auth
+
+        get_firebase_app()
+        firebase_auth.update_user(user.get("uid"), email_verified=True)
+        user["email_verified"] = True
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to update Firebase email verification") from exc
+
+    profile = _resolve_profile_for_firebase_user(user)
+    updated_profile = _create_profile_login_id(profile, payload, user_email)
+    return {
+        "profile": updated_profile,
+        "linked_providers": _linked_provider_keys_for_profile(updated_profile),
         "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
     }
 

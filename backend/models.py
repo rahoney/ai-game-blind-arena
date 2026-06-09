@@ -23,6 +23,18 @@ class ProfileIdentityUpdate(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
+class AccountLoginIdCreate(BaseModel):
+    login_id: str = Field(min_length=4, max_length=15)
+    real_name: str = Field(min_length=1, max_length=50)
+    email_verification_token: str = Field(min_length=1, max_length=500)
+    language: Optional[str] = Field(default="ko", max_length=5)
+
+    @field_validator("login_id", "real_name", "email_verification_token", "language", mode="before")
+    @classmethod
+    def strip_login_identity_fields(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
 class SignupEmailVerificationRequest(BaseModel):
     email: str = Field(min_length=3, max_length=254)
 

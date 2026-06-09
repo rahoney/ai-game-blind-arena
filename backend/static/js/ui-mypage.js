@@ -110,16 +110,72 @@ function renderAccountEmailChangeDialog() {
     `;
 }
 
+function renderAccountLoginIdSetupDialog() {
+    if (!state.accountLoginIdSetup?.open) return '';
+    const email = state.accountLoginIdSetup.email || getMyPageProfileValue('email', firebaseAuth?.currentUser?.email || '');
+    const codeSent = !!state.accountLoginIdSetup.codeSent;
+    const token = state.accountLoginIdSetup.token || '';
+    return `
+        <div class="mypage-dialog-backdrop" role="presentation">
+            <div class="mypage-dialog" role="dialog" aria-modal="true" aria-labelledby="account-login-id-setup-title">
+                <div class="mypage-dialog-header">
+                    <h3 id="account-login-id-setup-title">${t('account_login_id_create_title')}</h3>
+                    <button type="button" class="mypage-dialog-close" onclick="closeAccountLoginIdSetupDialog()" aria-label="${t('btn_back')}">×</button>
+                </div>
+                <p class="mypage-dialog-desc">${t('account_login_id_create_desc')}</p>
+                ${token ? `
+                    <p class="auth-inline-status success">${t('auth_signup_email_verified_for', { email: escapeHtml(email) })}</p>
+                    <label class="mypage-dialog-label" for="account-login-id">${t('auth_login_id_label')}</label>
+                    <div class="mypage-dialog-inline-field">
+                        <input type="text" id="account-login-id" maxlength="15" placeholder="${t('auth_login_id_placeholder')}" oninput="handleAccountLoginIdInput()" ${state.isLoginSubmitting ? 'disabled' : ''}>
+                        <button type="button" class="secondary" onclick="handleAccountLoginIdAvailabilityCheck()" ${state.isLoginSubmitting ? 'disabled' : ''}>${t('auth_login_id_check')}</button>
+                    </div>
+                    <p id="account-login-id-availability" class="auth-field-message"></p>
+                    <label class="mypage-dialog-label" for="account-real-name">${t('auth_real_name_label')}</label>
+                    <input type="text" id="account-real-name" placeholder="${t('auth_real_name_placeholder')}" oninput="updateAccountLoginIdSetupSubmitState()" ${state.isLoginSubmitting ? 'disabled' : ''}>
+                    <label class="mypage-dialog-label" for="account-password">${t('auth_password_label')}</label>
+                    <input type="password" id="account-password" placeholder="${t('auth_password_placeholder')}" oninput="updateAccountLoginIdSetupSubmitState()" ${state.isLoginSubmitting ? 'disabled' : ''}>
+                    <label class="mypage-dialog-label" for="account-password-confirm">${t('auth_password_confirm_label')}</label>
+                    <input type="password" id="account-password-confirm" placeholder="${t('auth_password_confirm_placeholder')}" oninput="updateAccountLoginIdSetupSubmitState()" ${state.isLoginSubmitting ? 'disabled' : ''}>
+                    <div class="mypage-dialog-actions">
+                        <button id="account-login-id-submit-btn" type="button" onclick="handleAccountLoginIdSetupSubmit()" disabled>${t('account_login_id_create_submit')}</button>
+                        <button type="button" class="secondary" onclick="closeAccountLoginIdSetupDialog()">${t('admin_password_cancel')}</button>
+                    </div>
+                ` : codeSent ? `
+                    <p class="auth-inline-status">${t('auth_verify_email_sent_to', { email: escapeHtml(email) })}</p>
+                    <label class="mypage-dialog-label" for="account-login-id-code">${t('auth_signup_code_label')}</label>
+                    <input type="text" id="account-login-id-code" inputmode="numeric" maxlength="6" placeholder="${t('auth_signup_code_placeholder')}" oninput="updateAccountLoginIdSetupCodeState()" ${state.isLoginSubmitting ? 'disabled' : ''}>
+                    <p id="account-login-id-code-countdown" class="auth-inline-status">${t('auth_signup_code_countdown', { time: getAccountLoginIdSetupCountdownText() })}</p>
+                    <div class="mypage-dialog-actions">
+                        <button id="account-login-id-code-confirm-btn" type="button" onclick="handleAccountLoginIdSetupCodeConfirm()" disabled>${t('auth_signup_code_confirm')}</button>
+                        <button type="button" class="secondary" onclick="handleAccountLoginIdSetupCodeRequest()" ${state.isLoginSubmitting ? 'disabled' : ''}>${t('auth_signup_code_resend')}</button>
+                    </div>
+                ` : `
+                    <label class="mypage-dialog-label" for="account-login-id-email">${t('auth_email_label')}</label>
+                    <input type="email" id="account-login-id-email" value="${escapeHtml(email)}" placeholder="${t('auth_email_placeholder')}" ${state.isLoginSubmitting ? 'disabled' : ''}>
+                    <div class="mypage-dialog-actions">
+                        <button type="button" onclick="handleAccountLoginIdSetupCodeRequest()" ${state.isLoginSubmitting ? 'disabled' : ''}>${t('auth_signup_code_send')}</button>
+                        <button type="button" class="secondary" onclick="closeAccountLoginIdSetupDialog()">${t('admin_password_cancel')}</button>
+                    </div>
+                `}
+            </div>
+        </div>
+    `;
+}
+
 function renderMyPageModalRoot() {
     const root = document.getElementById('global-modal-root');
     if (!root) return;
-    root.innerHTML = renderAccountEmailChangeDialog();
+    root.innerHTML = `${renderAccountEmailChangeDialog()}${renderAccountLoginIdSetupDialog()}`;
 }
 
 function renderMyPageAccountManagementPanel() {
     if (!state.mypageAccountManagementOpen) return '';
     const realName = getMyPageProfileValue('real_name');
     const email = getMyPageProfileValue('email', firebaseAuth?.currentUser?.email || '');
+    const loginId = getMyPageProfileValue('login_id');
+    const hasLoginId = !!loginId;
+    const passwordReady = hasPasswordLoginMethod() && hasLoginId;
     return `
         <section class="mypage-account-panel">
             <div class="mypage-account-panel-header">
@@ -130,6 +186,13 @@ function renderMyPageAccountManagementPanel() {
                 <h4>${t('mypage_account_basic_info')}</h4>
                 <dl class="mypage-account-definition-list">
                     <div>
+                        <dt>${t('mypage_login_id_label')}</dt>
+                        <dd>
+                            <span>${escapeHtml(loginId || '-')}</span>
+                            ${hasLoginId ? '' : `<button type="button" class="mypage-inline-link" onclick="openAccountLoginIdSetupDialog()">${t('account_login_id_create')}</button>`}
+                        </dd>
+                    </div>
+                    <div>
                         <dt>${t('auth_real_name_label')}</dt>
                         <dd>${escapeHtml(realName || '-')}</dd>
                     </div>
@@ -137,14 +200,17 @@ function renderMyPageAccountManagementPanel() {
                         <dt>${t('mypage_registered_email')}</dt>
                         <dd>
                             <span>${escapeHtml(email || '-')}</span>
-                            <button type="button" class="mypage-inline-link" onclick="openAccountEmailChangeDialog()">${t('account_email_change_link')}</button>
+                            ${passwordReady
+                                ? `<button type="button" class="mypage-inline-link" onclick="openAccountEmailChangeDialog()">${t('account_email_change_link')}</button>`
+                                : `<button type="button" class="mypage-inline-link" disabled title="${t('account_email_change_requires_login_id')}">${t('account_email_change_link')}</button>`
+                            }
                         </dd>
                     </div>
                 </dl>
             </div>
             <div class="mypage-account-section">
                 <h4>${t('mypage_login_security')}</h4>
-                <button type="button" class="secondary mypage-compact-action" onclick="handleCurrentUserPasswordReset()">${t('mypage_password_reset')}</button>
+                <button type="button" class="secondary mypage-compact-action" onclick="handleCurrentUserPasswordReset()" ${passwordReady ? '' : `disabled title="${t('mypage_password_reset_requires_login_id')}"`}>${t('mypage_password_reset')}</button>
             </div>
             <div class="mypage-account-section">
                 <h4>${t('mypage_social_login')}</h4>
