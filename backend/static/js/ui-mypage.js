@@ -212,11 +212,6 @@ function renderMyPage() {
     };
     const currentProfileBadgeKey = data.profile_badge_key || badge.stage_key || 'badge_egg';
     const badgeLabel = t(currentProfileBadgeKey);
-    const badgeProgressText = currentProfileBadgeKey === badge.stage_key
-        ? (badge.is_max_stage
-            ? t('badge_max_stage')
-            : t('badge_progress_to_next', { current: badge.current_count, next: badge.next_threshold }))
-        : t('mypage_profile_badge_selected');
     const unlockedBadgeKeys = data.unlocked_badge_keys || ['badge_egg'];
     const unlockedBadgeCountText = String(data.unlocked_badge_count || unlockedBadgeKeys.length).padStart(2, '0');
     const selectedBadgeKey = state.profileBadgeSelection || currentProfileBadgeKey;
@@ -235,7 +230,6 @@ function renderMyPage() {
                     <div class="mypage-badge-summary">
                         <div>${t('mypage_badge_title')}</div>
                         <strong>${badgeLabel}</strong>
-                        <p>${badgeProgressText}</p>
                     </div>
                 </div>
                 <div class="mypage-profile-main">
