@@ -614,6 +614,13 @@ def _profile_payload_from_firebase_user(user: dict, role: str):
     }
 
 
+def _auth_provider_from_firebase_user(user: dict):
+    firebase_info = user.get("firebase", {}) or {}
+    sign_in_provider = firebase_info.get("sign_in_provider")
+    provider = user.get("provider_key") if sign_in_provider == "custom" else sign_in_provider
+    return _normalize_provider_key(provider)
+
+
 def _resolve_profile_for_firebase_user(user: dict):
     uid = user.get("uid", "")
     if not uid:
@@ -1773,8 +1780,9 @@ def _get_profile_by_firebase_uid(firebase_uid: str):
 def _linked_provider_keys_for_profile(profile: dict):
     profile_id = profile.get("id")
     providers = {_normalize_provider_key(provider) for provider in (profile.get("social_providers") or [])}
-    if profile.get("provider"):
-        providers.add(_normalize_provider_key(profile["provider"]))
+    primary_provider = _normalize_provider_key(profile.get("provider"))
+    if primary_provider and primary_provider != "password":
+        providers.add(primary_provider)
     if profile_id:
         try:
             providers.update(
@@ -1786,13 +1794,15 @@ def _linked_provider_keys_for_profile(profile: dict):
             raise
         except Exception:
             logger.exception("Failed to read linked providers for profile_id=%s", profile_id)
-    return sorted(provider for provider in providers if provider)
+    return sorted(provider for provider in providers if provider and provider != "password")
 
 
 def _update_profile_provider_fields(profile: dict, providers: list[str]):
-    cleaned = sorted({_normalize_provider_key(provider) for provider in providers if provider})
+    cleaned = sorted({_normalize_provider_key(provider) for provider in providers if provider and _normalize_provider_key(provider) != "password"})
+    current_provider = _normalize_provider_key(profile.get("provider"))
+    provider_field = current_provider if current_provider == "password" or current_provider in cleaned else (cleaned[0] if cleaned else None)
     update_payload = {
-        "provider": profile.get("provider") or (cleaned[0] if cleaned else None),
+        "provider": provider_field,
         "social_providers": cleaned,
         "updated_at": _now_iso(),
     }
@@ -1803,6 +1813,19 @@ def _update_profile_provider_fields(profile: dict, providers: list[str]):
         raise HTTPException(status_code=503, detail="Supabase is not configured")
     updated_res = supabase.table("profiles").update(update_payload).eq("id", profile["id"]).execute()
     return (updated_res.data or [None])[0] or {**profile, **update_payload}
+
+
+def _delete_provider_account_for_profile(profile_id: str, provider: str):
+    provider = _normalize_provider_key(provider)
+    if LOCAL_TEST_MODE:
+        LOCAL_DB["auth_provider_accounts"] = [
+            row for row in LOCAL_DB["auth_provider_accounts"]
+            if not (row.get("profile_id") == profile_id and _normalize_provider_key(row.get("provider")) == provider)
+        ]
+        return
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    supabase.table("auth_provider_accounts").delete().eq("profile_id", profile_id).eq("provider", provider).execute()
 
 
 def _remove_profile_provider_field(profile: dict | None, provider: str):
@@ -1827,6 +1850,36 @@ def _remove_profile_provider_field(profile: dict | None, provider: str):
         raise HTTPException(status_code=503, detail="Supabase is not configured")
     updated_res = supabase.table("profiles").update(update_payload).eq("id", profile["id"]).execute()
     return (updated_res.data or [None])[0] or {**profile, **update_payload}
+
+
+def _unlink_oauth_profile_provider(profile: dict, provider: str, current_auth_provider: str | None = None):
+    provider = _normalize_provider_key(provider)
+    if provider not in {"google", "kakao", "naver", "github", "discord", "steam"}:
+        raise HTTPException(status_code=404, detail="oauth_provider_not_supported")
+    profile_id = profile.get("id")
+    if not profile_id:
+        raise HTTPException(status_code=500, detail="profile_id_missing")
+    if profile.get("account_status") in ("deleted", "withdrawn"):
+        raise HTTPException(status_code=409, detail="oauth_account_deleted")
+
+    linked_providers = set(_linked_provider_keys_for_profile(profile))
+    if provider not in linked_providers:
+        raise HTTPException(status_code=404, detail="auth_provider_not_linked")
+
+    remaining_providers = sorted(linked_providers - {provider})
+    has_login_id = bool((profile.get("login_id") or "").strip())
+    if not has_login_id and not remaining_providers:
+        raise HTTPException(status_code=409, detail="auth_provider_unlink_last_method")
+
+    _delete_provider_account_for_profile(profile_id, provider)
+    refreshed_profile = _get_profile_by_id(profile_id) or profile
+    updated_profile = _update_profile_provider_fields(refreshed_profile, remaining_providers)
+    return {
+        "profile": updated_profile,
+        "linked_providers": _linked_provider_keys_for_profile(updated_profile),
+        "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
+        "signed_out_required": _normalize_provider_key(current_auth_provider) == provider,
+    }
 
 
 def _link_oauth_profile(identity: dict, profile: dict):
@@ -2271,6 +2324,14 @@ async def record_firebase_provider_link(provider: str, request: Request):
         "linked_providers": _linked_provider_keys_for_profile(updated_profile),
         "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
     }
+
+
+@app.delete("/api/auth/provider/{provider}/link")
+async def unlink_auth_provider(provider: str, request: Request):
+    provider = _normalize_provider_key(provider)
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    return _unlink_oauth_profile_provider(profile, provider, _auth_provider_from_firebase_user(user))
 
 
 @app.get("/api/auth/oauth/kakao/start")

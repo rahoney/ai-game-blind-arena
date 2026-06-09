@@ -265,6 +265,28 @@ async function apiRecordFirebaseProviderLink(idToken, providerKey) {
     return data;
 }
 
+async function apiUnlinkAuthProvider(providerKey) {
+    const url = `${API_BASE}/auth/provider/${encodeURIComponent(providerKey)}/link`;
+    let res = await fetch(url, {
+        method: 'DELETE',
+        headers: await getCurrentAuthHeaders()
+    });
+    if (res.status === 401 && firebaseAuth?.currentUser) {
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        res = await fetch(url, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+    }
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'auth_provider_unlink_failed');
+    }
+    return data;
+}
+
 async function apiDeleteAccount(idToken) {
     const res = await fetch(`${API_BASE}/profile/account`, {
         method: 'DELETE',

@@ -1138,13 +1138,26 @@ html.sidebar-open {
     white-space: nowrap;
 }
 
-.mypage-provider-link-button {
+.mypage-provider-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.mypage-provider-link-button,
+.mypage-provider-unlink-button {
     width: auto;
     min-height: 0;
     padding: 0.45rem 0.7rem;
     border-radius: 10px;
     font-size: 0.85rem;
     white-space: nowrap;
+}
+
+.mypage-provider-unlink-button {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.42);
+    color: #ef4444;
 }
 
 .mypage-account-section.danger p {
@@ -1749,10 +1762,16 @@ iframe { width: 100%; height: 100%; border: none; }
         flex-direction: column;
     }
 
+    .mypage-provider-actions,
     .mypage-provider-status,
     .mypage-provider-link-button {
         align-self: stretch;
         text-align: center;
+    }
+
+    .mypage-provider-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
 
     .mypage-dialog-actions {

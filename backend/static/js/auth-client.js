@@ -1061,6 +1061,58 @@ async function handleBackendOAuthLink(providerKey) {
     }
 }
 
+async function handleUnlinkSocialProvider(providerKey) {
+    if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    if (!window.confirm(t('mypage_provider_unlink_confirm'))) return;
+    let backendResult = null;
+    let firebaseGoogleUnlinked = false;
+    let signedOutAfterUnlink = false;
+    try {
+        state.isLoginSubmitting = true;
+        backendResult = await apiUnlinkAuthProvider(providerKey);
+        const hasFirebaseGoogleProvider = getLinkedProviderIds().includes('google.com');
+        if (providerKey === 'google' && hasFirebaseGoogleProvider) {
+            await firebaseAuth.currentUser.unlink('google.com');
+            firebaseGoogleUnlinked = true;
+        }
+
+        if (backendResult?.signed_out_required) {
+            await firebaseAuth.signOut();
+            signedOutAfterUnlink = true;
+            setSignedOutState();
+            showAppMessage(t('mypage_provider_unlink_success_signed_out'), { tone: 'success' });
+            navigateTo('login', renderLogin);
+            return;
+        }
+
+        state.account = {
+            ...(state.account || {}),
+            ...backendResult,
+            profile: backendResult.profile,
+            linked_providers: backendResult.linked_providers || [],
+        };
+        state.isAdmin = !!backendResult?.is_admin;
+        await refreshAccountFromFirebaseUser();
+        showAppMessage(t('mypage_provider_unlink_success'), { tone: 'success' });
+    } catch (e) {
+        console.error('Social provider unlink failed', providerKey, e);
+        if (providerKey === 'google' && backendResult && !firebaseGoogleUnlinked && firebaseAuth?.currentUser) {
+            try {
+                const token = await firebaseAuth.currentUser.getIdToken(true);
+                state.account = await apiRecordFirebaseProviderLink(token, 'google');
+            } catch (rollbackError) {
+                console.error('Google provider unlink rollback failed', rollbackError);
+            }
+        }
+        const detailKey = e?.message || 'auth_provider_unlink_failed';
+        showAppMessage(t('mypage_provider_unlink_error', { detail: t(detailKey) }), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+        renderSidebar();
+        if (!signedOutAfterUnlink) renderMyPage();
+    }
+}
+
 async function handleDeleteAccount() {
     if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
     if (!window.confirm(t('mypage_delete_account_confirm'))) return;

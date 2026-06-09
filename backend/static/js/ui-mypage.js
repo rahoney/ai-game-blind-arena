@@ -56,7 +56,10 @@ function renderMyPageProviderRow(provider) {
                 <span>${provider.label}</span>
             </div>
             ${linked
-                ? `<span class="mypage-provider-status">${t('mypage_provider_linked')}</span>`
+                ? `<div class="mypage-provider-actions">
+                    <span class="mypage-provider-status">${t('mypage_provider_linked')}</span>
+                    <button type="button" class="mypage-provider-unlink-button" onclick="handleMyPageProviderUnlink('${provider.key}')" ${state.isLoginSubmitting ? 'disabled' : ''}>${t('mypage_provider_unlink')}</button>
+                </div>`
                 : `<button type="button" class="mypage-provider-link-button" onclick="handleMyPageProviderLink('${provider.key}')" ${state.isLoginSubmitting ? 'disabled' : ''}>${t('mypage_provider_link')}</button>`
             }
         </div>
@@ -66,6 +69,11 @@ function renderMyPageProviderRow(provider) {
 async function handleMyPageProviderLink(providerKey) {
     if (state.isLoginSubmitting) return;
     await handleLinkSocialProvider(providerKey);
+}
+
+async function handleMyPageProviderUnlink(providerKey) {
+    if (state.isLoginSubmitting) return;
+    await handleUnlinkSocialProvider(providerKey);
 }
 
 function renderAccountEmailChangeDialog() {
