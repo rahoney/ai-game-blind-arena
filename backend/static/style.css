@@ -214,6 +214,7 @@ html.sidebar-open {
 }
 
 .auth-field-message {
+    margin-top: 0.3rem;
     min-height: 1.2rem;
     margin: -0.35rem 0 0;
     color: var(--text-muted);
@@ -1062,6 +1063,16 @@ html.sidebar-open {
     color: var(--primary);
     text-decoration: underline;
     box-shadow: none;
+}
+
+.mypage-inline-link:hover,
+.mypage-inline-link:focus-visible,
+.mypage-inline-link:active {
+    color: var(--primary);
+    background: transparent;
+    text-decoration: underline;
+    box-shadow: none;
+    transform: none;
 }
 
 .mypage-provider-list {

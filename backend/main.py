@@ -420,7 +420,8 @@ def _create_signup_email_verification(email: str, request: Request):
     if not EMAIL_RE.fullmatch(normalized_email):
         _invalid_recovery_input()
     code = f"{secrets.randbelow(1000000):06d}"
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+    expires_in_seconds = 300
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)
     row = {
         "email": normalized_email,
         "code_hash": _hash_signup_verification_code(normalized_email, code),
@@ -442,7 +443,7 @@ def _create_signup_email_verification(email: str, request: Request):
     else:
         raise HTTPException(status_code=503, detail="Supabase is not configured")
     _send_signup_verification_email(normalized_email, code)
-    return {"sent": True, "expires_in_seconds": 600}
+    return {"sent": True, "expires_in_seconds": expires_in_seconds}
 
 
 def _confirm_signup_email_verification(email: str, code: str):
@@ -2579,6 +2580,8 @@ async def auth_me(request: Request):
 
 @app.post("/api/auth/signup/email-code")
 async def request_signup_email_code(payload: SignupEmailVerificationRequest, request: Request):
+    if _is_email_taken(payload.email):
+        raise HTTPException(status_code=409, detail="email_taken")
     identifier_hash = _hash_recovery_identifier("signup_email_code", payload.email)
     _check_recovery_rate_limit("signup_email_code", identifier_hash, request)
     return _create_signup_email_verification(payload.email, request)

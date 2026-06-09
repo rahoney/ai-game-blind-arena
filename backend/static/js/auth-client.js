@@ -113,6 +113,7 @@ function getFriendlyAuthError(error, mode = 'login') {
             wrongCredentials: '로그인 정보가 올바르지 않습니다.',
             weakPassword: '비밀번호는 6자 이상으로 입력하세요.',
             emailInUse: '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용하세요.',
+            emailTaken: '사용중인 이메일입니다. 다른 이메일을 입력해주세요.',
             popupClosed: '로그인이 취소되었습니다.',
             unauthorizedDomain: '현재 접속 주소가 Firebase 로그인 허용 도메인에 등록되어 있지 않습니다.',
             resetSent: '비밀번호 재설정 메일을 보냈습니다.',
@@ -134,6 +135,7 @@ function getFriendlyAuthError(error, mode = 'login') {
             wrongCredentials: 'The login information is not valid.',
             weakPassword: 'Enter a password with at least 6 characters.',
             emailInUse: 'This email is already registered. Log in or reset your password.',
+            emailTaken: 'This email is already in use. Enter a different email address.',
             popupClosed: 'Sign-in was cancelled.',
             unauthorizedDomain: 'This address is not registered as an authorized Firebase login domain.',
             resetSent: 'Password reset email sent.',
@@ -157,6 +159,7 @@ function getFriendlyAuthError(error, mode = 'login') {
     if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') return bucket.wrongCredentials;
     if (code === 'auth/weak-password') return bucket.weakPassword;
     if (code === 'auth/email-already-in-use') return bucket.emailInUse;
+    if (code === 'email_taken') return bucket.emailTaken;
     if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return bucket.popupClosed;
     if (code === 'auth/unauthorized-domain') return bucket.unauthorizedDomain;
     if (code === 'auth/reset-email-required') return bucket.resetEmailRequired;
@@ -231,7 +234,7 @@ function isValidSignupForm() {
 function isValidRealName(realName) {
     const value = (realName || '').trim();
     if (!value) return false;
-    if ((state.language || 'ko') === 'en') {
+    if (((state.language || 'ko').split('-')[0] || 'ko') === 'en') {
         return /^[A-Za-z]+(?: [A-Za-z]+)*$/.test(value) && value.replace(/\s+/g, '').length >= 3;
     }
     return /^[가-힣]{2,}$/.test(value);
@@ -492,18 +495,9 @@ function updateAccountLoginIdSetupCodeState() {
 function updateAccountLoginIdSetupSubmitState() {
     const button = document.getElementById('account-login-id-submit-btn');
     if (!button) return;
-    const loginId = document.getElementById('account-login-id')?.value.trim() || '';
-    const realName = document.getElementById('account-real-name')?.value.trim() || '';
-    const password = document.getElementById('account-password')?.value || '';
-    const passwordConfirm = document.getElementById('account-password-confirm')?.value || '';
-    const loginIdReady = state.loginIdAvailability?.value === loginId && state.loginIdAvailability?.status === 'available';
     button.disabled = !state.authConfigured
         || state.isLoginSubmitting
-        || !state.accountLoginIdSetup?.token
-        || !loginIdReady
-        || !isValidRealName(realName)
-        || !isValidSignupPassword(password)
-        || password !== passwordConfirm;
+        || !state.accountLoginIdSetup?.token;
 }
 
 function stopAccountLoginIdSetupCountdown() {
@@ -686,6 +680,7 @@ async function handleEmailAuth(mode) {
 async function handleSignupEmailCodeRequest() {
     if (state.isLoginSubmitting) return;
     const email = document.getElementById('auth-email')?.value.trim() || state.signupEmailVerification?.email || '';
+    const wasCodeSent = !!state.signupEmailVerification?.codeSent;
     if (!isValidEmailInput(email)) {
         showAppMessage(getFriendlyAuthError({ code: 'auth/invalid-email' }, 'signup'), { tone: 'error' });
         return;
@@ -696,15 +691,20 @@ async function handleSignupEmailCodeRequest() {
         state.signupEmailVerification = {
             email,
             codeSent: true,
-            expiresAt: Date.now() + (Number(data.expires_in_seconds || 600) * 1000),
+            expiresAt: Date.now() + (Number(data.expires_in_seconds || 300) * 1000),
             token: '',
         };
-        renderLogin();
-        showAppMessage(t('auth_signup_code_sent'), { tone: 'success' });
+        showAppMessage(
+            wasCodeSent
+                ? t('auth_signup_code_resent')
+                : t('auth_signup_code_sent'),
+            { tone: 'success' }
+        );
     } catch (e) {
         showAppMessage(getFriendlyAuthError({ code: e?.message || 'mail_send_failed' }, 'signup'), { tone: 'error' });
     } finally {
         state.isLoginSubmitting = false;
+        renderLogin();
     }
 }
 
@@ -730,6 +730,7 @@ async function handleSignupEmailCodeConfirm() {
         showAppMessage(t('auth_signup_code_invalid'), { tone: 'error' });
     } finally {
         state.isLoginSubmitting = false;
+        renderLogin();
     }
 }
 
@@ -998,6 +999,7 @@ async function handleAccountEmailChangeCodeRequest() {
     if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
     const email = document.getElementById('account-email-change-email')?.value.trim() || '';
     const currentEmail = state.account?.profile?.email || firebaseAuth.currentUser.email || '';
+    const wasCodeSent = !!state.accountEmailChange?.codeSent;
     if (!isValidEmailInput(email)) {
         showAppMessage(t('account_email_change_invalid'), { tone: 'error' });
         return;
@@ -1014,11 +1016,14 @@ async function handleAccountEmailChangeCodeRequest() {
             open: true,
             email,
             codeSent: true,
-            expiresAt: data.expires_at ? Date.parse(data.expires_at) : Date.now() + 10 * 60 * 1000,
+            expiresAt: Date.now() + (Number(data.expires_in_seconds || 300) * 1000),
         };
-        showAppMessage(t('auth_signup_code_sent'), { tone: 'success' });
-        renderMyPage();
-        startAccountEmailChangeCountdown();
+        showAppMessage(
+            wasCodeSent
+                ? t('auth_signup_code_resent')
+                : t('auth_signup_code_sent'),
+            { tone: 'success' }
+        );
     } catch (e) {
         const key = e?.message === 'email_taken'
             ? 'account_email_change_taken'
@@ -1028,7 +1033,9 @@ async function handleAccountEmailChangeCodeRequest() {
         showAppMessage(t(key), { tone: 'error' });
     } finally {
         state.isLoginSubmitting = false;
+        renderMyPage();
         updateAccountEmailChangeCodeState();
+        startAccountEmailChangeCountdown();
     }
 }
 
@@ -1151,7 +1158,8 @@ async function handleAccountLoginIdAvailabilityCheck() {
 
 async function handleAccountLoginIdSetupCodeRequest() {
     if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
-    const email = document.getElementById('account-login-id-email')?.value.trim() || '';
+    const email = document.getElementById('account-login-id-email')?.value.trim() || state.accountLoginIdSetup?.email || '';
+    const wasCodeSent = !!state.accountLoginIdSetup?.codeSent;
     if (!isValidEmailInput(email)) {
         showAppMessage(t('account_login_id_create_invalid_email'), { tone: 'error' });
         return;
@@ -1164,22 +1172,27 @@ async function handleAccountLoginIdSetupCodeRequest() {
             open: true,
             email,
             codeSent: true,
-            expiresAt: data.expires_at ? Date.parse(data.expires_at) : Date.now() + 10 * 60 * 1000,
+            expiresAt: Date.now() + (Number(data.expires_in_seconds || 300) * 1000),
             token: '',
         };
-        showAppMessage(t('auth_signup_code_sent'), { tone: 'success' });
-        renderMyPage();
-        startAccountLoginIdSetupCountdown();
+        showAppMessage(
+            wasCodeSent
+                ? t('auth_signup_code_resent')
+                : t('auth_signup_code_sent'),
+            { tone: 'success' }
+        );
     } catch (e) {
         const key = e?.message === 'email_taken'
-            ? 'account_email_change_taken'
+            ? 'account_login_id_create_email_taken'
             : e?.message === 'login_id_already_set'
                 ? 'account_login_id_already_set'
                 : 'auth_mail_send_failed';
         showAppMessage(t(key), { tone: 'error' });
     } finally {
         state.isLoginSubmitting = false;
+        renderMyPage();
         updateAccountLoginIdSetupCodeState();
+        startAccountLoginIdSetupCountdown();
     }
 }
 
@@ -1241,7 +1254,7 @@ async function handleAccountLoginIdSetupSubmit() {
         state.isLoginSubmitting = true;
         if (!getLinkedProviderIds().includes('password')) {
             const credential = firebase.auth.EmailAuthProvider.credential(email, password);
-            await firebaseAuth.currentUser.linkWithCredential(credential);
+            await firebase.auth().currentUser.linkWithCredential(credential);
         }
         const token = await firebaseAuth.currentUser.getIdToken(true);
         state.account = await apiCreateCurrentUserLoginId(token, {
@@ -1259,7 +1272,11 @@ async function handleAccountLoginIdSetupSubmit() {
         console.error('Account login ID setup failed', e);
         const detail = e?.code || e?.message || 'login_id_create_failed';
         const key = detail === 'auth/email-already-in-use' || detail === 'email_taken'
-            ? 'account_email_change_taken'
+            ? 'account_login_id_create_email_taken'
+            : detail === 'auth/provider-already-linked'
+                ? 'account_login_id_already_set'
+                : detail === 'auth/operation-not-allowed'
+                    ? 'account_login_id_create_error'
             : detail === 'login_id_taken'
                 ? 'auth_login_id_taken'
                 : detail === 'login_id_already_set'
