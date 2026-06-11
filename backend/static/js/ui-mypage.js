@@ -81,6 +81,9 @@ function renderAccountEmailChangeDialog() {
     if (!state.accountEmailChange?.open) return '';
     const email = state.accountEmailChange.email || getMyPageProfileValue('email', firebaseAuth?.currentUser?.email || '');
     const codeSent = !!state.accountEmailChange.codeSent;
+    const busyNotice = state.isLoginSubmitting
+        ? `<p class="auth-inline-status">${t('auth_login_processing')}</p>`
+        : '';
     return `
         <div class="mypage-dialog-backdrop" role="presentation">
             <div class="mypage-dialog" role="dialog" aria-modal="true" aria-labelledby="account-email-change-title">
@@ -89,6 +92,7 @@ function renderAccountEmailChangeDialog() {
                     <button type="button" class="mypage-dialog-close" onclick="closeAccountEmailChangeDialog()" aria-label="${t('btn_back')}">×</button>
                 </div>
                 <p class="mypage-dialog-desc">${t('account_email_change_desc')}</p>
+                ${busyNotice}
                 <label class="mypage-dialog-label" for="account-email-change-email">${t('account_email_change_new_email')}</label>
                 <input type="email" id="account-email-change-email" value="${escapeHtml(email)}" placeholder="${t('auth_email_placeholder')}" ${codeSent || state.isLoginSubmitting ? 'disabled' : ''}>
                 ${codeSent ? `
@@ -115,6 +119,9 @@ function renderAccountLoginIdSetupDialog() {
     const email = state.accountLoginIdSetup.email || getMyPageProfileValue('email', firebaseAuth?.currentUser?.email || '');
     const codeSent = !!state.accountLoginIdSetup.codeSent;
     const token = state.accountLoginIdSetup.token || '';
+    const busyNotice = state.isLoginSubmitting
+        ? `<p class="auth-inline-status">${t('auth_login_processing')}</p>`
+        : '';
     return `
         <div class="mypage-dialog-backdrop" role="presentation">
             <div class="mypage-dialog" role="dialog" aria-modal="true" aria-labelledby="account-login-id-setup-title">
@@ -123,6 +130,7 @@ function renderAccountLoginIdSetupDialog() {
                     <button type="button" class="mypage-dialog-close" onclick="closeAccountLoginIdSetupDialog()" aria-label="${t('btn_back')}">×</button>
                 </div>
                 <p class="mypage-dialog-desc">${t('account_login_id_create_desc')}</p>
+                ${busyNotice}
                 ${token ? `
                     <p class="auth-inline-status success">${t('auth_signup_email_verified_for', { email: escapeHtml(email) })}</p>
                     <label class="mypage-dialog-label" for="account-login-id">${t('auth_login_id_label')}</label>
@@ -372,6 +380,9 @@ function renderMyPage() {
     const unlockedBadgeKeys = data.unlocked_badge_keys || ['badge_egg'];
     const unlockedBadgeCountText = String(data.unlocked_badge_count || unlockedBadgeKeys.length).padStart(2, '0');
     const selectedBadgeKey = state.profileBadgeSelection || currentProfileBadgeKey;
+    const loadingNotice = state.myPageLoading
+        ? `<p class="auth-inline-status" style="margin: 0 0 1rem 0;">${t('auth_login_processing')}</p>`
+        : '';
 
     el.innerHTML = `
         <div class="card mypage-card">
@@ -380,6 +391,7 @@ function renderMyPage() {
                 <h2>${t('menu_mypage')}</h2>
                 <div class="mypage-header-spacer"></div>
             </div>
+            ${loadingNotice}
 
             <div class="mypage-profile-shell">
                 <div class="mypage-badge-column">

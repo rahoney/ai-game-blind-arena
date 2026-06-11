@@ -16,6 +16,7 @@ from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
 from datetime import datetime, timezone, timedelta
+from time import perf_counter
 from uuid import uuid4
 from postgrest.exceptions import APIError
 try:
@@ -117,6 +118,96 @@ LOCAL_DB = {
     "account_recovery_attempts": [],
     "signup_email_verifications": [],
 }
+GAME_STATS_CACHE_TTL_SECONDS = 20
+PROFILE_ACTIVITY_TOUCH_INTERVAL_SECONDS = 300
+GAME_STATS_CACHE = {
+    "expires_at": 0.0,
+    "play_counts": {},
+    "eval_counts": {},
+}
+
+
+def _make_stats_key(game_type: str, actual_model_name: str) -> str:
+    return f"{game_type}_{actual_model_name}"
+
+
+def _invalidate_game_stats_cache() -> None:
+    GAME_STATS_CACHE["expires_at"] = 0.0
+    GAME_STATS_CACHE["play_counts"] = {}
+    GAME_STATS_CACHE["eval_counts"] = {}
+
+
+def _copy_game_stats_cache():
+    return (
+        dict(GAME_STATS_CACHE["play_counts"]),
+        dict(GAME_STATS_CACHE["eval_counts"]),
+    )
+
+
+def _parse_iso_datetime(value: str | None):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _should_touch_profile_activity(profile: dict | None):
+    profile = profile or {}
+    last_active = _parse_iso_datetime(profile.get("last_active_at"))
+    if last_active is None:
+        return True
+    return (datetime.now(timezone.utc) - last_active).total_seconds() >= PROFILE_ACTIVITY_TOUCH_INTERVAL_SECONDS
+
+
+def _load_game_stats_summary():
+    now_ts = datetime.now(timezone.utc).timestamp()
+    if GAME_STATS_CACHE["expires_at"] > now_ts:
+        play_counts, eval_counts = _copy_game_stats_cache()
+        return play_counts, eval_counts, "hit"
+
+    play_counts = {}
+    eval_counts = {}
+    fetch_succeeded = True
+
+    if LOCAL_TEST_MODE:
+        for key, row in LOCAL_DB["game_stats"].items():
+            play_counts[key] = row["plays"]
+
+        for row in LOCAL_DB["evaluations"]:
+            user_id = row.get("user_id")
+            if not user_id:
+                continue
+            key = _make_stats_key(row["game_type"], row["actual_model_name"])
+            eval_counts[key] = eval_counts.get(key, set())
+            eval_counts[key].add(user_id)
+    elif supabase:
+        try:
+            res_plays = supabase.table("game_stats").select("game_type, actual_model_name, plays").execute()
+            for row in res_plays.data or []:
+                key = _make_stats_key(row["game_type"], row["actual_model_name"])
+                play_counts[key] = row["plays"]
+
+            res_evals = supabase.table("evaluations").select("game_type, actual_model_name, user_id").execute()
+            for row in res_evals.data or []:
+                user_id = row.get("user_id")
+                if not user_id:
+                    continue
+                key = _make_stats_key(row["game_type"], row["actual_model_name"])
+                eval_counts[key] = eval_counts.get(key, set())
+                eval_counts[key].add(user_id)
+        except Exception as exc:
+            fetch_succeeded = False
+            print("game stats summary fetch error:", exc, flush=True)
+
+    if fetch_succeeded:
+        GAME_STATS_CACHE["expires_at"] = now_ts + GAME_STATS_CACHE_TTL_SECONDS
+        GAME_STATS_CACHE["play_counts"] = dict(play_counts)
+        GAME_STATS_CACHE["eval_counts"] = dict(eval_counts)
+    else:
+        play_counts, eval_counts = _copy_game_stats_cache()
+    return play_counts, eval_counts, "miss"
 
 # Enable CORS for local development
 allowed_origins = [origin.strip() for origin in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",") if origin.strip()]
@@ -614,8 +705,6 @@ def _profile_payload_from_firebase_user(user: dict, role: str):
         "email_verified": bool(user.get("email_verified")),
         "email_verification_required": not bool(user.get("email_verified")),
         "account_status": "active" if bool(user.get("email_verified")) else "email_unverified",
-        "last_login_at": _now_iso(),
-        "last_active_at": _now_iso(),
     }
 
 
@@ -633,6 +722,7 @@ def _resolve_profile_for_firebase_user(user: dict):
 
     role = "super_admin" if uid in get_super_admin_uids() else "user"
     payload = _profile_payload_from_firebase_user(user, role)
+    now_iso = _now_iso()
 
     if LOCAL_TEST_MODE:
         existing = LOCAL_DB["profiles"].get(uid)
@@ -647,15 +737,26 @@ def _resolve_profile_for_firebase_user(user: dict):
                 update_payload.pop("account_status", None)
             if not payload.get("avatar_url"):
                 update_payload.pop("avatar_url", None)
-            existing.update(update_payload)
-            existing["role"] = "super_admin" if role == "super_admin" else existing.get("role", "user")
-            existing["updated_at"] = _now_iso()
+            if existing.get("role") and role != "super_admin":
+                update_payload["role"] = existing["role"]
+            if _should_touch_profile_activity(existing):
+                update_payload["last_active_at"] = now_iso
+            changed = {
+                key: value
+                for key, value in update_payload.items()
+                if existing.get(key) != value
+            }
+            if changed:
+                changed["updated_at"] = now_iso
+                existing.update(changed)
             return existing
         profile = {
             "id": str(uuid4()),
             **payload,
-            "created_at": _now_iso(),
-            "updated_at": _now_iso(),
+            "last_login_at": now_iso,
+            "last_active_at": now_iso,
+            "created_at": now_iso,
+            "updated_at": now_iso,
         }
         LOCAL_DB["profiles"][uid] = profile
         return profile
@@ -679,14 +780,25 @@ def _resolve_profile_for_firebase_user(user: dict):
                 update_payload.pop("avatar_url", None)
             if existing.get("role") and role != "super_admin":
                 update_payload["role"] = existing["role"]
-            update_payload["updated_at"] = _now_iso()
-            updated_res = supabase.table("profiles").update(update_payload).eq("firebase_uid", uid).execute()
-            return (updated_res.data or [None])[0] or {**existing, **update_payload}
+            if _should_touch_profile_activity(existing):
+                update_payload["last_active_at"] = now_iso
+            changed = {
+                key: value
+                for key, value in update_payload.items()
+                if existing.get(key) != value
+            }
+            if not changed:
+                return existing
+            changed["updated_at"] = now_iso
+            updated_res = supabase.table("profiles").update(changed).eq("firebase_uid", uid).execute()
+            return (updated_res.data or [None])[0] or {**existing, **changed}
 
         insert_payload = {
             **payload,
-            "created_at": _now_iso(),
-            "updated_at": _now_iso(),
+            "last_login_at": now_iso,
+            "last_active_at": now_iso,
+            "created_at": now_iso,
+            "updated_at": now_iso,
         }
         inserted_res = supabase.table("profiles").insert(insert_payload).execute()
         return (inserted_res.data or [None])[0] or insert_payload
@@ -2915,6 +3027,7 @@ async def delete_profile_account(payload: AccountDeletionRequest, request: Reque
 @app.get("/api/games")
 async def get_games(lang: str = 'ko', blind_seed: str = ''):
     """Returns games grouped by type, hides actual model names, and includes play counts based on language."""
+    started_at = perf_counter()
     response = {}
     
     # Use lang specific data or fallback to 'ko' if not found
@@ -2939,37 +3052,7 @@ async def get_games(lang: str = 'ko', blind_seed: str = ''):
             for m in response_models
         ]
     
-    play_counts = {}
-    eval_counts = {}
-    
-    if LOCAL_TEST_MODE:
-        for key, row in LOCAL_DB["game_stats"].items():
-            play_counts[key] = row["plays"]
-
-        for row in LOCAL_DB["evaluations"]:
-            key = f"{row['game_type']}_{row['actual_model_name']}"
-            if key not in eval_counts:
-                eval_counts[key] = set()
-            if row.get('user_id'):
-                eval_counts[key].add(row['user_id'])
-    elif supabase:
-        try:
-            # Fetch play counts
-            res_plays = supabase.table('game_stats').select('*').execute()
-            for row in res_plays.data:
-                key = f"{row['game_type']}_{row['actual_model_name']}"
-                play_counts[key] = row['plays']
-                
-            res_evals = supabase.table('evaluations').select('game_type, actual_model_name, user_id').execute()
-            for row in res_evals.data:
-                if not row.get('user_id'):
-                    continue
-                key = f"{row['game_type']}_{row['actual_model_name']}"
-                if key not in eval_counts:
-                    eval_counts[key] = set()
-                eval_counts[key].add(row['user_id'])
-        except Exception as e:
-            print("DB Fetch Error:", e)
+    play_counts, eval_counts, cache_state = _load_game_stats_summary()
             
     # Enrich the response with stats
     for g_type, models in response_models_by_type.items():
@@ -2979,11 +3062,14 @@ async def get_games(lang: str = 'ko', blind_seed: str = ''):
             # find actual model name
             try:
                 actual = next(x["actual_model"] for x in models if x["blind_id"] == m["blind_id"])
-                key = f"{g_type}_{actual}"
+                key = _make_stats_key(g_type, actual)
                 m["play_count"] = play_counts.get(key, 0)
                 m["eval_count"] = len(eval_counts.get(key, set()))
             except StopIteration:
                 pass
+
+    elapsed_ms = (perf_counter() - started_at) * 1000
+    print(f"/api/games lang={lang} cache={cache_state} duration_ms={elapsed_ms:.1f}", flush=True)
 
     return {"games": response, "categories": category_meta}
 
@@ -2994,7 +3080,7 @@ async def record_play(data: PlayEvent, request: Request):
             
     if actual_model:
         if LOCAL_TEST_MODE:
-            key = f"{data.game_type}_{actual_model}"
+            key = _make_stats_key(data.game_type, actual_model)
             LOCAL_DB["game_stats"][key] = {
                 "game_type": data.game_type,
                 "actual_model_name": actual_model,
@@ -3032,71 +3118,72 @@ async def record_play(data: PlayEvent, request: Request):
                         print(f"user_views insert skipped: {exc}", flush=True)
             except Exception as e:
                 print("Play recording error:", e)
+        _invalidate_game_stats_cache()
             
     return {"status": "ok"}
 
 @app.post("/api/evaluate")
 async def submit_evaluation(eval: Evaluation, request: Request):
-    actor = _get_actor_from_request(request, required=True)
-    display_name = actor["display_name"]
-    is_valid_comment, comment_error = validate_comment_text(eval.comment)
-    if not is_valid_comment:
-        raise HTTPException(status_code=400, detail=comment_error)
-    
-    forwarded = request.headers.get("X-Forwarded-For")
-    ip = forwarded.split(",")[0] if forwarded else request.client.host
-        
-    actual_model = _find_actual_model(
-        eval.game_type,
-        eval.blind_model_id,
-        getattr(eval, 'language', 'ko'),
-        blind_model_token=eval.blind_model_token,
-    )
-    if not actual_model:
-        raise HTTPException(status_code=400, detail="Invalid game type or blind ID")
-
-    actor_key = actor.get("user_id") or display_name.casefold()
-    global_history_key = f"global:{actor_key}"
-    model_history_key = f"model:{actor_key}:{eval.game_type}:{actual_model}"
-
-    same_model_allowed, same_model_wait = check_same_model_comment_rate_limit(COMMENT_SUBMISSION_HISTORY[model_history_key])
-    if not same_model_allowed:
-        raise HTTPException(status_code=429, detail=f"rate_limit_comment_same_model:{same_model_wait}")
-
-    model_submission_count = len(COMMENT_SUBMISSION_HISTORY[model_history_key])
-    if model_submission_count == 0:
-        global_allowed, global_wait = check_comment_submission_rate_limit(COMMENT_SUBMISSION_HISTORY[global_history_key])
-        if not global_allowed:
-            raise HTTPException(status_code=429, detail=f"rate_limit_comment_submit:{global_wait}")
-        
-    total_score = (
-        eval.score_control
-        + eval.score_structure
-        + eval.score_presentation
-        + eval.score_difficulty
-        + eval.score_fun
-        + eval.score_overall
-    )
-    
-    data = {
-        "ip_address": ip,
-        "game_type": eval.game_type,
-        "actual_model_name": actual_model,
-        "blind_model_id": eval.blind_model_id,
-        "score_control": eval.score_control,
-        "score_structure": eval.score_structure,
-        "score_presentation": eval.score_presentation,
-        "score_difficulty": eval.score_difficulty,
-        "score_fun": eval.score_fun,
-        "score_overall": eval.score_overall,
-        "total_score": total_score,
-        "comment": eval.comment,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        "user_id": actor["user_id"],
-        "profile_display_name": display_name,
-    }
-    
     try:
+        actor = _get_actor_from_request(request, required=True)
+        display_name = actor["display_name"]
+        is_valid_comment, comment_error = validate_comment_text(eval.comment)
+        if not is_valid_comment:
+            raise HTTPException(status_code=400, detail=comment_error)
+
+        forwarded = request.headers.get("X-Forwarded-For")
+        ip = forwarded.split(",")[0] if forwarded else (request.client.host if request.client else "")
+
+        actual_model = _find_actual_model(
+            eval.game_type,
+            eval.blind_model_id,
+            getattr(eval, 'language', 'ko'),
+            blind_model_token=eval.blind_model_token,
+        )
+        if not actual_model:
+            raise HTTPException(status_code=400, detail="Invalid game type or blind ID")
+
+        actor_key = actor.get("user_id") or display_name.casefold()
+        global_history_key = f"global:{actor_key}"
+        model_history_key = f"model:{actor_key}:{eval.game_type}:{actual_model}"
+
+        same_model_allowed, same_model_wait = check_same_model_comment_rate_limit(COMMENT_SUBMISSION_HISTORY[model_history_key])
+        if not same_model_allowed:
+            raise HTTPException(status_code=429, detail=f"rate_limit_comment_same_model:{same_model_wait}")
+
+        model_submission_count = len(COMMENT_SUBMISSION_HISTORY[model_history_key])
+        if model_submission_count == 0:
+            global_allowed, global_wait = check_comment_submission_rate_limit(COMMENT_SUBMISSION_HISTORY[global_history_key])
+            if not global_allowed:
+                raise HTTPException(status_code=429, detail=f"rate_limit_comment_submit:{global_wait}")
+
+        total_score = (
+            eval.score_control
+            + eval.score_structure
+            + eval.score_presentation
+            + eval.score_difficulty
+            + eval.score_fun
+            + eval.score_overall
+        )
+
+        data = {
+            "ip_address": ip,
+            "game_type": eval.game_type,
+            "actual_model_name": actual_model,
+            "blind_model_id": eval.blind_model_id,
+            "score_control": eval.score_control,
+            "score_structure": eval.score_structure,
+            "score_presentation": eval.score_presentation,
+            "score_difficulty": eval.score_difficulty,
+            "score_fun": eval.score_fun,
+            "score_overall": eval.score_overall,
+            "total_score": total_score,
+            "comment": eval.comment,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "user_id": actor["user_id"],
+            "profile_display_name": display_name,
+        }
+
         if LOCAL_TEST_MODE:
             existing = next((
                 row for row in LOCAL_DB["evaluations"]
@@ -3161,8 +3248,12 @@ async def submit_evaluation(eval: Evaluation, request: Request):
         now_ts = datetime.now(timezone.utc).timestamp()
         COMMENT_SUBMISSION_HISTORY[global_history_key].append(now_ts)
         COMMENT_SUBMISSION_HISTORY[model_history_key].append(now_ts)
+        _invalidate_game_stats_cache()
         return {"status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.exception("evaluation submit failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/user_evals")

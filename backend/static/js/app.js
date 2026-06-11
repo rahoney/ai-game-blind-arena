@@ -8,10 +8,16 @@ async function initApp() {
     }
     applyDocumentLanguage();
     await initializeFirebaseAuth();
-    try { await apiFetchGames(); } catch (e) { console.error("Game data load failed", e); }
+    const initialGamePromise = refreshGameCatalog({ rerender: false }).catch((e) => {
+        console.error("Game data load failed", e);
+    });
+    let initialUserEvalPromise = Promise.resolve();
     if (state.authUser) {
-        try { await apiFetchUserEvals(); } catch (e) { console.error("User evaluation load failed", e); }
+        initialUserEvalPromise = refreshUserEvaluations({ rerender: false }).catch((e) => {
+            console.error("User evaluation load failed", e);
+        });
     }
+    await initialGamePromise;
     if (state.authMode === 'verify_email') {
         navigateTo('login', renderLogin);
         return;
@@ -22,6 +28,7 @@ async function initApp() {
         return;
     }
     navigateTo('category', renderCategorySelection);
+    void initialUserEvalPromise;
 }
 
 function detectDefaultLanguage() {
@@ -124,7 +131,7 @@ async function changeLanguage(lang) {
     state.language = lang;
     localStorage.setItem('lang', lang);
     applyDocumentLanguage();
-    await apiFetchGames(); // 언어 변경 시 해당 언어의 게임 목록으로 업데이트
+    await refreshGameCatalog({ rerender: false }); // 언어 변경 시 해당 언어의 게임 목록으로 업데이트
     if (state.currentView) {
         state.currentView.func(...state.currentView.args);
     }

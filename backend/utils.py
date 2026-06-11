@@ -57,6 +57,9 @@ def _load_display_name_blocklist():
 
 
 RESERVED_DISPLAY_NAME_TERMS, BANNED_DISPLAY_NAME_TERMS = _load_display_name_blocklist()
+# Backward-compatible aliases for older validation paths still referencing the pre-rename constants.
+RESERVED_NICKNAME_TERMS = RESERVED_DISPLAY_NAME_TERMS
+BANNED_NICKNAME_TERMS = BANNED_DISPLAY_NAME_TERMS
 
 BADGE_STAGES = [
     {"key": "badge_egg", "min": 0, "max": 4, "next": 5},
