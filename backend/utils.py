@@ -144,9 +144,9 @@ def validate_comment_text(comment: str | None):
         return False, "comment_required"
 
     lowered = text.casefold()
-    if any(term in lowered for term in BANNED_NICKNAME_TERMS if term.isascii()):
+    if any(term in lowered for term in BANNED_DISPLAY_NAME_TERMS if term.isascii()):
         return False, "comment_banned"
-    if any(term in text for term in BANNED_NICKNAME_TERMS if not term.isascii()):
+    if any(term in text for term in BANNED_DISPLAY_NAME_TERMS if not term.isascii()):
         return False, "comment_banned"
 
     complete_hangul_count = len(re.findall(r"[가-힣]", text))
