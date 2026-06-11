@@ -1949,6 +1949,11 @@ def _link_oauth_profile(identity: dict, profile: dict):
         other_profile = _get_profile_by_id(existing_account.get("profile_id"))
         if other_profile and other_profile.get("account_status") not in ("deleted", "withdrawn"):
             # 활성 계정에 이미 연결된 간편 로그인 → 차단
+            logger.warning(
+                "[Security] Blocked duplicate provider link: provider=%s provider_user_id=%s "
+                "attempted by profile=%s already owned by profile=%s",
+                provider, provider_user_id, profile_id, existing_account.get("profile_id"),
+            )
             raise HTTPException(status_code=409, detail="oauth_provider_already_in_use")
         # 탈퇴/삭제된 계정의 잔여 기록은 정리 후 연결 허용
         _remove_profile_provider_field(other_profile, provider)
