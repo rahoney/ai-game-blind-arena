@@ -24,6 +24,7 @@ try:
     from .models import (
         Evaluation,
         PlayEvent,
+        AccountLoginIdCreate,
         ProfileDisplayNameUpdate,
         ProfileIdentityUpdate,
         SignupEmailVerificationRequest,
@@ -38,6 +39,7 @@ try:
         CommentReplyCreate,
         AdminBlindToggle,
         ProfileBadgeUpdate,
+        AccountDisplayNameChange,
     )
     from .services import GAMES_DATA, get_category_meta
     from .utils import (
@@ -61,6 +63,7 @@ except ImportError:
     from models import (
         Evaluation,
         PlayEvent,
+        AccountLoginIdCreate,
         ProfileDisplayNameUpdate,
         ProfileIdentityUpdate,
         SignupEmailVerificationRequest,
@@ -75,6 +78,7 @@ except ImportError:
         CommentReplyCreate,
         AdminBlindToggle,
         ProfileBadgeUpdate,
+        AccountDisplayNameChange,
     )
     from services import GAMES_DATA, get_category_meta
     from utils import (
@@ -418,7 +422,8 @@ def _create_signup_email_verification(email: str, request: Request):
     if not EMAIL_RE.fullmatch(normalized_email):
         _invalid_recovery_input()
     code = f"{secrets.randbelow(1000000):06d}"
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+    expires_in_seconds = 300
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in_seconds)
     row = {
         "email": normalized_email,
         "code_hash": _hash_signup_verification_code(normalized_email, code),
@@ -440,7 +445,7 @@ def _create_signup_email_verification(email: str, request: Request):
     else:
         raise HTTPException(status_code=503, detail="Supabase is not configured")
     _send_signup_verification_email(normalized_email, code)
-    return {"sent": True, "expires_in_seconds": 600}
+    return {"sent": True, "expires_in_seconds": expires_in_seconds}
 
 
 def _confirm_signup_email_verification(email: str, code: str):
@@ -612,6 +617,13 @@ def _profile_payload_from_firebase_user(user: dict, role: str):
         "last_login_at": _now_iso(),
         "last_active_at": _now_iso(),
     }
+
+
+def _auth_provider_from_firebase_user(user: dict):
+    firebase_info = user.get("firebase", {}) or {}
+    sign_in_provider = firebase_info.get("sign_in_provider")
+    provider = user.get("provider_key") if sign_in_provider == "custom" else sign_in_provider
+    return _normalize_provider_key(provider)
 
 
 def _resolve_profile_for_firebase_user(user: dict):
@@ -811,6 +823,53 @@ def _update_profile_identity(profile: dict, payload: ProfileIdentityUpdate):
         raise HTTPException(status_code=500, detail="Failed to update profile identity") from exc
 
 
+def _create_profile_login_id(profile: dict, payload: AccountLoginIdCreate, email: str):
+    if profile.get("login_id"):
+        raise HTTPException(status_code=409, detail="login_id_already_set")
+    if not LOGIN_ID_RE.fullmatch(payload.login_id):
+        raise HTTPException(status_code=400, detail="login_id_format")
+    if not _is_valid_real_name(payload.real_name, payload.language):
+        raise HTTPException(status_code=400, detail="real_name_format")
+
+    uid = profile.get("firebase_uid")
+    if not uid:
+        raise HTTPException(status_code=500, detail="profile_uid_missing")
+    normalized_email = _normalize_email(email)
+    if not EMAIL_RE.fullmatch(normalized_email):
+        raise HTTPException(status_code=400, detail="invalid_email")
+    if _is_email_taken(normalized_email, uid):
+        raise HTTPException(status_code=409, detail="email_taken")
+
+    update_payload = {
+        "login_id": payload.login_id,
+        "real_name": payload.real_name,
+        "email": normalized_email,
+        "email_verified": True,
+        "email_verification_required": False,
+        "account_status": "active",
+        "updated_at": _now_iso(),
+    }
+
+    if LOCAL_TEST_MODE:
+        if _is_login_id_taken(payload.login_id, uid):
+            raise HTTPException(status_code=409, detail="login_id_taken")
+        profile.update(update_payload)
+        return profile
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    try:
+        if _is_login_id_taken(payload.login_id, uid):
+            raise HTTPException(status_code=409, detail="login_id_taken")
+        updated_res = supabase.table("profiles").update(update_payload).eq("firebase_uid", uid).execute()
+        return (updated_res.data or [None])[0] or {**profile, **update_payload}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="profile_login_id_create_failed") from exc
+
+
 def _find_profile_for_login_id_recovery(payload: FindLoginIdRequest):
     if not payload.real_name.strip() or not payload.display_name.strip() or not EMAIL_RE.fullmatch(payload.email):
         return None
@@ -888,6 +947,65 @@ def _update_profile_social_providers(profile: dict, providers: list[str]):
         return (updated_res.data or [None])[0] or {**profile, **update_payload}
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Failed to update social providers") from exc
+
+
+def _is_email_taken(email: str, current_uid: str | None = None):
+    normalized_email = _normalize_email(email)
+    if not EMAIL_RE.fullmatch(normalized_email):
+        raise HTTPException(status_code=400, detail="invalid_email")
+    if LOCAL_TEST_MODE:
+        return any(
+            _normalize_email(profile.get("email", "")) == normalized_email
+            and profile.get("firebase_uid") != current_uid
+            for profile in LOCAL_DB["profiles"].values()
+        )
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    query = supabase.table("profiles").select("firebase_uid").eq("email", normalized_email).limit(1)
+    if current_uid:
+        query = query.neq("firebase_uid", current_uid)
+    res = query.execute()
+    return bool(res.data)
+
+
+def _update_profile_email(profile: dict, email: str):
+    normalized_email = _normalize_email(email)
+    uid = profile.get("firebase_uid")
+    if not uid:
+        raise HTTPException(status_code=500, detail="profile_uid_missing")
+    if _normalize_email(profile.get("email", "")) == normalized_email:
+        raise HTTPException(status_code=400, detail="email_unchanged")
+    if _is_email_taken(normalized_email, uid):
+        raise HTTPException(status_code=409, detail="email_taken")
+
+    update_payload = {
+        "email": normalized_email,
+        "email_verified": True,
+        "email_verification_required": False,
+        "account_status": "active",
+        "updated_at": _now_iso(),
+    }
+    if LOCAL_TEST_MODE:
+        profile.update(update_payload)
+        return profile
+
+    try:
+        from firebase_admin import auth as firebase_auth
+
+        get_firebase_app()
+        firebase_auth.update_user(uid, email=normalized_email, email_verified=True)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="firebase_email_update_failed") from exc
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    try:
+        updated_res = supabase.table("profiles").update(update_payload).eq("firebase_uid", uid).execute()
+        return (updated_res.data or [None])[0] or {**profile, **update_payload}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="profile_email_update_failed") from exc
 
 
 def _anonymize_deleted_account(profile: dict):
@@ -1039,6 +1157,13 @@ def _oauth_error_html(provider: str, detail: str):
         "type": "oauth_error",
         "provider": provider,
         "detail": detail,
+    })
+
+
+def _oauth_cancelled_html(provider: str):
+    return _oauth_popup_html({
+        "type": "oauth_cancelled",
+        "provider": provider,
     })
 
 
@@ -1593,9 +1718,9 @@ def _handle_oauth_identity(provider: str, identity: dict, state_payload: dict):
             "provider": provider,
         })
 
-    _upsert_oauth_profile(identity)
+    profile = _upsert_oauth_profile(identity)
     custom_token = create_firebase_custom_token(
-        identity["firebase_uid"],
+        profile["firebase_uid"],
         {
             "provider_key": provider,
             "provider_user_id": identity["provider_user_id"],
@@ -1707,8 +1832,9 @@ def _get_profile_by_firebase_uid(firebase_uid: str):
 def _linked_provider_keys_for_profile(profile: dict):
     profile_id = profile.get("id")
     providers = {_normalize_provider_key(provider) for provider in (profile.get("social_providers") or [])}
-    if profile.get("provider"):
-        providers.add(_normalize_provider_key(profile["provider"]))
+    primary_provider = _normalize_provider_key(profile.get("provider"))
+    if primary_provider and primary_provider != "password":
+        providers.add(primary_provider)
     if profile_id:
         try:
             providers.update(
@@ -1720,13 +1846,15 @@ def _linked_provider_keys_for_profile(profile: dict):
             raise
         except Exception:
             logger.exception("Failed to read linked providers for profile_id=%s", profile_id)
-    return sorted(provider for provider in providers if provider)
+    return sorted(provider for provider in providers if provider and provider != "password")
 
 
 def _update_profile_provider_fields(profile: dict, providers: list[str]):
-    cleaned = sorted({_normalize_provider_key(provider) for provider in providers if provider})
+    cleaned = sorted({_normalize_provider_key(provider) for provider in providers if provider and _normalize_provider_key(provider) != "password"})
+    current_provider = _normalize_provider_key(profile.get("provider"))
+    provider_field = current_provider if current_provider == "password" or current_provider in cleaned else (cleaned[0] if cleaned else None)
     update_payload = {
-        "provider": profile.get("provider") or (cleaned[0] if cleaned else None),
+        "provider": provider_field,
         "social_providers": cleaned,
         "updated_at": _now_iso(),
     }
@@ -1737,6 +1865,73 @@ def _update_profile_provider_fields(profile: dict, providers: list[str]):
         raise HTTPException(status_code=503, detail="Supabase is not configured")
     updated_res = supabase.table("profiles").update(update_payload).eq("id", profile["id"]).execute()
     return (updated_res.data or [None])[0] or {**profile, **update_payload}
+
+
+def _delete_provider_account_for_profile(profile_id: str, provider: str):
+    provider = _normalize_provider_key(provider)
+    if LOCAL_TEST_MODE:
+        LOCAL_DB["auth_provider_accounts"] = [
+            row for row in LOCAL_DB["auth_provider_accounts"]
+            if not (row.get("profile_id") == profile_id and _normalize_provider_key(row.get("provider")) == provider)
+        ]
+        return
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    supabase.table("auth_provider_accounts").delete().eq("profile_id", profile_id).eq("provider", provider).execute()
+
+
+def _remove_profile_provider_field(profile: dict | None, provider: str):
+    if not profile or not profile.get("id"):
+        return profile
+    provider = _normalize_provider_key(provider)
+    providers = [
+        _normalize_provider_key(item)
+        for item in (profile.get("social_providers") or [])
+        if _normalize_provider_key(item) != provider
+    ]
+    update_payload = {
+        "social_providers": sorted(set(providers)),
+        "updated_at": _now_iso(),
+    }
+    if _normalize_provider_key(profile.get("provider")) == provider:
+        update_payload["provider"] = update_payload["social_providers"][0] if update_payload["social_providers"] else None
+    if LOCAL_TEST_MODE:
+        profile.update(update_payload)
+        return profile
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    updated_res = supabase.table("profiles").update(update_payload).eq("id", profile["id"]).execute()
+    return (updated_res.data or [None])[0] or {**profile, **update_payload}
+
+
+def _unlink_oauth_profile_provider(profile: dict, provider: str, current_auth_provider: str | None = None):
+    provider = _normalize_provider_key(provider)
+    if provider not in {"google", "kakao", "naver", "github", "discord", "steam"}:
+        raise HTTPException(status_code=404, detail="oauth_provider_not_supported")
+    profile_id = profile.get("id")
+    if not profile_id:
+        raise HTTPException(status_code=500, detail="profile_id_missing")
+    if profile.get("account_status") in ("deleted", "withdrawn"):
+        raise HTTPException(status_code=409, detail="oauth_account_deleted")
+
+    linked_providers = set(_linked_provider_keys_for_profile(profile))
+    if provider not in linked_providers:
+        raise HTTPException(status_code=404, detail="auth_provider_not_linked")
+
+    remaining_providers = sorted(linked_providers - {provider})
+    has_login_id = bool((profile.get("login_id") or "").strip())
+    if not has_login_id and not remaining_providers:
+        raise HTTPException(status_code=409, detail="auth_provider_unlink_last_method")
+
+    _delete_provider_account_for_profile(profile_id, provider)
+    refreshed_profile = _get_profile_by_id(profile_id) or profile
+    updated_profile = _update_profile_provider_fields(refreshed_profile, remaining_providers)
+    return {
+        "profile": updated_profile,
+        "linked_providers": _linked_provider_keys_for_profile(updated_profile),
+        "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
+        "signed_out_required": _normalize_provider_key(current_auth_provider) == provider,
+    }
 
 
 def _link_oauth_profile(identity: dict, profile: dict):
@@ -1753,7 +1948,15 @@ def _link_oauth_profile(identity: dict, profile: dict):
     if existing_account and existing_account.get("profile_id") != profile_id:
         other_profile = _get_profile_by_id(existing_account.get("profile_id"))
         if other_profile and other_profile.get("account_status") not in ("deleted", "withdrawn"):
-            raise HTTPException(status_code=409, detail="oauth_provider_already_linked_to_other_account")
+            # 활성 계정에 이미 연결된 간편 로그인 → 차단
+            logger.warning(
+                "[Security] Blocked duplicate provider link: provider=%s provider_user_id=%s "
+                "attempted by profile=%s already owned by profile=%s",
+                provider, provider_user_id, profile_id, existing_account.get("profile_id"),
+            )
+            raise HTTPException(status_code=409, detail="oauth_provider_already_in_use")
+        # 탈퇴/삭제된 계정의 잔여 기록은 정리 후 연결 허용
+        _remove_profile_provider_field(other_profile, provider)
 
     current_provider_account = _get_provider_account_for_profile(profile_id, provider)
     if current_provider_account and current_provider_account.get("provider_user_id") != provider_user_id:
@@ -2183,6 +2386,14 @@ async def record_firebase_provider_link(provider: str, request: Request):
     }
 
 
+@app.delete("/api/auth/provider/{provider}/link")
+async def unlink_auth_provider(provider: str, request: Request):
+    provider = _normalize_provider_key(provider)
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    return _unlink_oauth_profile_provider(profile, provider, _auth_provider_from_firebase_user(user))
+
+
 @app.get("/api/auth/oauth/kakao/start")
 async def kakao_oauth_start():
     return _oauth_start_redirect("kakao")
@@ -2193,7 +2404,9 @@ async def kakao_oauth_callback(request: Request, code: str | None = None, state:
     response = None
     try:
         if error:
-            return _oauth_error_html("kakao", error)
+            response = _oauth_cancelled_html("kakao")
+            response.delete_cookie("oauth_state_kakao")
+            return response
         if not code:
             return _oauth_error_html("kakao", "oauth_code_missing")
         state_payload = _validate_oauth_state("kakao", state or "", request.cookies.get("oauth_state_kakao"))
@@ -2228,7 +2441,9 @@ async def naver_oauth_callback(
     response = None
     try:
         if error:
-            return _oauth_error_html("naver", error_description or error)
+            response = _oauth_cancelled_html("naver")
+            response.delete_cookie("oauth_state_naver")
+            return response
         if not code:
             return _oauth_error_html("naver", "oauth_code_missing")
         state_payload = _validate_oauth_state("naver", state or "", request.cookies.get("oauth_state_naver"))
@@ -2263,7 +2478,9 @@ async def github_oauth_callback(
     response = None
     try:
         if error:
-            return _oauth_error_html("github", error_description or error)
+            response = _oauth_cancelled_html("github")
+            response.delete_cookie("oauth_state_github")
+            return response
         if not code:
             return _oauth_error_html("github", "oauth_code_missing")
         state_payload = _validate_oauth_state("github", state or "", request.cookies.get("oauth_state_github"))
@@ -2300,7 +2517,9 @@ async def discord_oauth_callback(
     access_token = ""
     try:
         if error:
-            return _oauth_error_html("discord", error_description or error)
+            response = _oauth_cancelled_html("discord")
+            response.delete_cookie("oauth_state_discord")
+            return response
         if not code:
             return _oauth_error_html("discord", "oauth_code_missing")
         state_payload = _validate_oauth_state("discord", state or "", request.cookies.get("oauth_state_discord"))
@@ -2334,6 +2553,10 @@ async def steam_openid_start():
 async def steam_openid_callback(request: Request, state: str | None = None):
     response = None
     try:
+        if request.query_params.get("openid.mode") == "cancel":
+            response = _oauth_cancelled_html("steam")
+            response.delete_cookie("oauth_state_steam")
+            return response
         state_payload = _validate_oauth_state("steam", state or "", request.cookies.get("oauth_state_steam"))
         steam_id = _validate_steam_openid_assertion(request, state or "")
         player_summary = _fetch_steam_player_summary(steam_id)
@@ -2362,11 +2585,14 @@ async def auth_me(request: Request):
         "profile": profile,
         "linked_providers": linked_providers,
         "is_admin": profile.get("role") in ("admin", "super_admin"),
+        "display_name_changed_at": profile.get("display_name_changed_at"),
     }
 
 
 @app.post("/api/auth/signup/email-code")
 async def request_signup_email_code(payload: SignupEmailVerificationRequest, request: Request):
+    if _is_email_taken(payload.email):
+        raise HTTPException(status_code=409, detail="email_taken")
     identifier_hash = _hash_recovery_identifier("signup_email_code", payload.email)
     _check_recovery_rate_limit("signup_email_code", identifier_hash, request)
     return _create_signup_email_verification(payload.email, request)
@@ -2412,6 +2638,78 @@ async def check_display_name_availability(display_name: str):
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail="display_name_check_failed") from exc
+
+
+@app.get("/api/auth/me/display-name/check")
+async def check_my_display_name_availability(display_name: str, request: Request):
+    """로그인한 사용자의 닉네임 변경용 중복 확인. 본인 닉네임은 중복으로 처리하지 않는다."""
+    user = require_firebase_user(request)
+    uid = user.get("uid", "")
+    normalized = (display_name or "").strip()
+    is_valid, error_key = validate_display_name(normalized)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_key)
+    try:
+        return {
+            "display_name": normalized,
+            "available": not _is_display_name_taken(normalized, uid),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="display_name_check_failed") from exc
+
+
+@app.post("/api/auth/me/display-name")
+async def change_my_display_name(payload: AccountDisplayNameChange, request: Request):
+    """로그인한 사용자의 닉네임 변경. 30일 쿨다운 적용."""
+    user = require_firebase_user(request)
+    uid = user.get("uid", "")
+    display_name = payload.display_name
+
+    # Step 1: 쿨다운 체크 (가장 먼저)
+    profile = _resolve_profile_for_firebase_user(user)
+    base_date_str = profile.get("display_name_changed_at") or profile.get("created_at")
+    if base_date_str:
+        try:
+            from datetime import datetime, timezone, timedelta
+            base_date = datetime.fromisoformat(base_date_str.replace("Z", "+00:00"))
+            if datetime.now(timezone.utc) - base_date < timedelta(days=30):
+                raise HTTPException(status_code=429, detail="display_name_change_cooldown")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    # Step 2: 형식 + 필터 검증
+    is_valid, error_key = validate_display_name(display_name)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_key)
+
+    # Step 3: 중복 확인 (본인 제외)
+    if _is_display_name_taken(display_name, uid):
+        raise HTTPException(status_code=409, detail="display_name_taken")
+
+    # Step 4: DB 업데이트
+    now_iso = _now_iso()
+    if LOCAL_TEST_MODE:
+        if uid in LOCAL_DB["profiles"]:
+            LOCAL_DB["profiles"][uid]["display_name"] = display_name
+            LOCAL_DB["profiles"][uid]["display_name_changed_at"] = now_iso
+        return {"display_name": display_name, "display_name_changed_at": now_iso}
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    try:
+        supabase.table("profiles").update({
+            "display_name": display_name,
+            "display_name_changed_at": now_iso,
+            "updated_at": now_iso,
+        }).eq("firebase_uid", uid).execute()
+        return {"display_name": display_name, "display_name_changed_at": now_iso}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="display_name_change_failed") from exc
 
 
 @app.post("/api/auth/login-id-email")
@@ -2514,6 +2812,80 @@ async def send_current_user_password_reset(request: Request):
     language = request.query_params.get("lang") or request.headers.get("X-Client-Language") or "ko"
     _send_password_reset_email(email, language)
     return {"sent": True}
+
+
+@app.post("/api/auth/me/email-change/code")
+async def request_current_user_email_change_code(payload: SignupEmailVerificationRequest, request: Request):
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    normalized_email = _normalize_email(payload.email)
+    if _normalize_email(profile.get("email", "")) == normalized_email:
+        raise HTTPException(status_code=400, detail="email_unchanged")
+    if _is_email_taken(normalized_email, profile.get("firebase_uid")):
+        raise HTTPException(status_code=409, detail="email_taken")
+    identifier_hash = _hash_recovery_identifier("email_change_code", profile.get("id", ""), normalized_email)
+    _check_recovery_rate_limit("email_change_code", identifier_hash, request)
+    return _create_signup_email_verification(normalized_email, request)
+
+
+@app.post("/api/auth/me/email-change/confirm")
+async def confirm_current_user_email_change(payload: SignupEmailVerificationConfirm, request: Request):
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    normalized_email = _normalize_email(payload.email)
+    if not re.fullmatch(r"\d{6}", payload.code):
+        raise HTTPException(status_code=400, detail="invalid_verification_code")
+    if _normalize_email(profile.get("email", "")) == normalized_email:
+        raise HTTPException(status_code=400, detail="email_unchanged")
+    identifier_hash = _hash_recovery_identifier("email_change_confirm", profile.get("id", ""), normalized_email)
+    _check_recovery_rate_limit("email_change_confirm", identifier_hash, request)
+    _confirm_signup_email_verification(normalized_email, payload.code)
+    updated_profile = _update_profile_email(profile, normalized_email)
+    return {
+        "profile": updated_profile,
+        "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
+    }
+
+
+@app.post("/api/auth/me/login-id/code")
+async def request_current_user_login_id_code(payload: SignupEmailVerificationRequest, request: Request):
+    user = require_firebase_user(request)
+    profile = _resolve_profile_for_firebase_user(user)
+    if profile.get("login_id"):
+        raise HTTPException(status_code=409, detail="login_id_already_set")
+    normalized_email = _normalize_email(payload.email)
+    if _is_email_taken(normalized_email, profile.get("firebase_uid")):
+        raise HTTPException(status_code=409, detail="email_taken")
+    identifier_hash = _hash_recovery_identifier("login_id_create_code", profile.get("id", ""), normalized_email)
+    _check_recovery_rate_limit("login_id_create_code", identifier_hash, request)
+    return _create_signup_email_verification(normalized_email, request)
+
+
+@app.post("/api/auth/me/login-id")
+async def create_current_user_login_id(payload: AccountLoginIdCreate, request: Request):
+    user = require_firebase_user(request)
+    user_email = _normalize_email(user.get("email") or "")
+    if not EMAIL_RE.fullmatch(user_email):
+        raise HTTPException(status_code=400, detail="email_required_after_credential_link")
+    if not _verify_signup_email_token(payload.email_verification_token, user_email):
+        raise HTTPException(status_code=403, detail="email_verification_required")
+
+    try:
+        from firebase_admin import auth as firebase_auth
+
+        get_firebase_app()
+        firebase_auth.update_user(user.get("uid"), email_verified=True)
+        user["email_verified"] = True
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to update Firebase email verification") from exc
+
+    profile = _resolve_profile_for_firebase_user(user)
+    updated_profile = _create_profile_login_id(profile, payload, user_email)
+    return {
+        "profile": updated_profile,
+        "linked_providers": _linked_provider_keys_for_profile(updated_profile),
+        "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
+    }
 
 
 @app.patch("/api/profile/social-providers")

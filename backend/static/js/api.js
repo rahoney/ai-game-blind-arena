@@ -114,6 +114,33 @@ async function apiCheckDisplayNameAvailability(displayName) {
     return data;
 }
 
+async function apiCheckMyDisplayNameAvailability(displayName) {
+    const headers = await getCurrentAuthHeaders();
+    const res = await fetch(`${API_BASE}/auth/me/display-name/check?display_name=${encodeURIComponent(displayName)}`, {
+        cache: 'no-store',
+        headers,
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'display_name_check_failed');
+    }
+    return data;
+}
+
+async function apiChangeMyDisplayName(displayName) {
+    const headers = await getCurrentAuthHeaders(true);
+    const res = await fetch(`${API_BASE}/auth/me/display-name`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ display_name: displayName }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'display_name_change_failed');
+    }
+    return data;
+}
+
 async function apiResolveLoginIdEmail(loginId) {
     const res = await fetch(`${API_BASE}/auth/login-id-email`, {
         method: 'POST',
@@ -168,6 +195,70 @@ async function apiSendCurrentUserPasswordReset(idToken) {
     return data;
 }
 
+async function apiRequestCurrentUserEmailChangeCode(idToken, email) {
+    const res = await fetch(`${API_BASE}/auth/me/email-change/code`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'mail_send_failed');
+    }
+    return data;
+}
+
+async function apiConfirmCurrentUserEmailChange(idToken, email, code) {
+    const res = await fetch(`${API_BASE}/auth/me/email-change/confirm`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ email, code })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'invalid_verification_code');
+    }
+    return data;
+}
+
+async function apiRequestCurrentUserLoginIdCode(idToken, email) {
+    const res = await fetch(`${API_BASE}/auth/me/login-id/code`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'mail_send_failed');
+    }
+    return data;
+}
+
+async function apiCreateCurrentUserLoginId(idToken, payload) {
+    const res = await fetch(`${API_BASE}/auth/me/login-id`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'login_id_create_failed');
+    }
+    return data;
+}
+
 async function apiSendLoginIdEmail(payload) {
     const res = await fetch(`${API_BASE}/auth/recovery/send-login-id-email`, {
         method: 'POST',
@@ -197,13 +288,21 @@ async function apiUpdateSocialProviders(idToken, providers) {
     return data;
 }
 
-async function apiStartBackendOAuthLink(idToken, providerKey) {
-    const res = await fetch(`${API_BASE}/auth/oauth/${encodeURIComponent(providerKey)}/link/start`, {
+async function apiStartBackendOAuthLink(providerKey) {
+    const url = `${API_BASE}/auth/oauth/${encodeURIComponent(providerKey)}/link/start`;
+    let res = await fetch(url, {
         method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${idToken}`
-        }
+        headers: await getCurrentAuthHeaders()
     });
+    if (res.status === 401 && firebaseAuth?.currentUser) {
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        res = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+    }
     const data = await res.json();
     if (!res.ok) {
         throw new Error(data?.detail || 'oauth_link_start_failed');
@@ -221,6 +320,28 @@ async function apiRecordFirebaseProviderLink(idToken, providerKey) {
     const data = await res.json();
     if (!res.ok) {
         throw new Error(data?.detail || 'provider_link_record_failed');
+    }
+    return data;
+}
+
+async function apiUnlinkAuthProvider(providerKey) {
+    const url = `${API_BASE}/auth/provider/${encodeURIComponent(providerKey)}/link`;
+    let res = await fetch(url, {
+        method: 'DELETE',
+        headers: await getCurrentAuthHeaders()
+    });
+    if (res.status === 401 && firebaseAuth?.currentUser) {
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        res = await fetch(url, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+    }
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'auth_provider_unlink_failed');
     }
     return data;
 }

@@ -1,5 +1,6 @@
 let firebaseAuth = null;
 let firebaseAnalytics = null;
+let backendOAuthPopupTimerId = null;
 
 function getAccountDisplayName() {
     const profile = state.account?.profile || {};
@@ -27,11 +28,39 @@ function normalizeProviderKey(providerKey) {
 function getLinkedProviderKeys() {
     const backendProviders = state.account?.linked_providers || state.account?.profile?.social_providers || [];
     const firebaseProviders = getLinkedProviderIds().map(normalizeProviderKey);
-    return Array.from(new Set([...backendProviders.map(normalizeProviderKey), ...firebaseProviders])).filter(Boolean);
+    return Array.from(new Set([...backendProviders.map(normalizeProviderKey), ...firebaseProviders]))
+        .filter((provider) => provider && provider !== 'password');
 }
 
 function hasLinkedProvider(providerKey) {
     return getLinkedProviderKeys().includes(normalizeProviderKey(providerKey));
+}
+
+function hasPasswordLoginMethod() {
+    return !!state.account?.profile?.login_id || getLinkedProviderIds().includes('password');
+}
+
+function getLoginMethodCount() {
+    return (hasPasswordLoginMethod() ? 1 : 0) + getLinkedProviderKeys().length;
+}
+
+function canUnlinkProvider(providerKey) {
+    return hasLinkedProvider(providerKey) && getLoginMethodCount() >= 2;
+}
+
+function requiresDisplayNameSetup() {
+    return !!state.account?.profile && state.account.profile.display_name_set === false;
+}
+
+function redirectToDisplayNameSetup() {
+    state.authMode = 'display_name';
+    navigateTo('login', renderLogin);
+}
+
+function ensureDisplayNameSetupComplete() {
+    if (!requiresDisplayNameSetup()) return true;
+    redirectToDisplayNameSetup();
+    return false;
 }
 
 const SOCIAL_AUTH_PROVIDERS = {
@@ -84,6 +113,7 @@ function getFriendlyAuthError(error, mode = 'login') {
             wrongCredentials: '로그인 정보가 올바르지 않습니다.',
             weakPassword: '비밀번호는 6자 이상으로 입력하세요.',
             emailInUse: '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용하세요.',
+            emailTaken: '사용중인 이메일입니다. 다른 이메일을 입력해주세요.',
             popupClosed: '로그인이 취소되었습니다.',
             unauthorizedDomain: '현재 접속 주소가 Firebase 로그인 허용 도메인에 등록되어 있지 않습니다.',
             resetSent: '비밀번호 재설정 메일을 보냈습니다.',
@@ -105,6 +135,7 @@ function getFriendlyAuthError(error, mode = 'login') {
             wrongCredentials: 'The login information is not valid.',
             weakPassword: 'Enter a password with at least 6 characters.',
             emailInUse: 'This email is already registered. Log in or reset your password.',
+            emailTaken: 'This email is already in use. Enter a different email address.',
             popupClosed: 'Sign-in was cancelled.',
             unauthorizedDomain: 'This address is not registered as an authorized Firebase login domain.',
             resetSent: 'Password reset email sent.',
@@ -128,6 +159,7 @@ function getFriendlyAuthError(error, mode = 'login') {
     if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') return bucket.wrongCredentials;
     if (code === 'auth/weak-password') return bucket.weakPassword;
     if (code === 'auth/email-already-in-use') return bucket.emailInUse;
+    if (code === 'email_taken') return bucket.emailTaken;
     if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return bucket.popupClosed;
     if (code === 'auth/unauthorized-domain') return bucket.unauthorizedDomain;
     if (code === 'auth/reset-email-required') return bucket.resetEmailRequired;
@@ -202,7 +234,7 @@ function isValidSignupForm() {
 function isValidRealName(realName) {
     const value = (realName || '').trim();
     if (!value) return false;
-    if ((state.language || 'ko') === 'en') {
+    if (((state.language || 'ko').split('-')[0] || 'ko') === 'en') {
         return /^[A-Za-z]+(?: [A-Za-z]+)*$/.test(value) && value.replace(/\s+/g, '').length >= 3;
     }
     return /^[가-힣]{2,}$/.test(value);
@@ -396,6 +428,100 @@ function startSignupEmailCountdown() {
     }, 1000);
 }
 
+function getAccountEmailChangeCountdownText() {
+    const remaining = Math.max(0, Math.ceil((Number(state.accountEmailChange?.expiresAt || 0) - Date.now()) / 1000));
+    const minutes = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const seconds = String(remaining % 60).padStart(2, '0');
+    return `${minutes}:${seconds}`;
+}
+
+function updateAccountEmailChangeCodeState() {
+    const button = document.getElementById('account-email-change-confirm-btn');
+    const countdown = document.getElementById('account-email-change-countdown');
+    const code = document.getElementById('account-email-change-code')?.value.trim() || '';
+    const expiresAt = Number(state.accountEmailChange?.expiresAt || 0);
+    const isExpired = expiresAt > 0 && Date.now() >= expiresAt;
+    if (countdown) {
+        countdown.textContent = t('auth_signup_code_countdown', { time: getAccountEmailChangeCountdownText() });
+    }
+    if (button) {
+        button.disabled = !state.authConfigured || state.isLoginSubmitting || isExpired || !/^\d{6}$/.test(code);
+    }
+}
+
+function stopAccountEmailChangeCountdown() {
+    if (state.accountEmailChangeTimerId) {
+        window.clearInterval(state.accountEmailChangeTimerId);
+        state.accountEmailChangeTimerId = null;
+    }
+}
+
+function startAccountEmailChangeCountdown() {
+    stopAccountEmailChangeCountdown();
+    if (!state.accountEmailChange?.open || !state.accountEmailChange?.codeSent) {
+        return;
+    }
+    updateAccountEmailChangeCodeState();
+    state.accountEmailChangeTimerId = window.setInterval(() => {
+        updateAccountEmailChangeCodeState();
+        const expiresAt = Number(state.accountEmailChange?.expiresAt || 0);
+        if (expiresAt && Date.now() >= expiresAt) {
+            stopAccountEmailChangeCountdown();
+        }
+    }, 1000);
+}
+
+function getAccountLoginIdSetupCountdownText() {
+    const remaining = Math.max(0, Math.ceil((Number(state.accountLoginIdSetup?.expiresAt || 0) - Date.now()) / 1000));
+    const minutes = String(Math.floor(remaining / 60)).padStart(2, '0');
+    const seconds = String(remaining % 60).padStart(2, '0');
+    return `${minutes}:${seconds}`;
+}
+
+function updateAccountLoginIdSetupCodeState() {
+    const button = document.getElementById('account-login-id-code-confirm-btn');
+    const countdown = document.getElementById('account-login-id-code-countdown');
+    const code = document.getElementById('account-login-id-code')?.value.trim() || '';
+    const expiresAt = Number(state.accountLoginIdSetup?.expiresAt || 0);
+    const isExpired = expiresAt > 0 && Date.now() >= expiresAt;
+    if (countdown) {
+        countdown.textContent = t('auth_signup_code_countdown', { time: getAccountLoginIdSetupCountdownText() });
+    }
+    if (button) {
+        button.disabled = !state.authConfigured || state.isLoginSubmitting || isExpired || !/^\d{6}$/.test(code);
+    }
+}
+
+function updateAccountLoginIdSetupSubmitState() {
+    const button = document.getElementById('account-login-id-submit-btn');
+    if (!button) return;
+    button.disabled = !state.authConfigured
+        || state.isLoginSubmitting
+        || !state.accountLoginIdSetup?.token;
+}
+
+function stopAccountLoginIdSetupCountdown() {
+    if (state.accountLoginIdSetupTimerId) {
+        window.clearInterval(state.accountLoginIdSetupTimerId);
+        state.accountLoginIdSetupTimerId = null;
+    }
+}
+
+function startAccountLoginIdSetupCountdown() {
+    stopAccountLoginIdSetupCountdown();
+    if (!state.accountLoginIdSetup?.open || !state.accountLoginIdSetup?.codeSent || state.accountLoginIdSetup?.token) {
+        return;
+    }
+    updateAccountLoginIdSetupCodeState();
+    state.accountLoginIdSetupTimerId = window.setInterval(() => {
+        updateAccountLoginIdSetupCodeState();
+        const expiresAt = Number(state.accountLoginIdSetup?.expiresAt || 0);
+        if (expiresAt && Date.now() >= expiresAt) {
+            stopAccountLoginIdSetupCountdown();
+        }
+    }, 1000);
+}
+
 async function initializeFirebaseAuth() {
     if (typeof firebase === 'undefined') {
         state.authReady = true;
@@ -554,6 +680,7 @@ async function handleEmailAuth(mode) {
 async function handleSignupEmailCodeRequest() {
     if (state.isLoginSubmitting) return;
     const email = document.getElementById('auth-email')?.value.trim() || state.signupEmailVerification?.email || '';
+    const wasCodeSent = !!state.signupEmailVerification?.codeSent;
     if (!isValidEmailInput(email)) {
         showAppMessage(getFriendlyAuthError({ code: 'auth/invalid-email' }, 'signup'), { tone: 'error' });
         return;
@@ -564,15 +691,20 @@ async function handleSignupEmailCodeRequest() {
         state.signupEmailVerification = {
             email,
             codeSent: true,
-            expiresAt: Date.now() + (Number(data.expires_in_seconds || 600) * 1000),
+            expiresAt: Date.now() + (Number(data.expires_in_seconds || 300) * 1000),
             token: '',
         };
-        renderLogin();
-        showAppMessage(t('auth_signup_code_sent'), { tone: 'success' });
+        showAppMessage(
+            wasCodeSent
+                ? t('auth_signup_code_resent')
+                : t('auth_signup_code_sent'),
+            { tone: 'success' }
+        );
     } catch (e) {
         showAppMessage(getFriendlyAuthError({ code: e?.message || 'mail_send_failed' }, 'signup'), { tone: 'error' });
     } finally {
         state.isLoginSubmitting = false;
+        renderLogin();
     }
 }
 
@@ -598,6 +730,7 @@ async function handleSignupEmailCodeConfirm() {
         showAppMessage(t('auth_signup_code_invalid'), { tone: 'error' });
     } finally {
         state.isLoginSubmitting = false;
+        renderLogin();
     }
 }
 
@@ -685,7 +818,25 @@ function handleBackendOAuthLogin(providerKey) {
     const popup = window.open(providerConfig.startUrl, `${providerKey}_login`, 'width=480,height=720');
     if (!popup) {
         showAppMessage(t('auth_popup_blocked'), { tone: 'error' });
+        return;
     }
+    watchBackendOAuthPopup(popup, false);
+}
+
+function watchBackendOAuthPopup(popup, isLinking) {
+    if (backendOAuthPopupTimerId) {
+        clearInterval(backendOAuthPopupTimerId);
+        backendOAuthPopupTimerId = null;
+    }
+    backendOAuthPopupTimerId = setInterval(() => {
+        if (!popup || !popup.closed) return;
+        clearInterval(backendOAuthPopupTimerId);
+        backendOAuthPopupTimerId = null;
+        if (isLinking && state.isLoginSubmitting) {
+            state.isLoginSubmitting = false;
+            renderMyPage();
+        }
+    }, 500);
 }
 
 async function handleBackendOAuthMessage(event) {
@@ -693,15 +844,44 @@ async function handleBackendOAuthMessage(event) {
     const data = event.data || {};
     if (!data || typeof data !== 'object') return;
 
+    if (data.type === 'oauth_cancelled') {
+        const isLinking = state.isLoginSubmitting && !!firebaseAuth?.currentUser;
+        if (backendOAuthPopupTimerId) {
+            clearInterval(backendOAuthPopupTimerId);
+            backendOAuthPopupTimerId = null;
+        }
+        state.isLoginSubmitting = false;
+        if (isLinking) renderMyPage();
+        return;
+    }
+
     if (data.type === 'oauth_error') {
         const isLinking = state.isLoginSubmitting && !!firebaseAuth?.currentUser;
-        showAppMessage(t(isLinking ? 'auth_social_link_error' : 'auth_social_login_error'), { tone: 'error' });
+        if (backendOAuthPopupTimerId) {
+            clearInterval(backendOAuthPopupTimerId);
+            backendOAuthPopupTimerId = null;
+        }
+        console.error('OAuth popup error', data.provider, data.detail);
+        const knownDetailKeys = ['oauth_provider_already_in_use'];
+        let errorMessage;
+        if (knownDetailKeys.includes(data.detail)) {
+            errorMessage = t(data.detail);
+        } else {
+            const baseMessage = t(isLinking ? 'auth_social_link_error' : 'auth_social_login_error');
+            const detail = data.detail ? ` (${data.detail})` : '';
+            errorMessage = `${baseMessage}${detail}`;
+        }
+        showAppMessage(errorMessage, { tone: 'error' });
         state.isLoginSubmitting = false;
         if (isLinking) renderMyPage();
         return;
     }
 
     if (data.type === 'oauth_link_success') {
+        if (backendOAuthPopupTimerId) {
+            clearInterval(backendOAuthPopupTimerId);
+            backendOAuthPopupTimerId = null;
+        }
         try {
             await refreshAccountFromFirebaseUser();
             showAppMessage(t('auth_social_link_success'), { tone: 'success' });
@@ -720,6 +900,10 @@ async function handleBackendOAuthMessage(event) {
     try {
         state.isLoginSubmitting = true;
         await firebaseAuth.signInWithCustomToken(data.customToken);
+        if (backendOAuthPopupTimerId) {
+            clearInterval(backendOAuthPopupTimerId);
+            backendOAuthPopupTimerId = null;
+        }
         await refreshAccountFromFirebaseUser();
         if (state.account?.profile && !state.account.profile.display_name_set) {
             state.authMode = 'display_name';
@@ -763,9 +947,13 @@ async function handlePasswordReset() {
 
 async function handleCurrentUserPasswordReset() {
     if (state.isLoginSubmitting) return;
+    const profile = state.account?.profile || {};
+    if (!profile.login_id) {
+        showAppMessage(t('mypage_password_reset_requires_login_id'), { tone: 'error' });
+        return;
+    }
     try {
         state.isLoginSubmitting = true;
-        const profile = state.account?.profile || {};
         if (profile.real_name && profile.login_id && profile.email) {
             await apiRecoverPassword({
                 real_name: profile.real_name,
@@ -783,6 +971,328 @@ async function handleCurrentUserPasswordReset() {
         showAppMessage(getFriendlyAuthError({ code: e?.message || 'mail_send_failed' }, 'login'), { tone: 'error' });
     } finally {
         state.isLoginSubmitting = false;
+        renderMyPage();
+    }
+}
+
+function openAccountEmailChangeDialog() {
+    if (!state.account?.profile?.login_id) {
+        showAppMessage(t('account_email_change_requires_login_id'), { tone: 'error' });
+        return;
+    }
+    const currentEmail = state.account?.profile?.email || firebaseAuth?.currentUser?.email || '';
+    state.accountEmailChange = {
+        open: true,
+        email: currentEmail,
+        codeSent: false,
+        expiresAt: 0,
+    };
+    stopAccountEmailChangeCountdown();
+    renderMyPage();
+}
+
+function closeAccountEmailChangeDialog() {
+    state.accountEmailChange = {
+        open: false,
+        email: '',
+        codeSent: false,
+        expiresAt: 0,
+    };
+    stopAccountEmailChangeCountdown();
+    renderMyPage();
+}
+
+async function handleAccountEmailChangeCodeRequest() {
+    if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    const email = document.getElementById('account-email-change-email')?.value.trim() || '';
+    const currentEmail = state.account?.profile?.email || firebaseAuth.currentUser.email || '';
+    const wasCodeSent = !!state.accountEmailChange?.codeSent;
+    if (!isValidEmailInput(email)) {
+        showAppMessage(t('account_email_change_invalid'), { tone: 'error' });
+        return;
+    }
+    if (email.toLowerCase() === String(currentEmail || '').toLowerCase()) {
+        showAppMessage(t('account_email_change_same'), { tone: 'error' });
+        return;
+    }
+    try {
+        state.isLoginSubmitting = true;
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        const data = await apiRequestCurrentUserEmailChangeCode(token, email);
+        state.accountEmailChange = {
+            open: true,
+            email,
+            codeSent: true,
+            expiresAt: Date.now() + (Number(data.expires_in_seconds || 300) * 1000),
+        };
+        showAppMessage(
+            wasCodeSent
+                ? t('auth_signup_code_resent')
+                : t('auth_signup_code_sent'),
+            { tone: 'success' }
+        );
+    } catch (e) {
+        const key = e?.message === 'email_taken'
+            ? 'account_email_change_taken'
+            : e?.message === 'email_unchanged'
+                ? 'account_email_change_same'
+                : 'auth_mail_send_failed';
+        showAppMessage(t(key), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+        renderMyPage();
+        updateAccountEmailChangeCodeState();
+        startAccountEmailChangeCountdown();
+    }
+}
+
+async function handleAccountEmailChangeConfirm() {
+    if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    const email = state.accountEmailChange?.email || '';
+    const code = document.getElementById('account-email-change-code')?.value.trim() || '';
+    if (!email || !/^\d{6}$/.test(code)) {
+        showAppMessage(t('auth_signup_code_invalid'), { tone: 'error' });
+        return;
+    }
+    try {
+        state.isLoginSubmitting = true;
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        state.account = await apiConfirmCurrentUserEmailChange(token, email, code);
+        state.isAdmin = !!state.account?.is_admin;
+        await firebaseAuth.currentUser.reload();
+        await refreshAccountFromFirebaseUser();
+        state.accountEmailChange = {
+            open: false,
+            email: '',
+            codeSent: false,
+            expiresAt: 0,
+        };
+        stopAccountEmailChangeCountdown();
+        showAppMessage(t('account_email_change_success'), { tone: 'success' });
+    } catch (e) {
+        const key = e?.message === 'email_taken'
+            ? 'account_email_change_taken'
+            : e?.message === 'firebase_email_update_failed' || e?.message === 'profile_email_update_failed'
+                ? 'account_email_change_failed'
+                : 'auth_signup_code_invalid';
+        showAppMessage(t(key), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+        renderSidebar();
+        renderMyPage();
+    }
+}
+
+function openAccountLoginIdSetupDialog() {
+    const currentEmail = state.account?.profile?.email || firebaseAuth?.currentUser?.email || '';
+    state.accountLoginIdSetup = {
+        open: true,
+        email: currentEmail,
+        codeSent: false,
+        expiresAt: 0,
+        token: '',
+    };
+    state.loginIdAvailability = { value: '', status: 'idle', message: '' };
+    stopAccountLoginIdSetupCountdown();
+    renderMyPage();
+}
+
+function closeAccountLoginIdSetupDialog() {
+    state.accountLoginIdSetup = {
+        open: false,
+        email: '',
+        codeSent: false,
+        expiresAt: 0,
+        token: '',
+    };
+    state.loginIdAvailability = { value: '', status: 'idle', message: '' };
+    stopAccountLoginIdSetupCountdown();
+    renderMyPage();
+}
+
+function handleAccountLoginIdInput() {
+    const loginId = document.getElementById('account-login-id')?.value.trim() || '';
+    if (state.loginIdAvailability?.value !== loginId) {
+        state.loginIdAvailability = { value: loginId, status: 'idle', message: '' };
+    }
+    const message = document.getElementById('account-login-id-availability');
+    if (message) {
+        message.textContent = loginId ? t('auth_login_id_check_required') : '';
+        message.className = 'auth-field-message';
+    }
+    updateAccountLoginIdSetupSubmitState();
+}
+
+async function handleAccountLoginIdAvailabilityCheck() {
+    const loginId = document.getElementById('account-login-id')?.value.trim() || '';
+    const message = document.getElementById('account-login-id-availability');
+    if (!isValidLoginId(loginId)) {
+        state.loginIdAvailability = { value: loginId, status: 'invalid', message: 'login_id_format' };
+        if (message) {
+            message.textContent = t('auth_login_id_format_error');
+            message.className = 'auth-field-message invalid';
+        }
+        updateAccountLoginIdSetupSubmitState();
+        return;
+    }
+    try {
+        state.loginIdAvailability = { value: loginId, status: 'checking', message: '' };
+        if (message) {
+            message.textContent = t('auth_login_id_checking');
+            message.className = 'auth-field-message';
+        }
+        updateAccountLoginIdSetupSubmitState();
+        const data = await apiCheckLoginIdAvailability(loginId);
+        state.loginIdAvailability = {
+            value: loginId,
+            status: data.available ? 'available' : 'taken',
+            message: data.available ? 'available' : 'taken',
+        };
+        if (message) {
+            message.textContent = data.available ? t('auth_login_id_available') : t('auth_login_id_taken');
+            message.className = `auth-field-message ${data.available ? 'valid' : 'invalid'}`;
+        }
+    } catch (e) {
+        state.loginIdAvailability = { value: loginId, status: 'error', message: e?.message || 'login_id_check_failed' };
+        if (message) {
+            message.textContent = t('auth_login_id_check_failed');
+            message.className = 'auth-field-message invalid';
+        }
+    } finally {
+        updateAccountLoginIdSetupSubmitState();
+    }
+}
+
+async function handleAccountLoginIdSetupCodeRequest() {
+    if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    const email = document.getElementById('account-login-id-email')?.value.trim() || state.accountLoginIdSetup?.email || '';
+    const wasCodeSent = !!state.accountLoginIdSetup?.codeSent;
+    if (!isValidEmailInput(email)) {
+        showAppMessage(t('account_login_id_create_invalid_email'), { tone: 'error' });
+        return;
+    }
+    try {
+        state.isLoginSubmitting = true;
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        const data = await apiRequestCurrentUserLoginIdCode(token, email);
+        state.accountLoginIdSetup = {
+            open: true,
+            email,
+            codeSent: true,
+            expiresAt: Date.now() + (Number(data.expires_in_seconds || 300) * 1000),
+            token: '',
+        };
+        showAppMessage(
+            wasCodeSent
+                ? t('auth_signup_code_resent')
+                : t('auth_signup_code_sent'),
+            { tone: 'success' }
+        );
+    } catch (e) {
+        const key = e?.message === 'email_taken'
+            ? 'account_login_id_create_email_taken'
+            : e?.message === 'login_id_already_set'
+                ? 'account_login_id_already_set'
+                : 'auth_mail_send_failed';
+        showAppMessage(t(key), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+        renderMyPage();
+        updateAccountLoginIdSetupCodeState();
+        startAccountLoginIdSetupCountdown();
+    }
+}
+
+async function handleAccountLoginIdSetupCodeConfirm() {
+    if (state.isLoginSubmitting) return;
+    const email = state.accountLoginIdSetup?.email || '';
+    const code = document.getElementById('account-login-id-code')?.value.trim() || '';
+    if (!email || !/^\d{6}$/.test(code)) {
+        showAppMessage(t('auth_signup_code_invalid'), { tone: 'error' });
+        return;
+    }
+    try {
+        state.isLoginSubmitting = true;
+        const data = await apiConfirmSignupEmailCode(email, code);
+        state.accountLoginIdSetup = {
+            ...(state.accountLoginIdSetup || {}),
+            open: true,
+            token: data.email_verification_token || '',
+        };
+        stopAccountLoginIdSetupCountdown();
+        showAppMessage(t('auth_signup_email_verified'), { tone: 'success' });
+    } catch (e) {
+        showAppMessage(t('auth_signup_code_invalid'), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+        renderMyPage();
+        updateAccountLoginIdSetupSubmitState();
+    }
+}
+
+async function handleAccountLoginIdSetupSubmit() {
+    if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    const email = state.accountLoginIdSetup?.email || '';
+    const verificationToken = state.accountLoginIdSetup?.token || '';
+    const loginId = document.getElementById('account-login-id')?.value.trim() || '';
+    const realName = document.getElementById('account-real-name')?.value.trim() || '';
+    const password = document.getElementById('account-password')?.value || '';
+    const passwordConfirm = document.getElementById('account-password-confirm')?.value || '';
+    const loginIdReady = state.loginIdAvailability?.value === loginId && state.loginIdAvailability?.status === 'available';
+
+    if (!verificationToken || !isValidEmailInput(email)) {
+        showAppMessage(t('auth_email_verification_required'), { tone: 'error' });
+        return;
+    }
+    if (!loginIdReady) {
+        showAppMessage(t('auth_login_id_check_required'), { tone: 'error' });
+        return;
+    }
+    if (!isValidRealName(realName)) {
+        showAppMessage(t('auth_real_name_format_error'), { tone: 'error' });
+        return;
+    }
+    if (!isValidSignupPassword(password) || password !== passwordConfirm) {
+        showAppMessage(t('auth_password_confirm_mismatch'), { tone: 'error' });
+        return;
+    }
+
+    try {
+        state.isLoginSubmitting = true;
+        if (!getLinkedProviderIds().includes('password')) {
+            const credential = firebase.auth.EmailAuthProvider.credential(email, password);
+            await firebase.auth().currentUser.linkWithCredential(credential);
+        }
+        const token = await firebaseAuth.currentUser.getIdToken(true);
+        state.account = await apiCreateCurrentUserLoginId(token, {
+            login_id: loginId,
+            real_name: realName,
+            email_verification_token: verificationToken,
+            language: state.language || 'ko',
+        });
+        state.isAdmin = !!state.account?.is_admin;
+        await firebaseAuth.currentUser.reload();
+        await refreshAccountFromFirebaseUser();
+        closeAccountLoginIdSetupDialog();
+        showAppMessage(t('account_login_id_create_success'), { tone: 'success' });
+    } catch (e) {
+        console.error('Account login ID setup failed', e);
+        const detail = e?.code || e?.message || 'login_id_create_failed';
+        const key = detail === 'auth/email-already-in-use' || detail === 'email_taken'
+            ? 'account_login_id_create_email_taken'
+            : detail === 'auth/provider-already-linked'
+                ? 'account_login_id_already_set'
+                : detail === 'auth/operation-not-allowed'
+                    ? 'account_login_id_create_error'
+            : detail === 'login_id_taken'
+                ? 'auth_login_id_taken'
+                : detail === 'login_id_already_set'
+                    ? 'account_login_id_already_set'
+                    : 'account_login_id_create_error';
+        showAppMessage(t(key), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+        renderSidebar();
         renderMyPage();
     }
 }
@@ -835,6 +1345,7 @@ async function handleLinkSocialProvider(providerKey) {
         renderSidebar();
         showAppMessage(t('auth_social_link_success'), { tone: 'success' });
     } catch (e) {
+        console.error('Social provider link failed', providerKey, e);
         if (firebaseLinked && providerKey === 'google') {
             try {
                 await firebaseAuth.currentUser.unlink('google.com');
@@ -857,17 +1368,72 @@ async function handleBackendOAuthLink(providerKey) {
     if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
     try {
         state.isLoginSubmitting = true;
-        const token = await firebaseAuth.currentUser.getIdToken(true);
-        const data = await apiStartBackendOAuthLink(token, providerKey);
+        const data = await apiStartBackendOAuthLink(providerKey);
         const popup = window.open(data.url, `${providerKey}_link`, 'width=480,height=720');
         if (!popup) {
             showAppMessage(t('auth_popup_blocked'), { tone: 'error' });
             state.isLoginSubmitting = false;
+            return;
         }
+        watchBackendOAuthPopup(popup, true);
     } catch (e) {
-        showAppMessage(t('auth_social_link_error'), { tone: 'error' });
+        console.error('Backend OAuth link start failed', providerKey, e);
+        const detail = e?.message ? ` (${e.message})` : '';
+        showAppMessage(`${t('auth_social_link_error')}${detail}`, { tone: 'error' });
         state.isLoginSubmitting = false;
         renderMyPage();
+    }
+}
+
+async function handleUnlinkSocialProvider(providerKey) {
+    if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
+    if (!window.confirm(t('mypage_provider_unlink_confirm'))) return;
+    let backendResult = null;
+    let firebaseGoogleUnlinked = false;
+    let signedOutAfterUnlink = false;
+    try {
+        state.isLoginSubmitting = true;
+        backendResult = await apiUnlinkAuthProvider(providerKey);
+        const hasFirebaseGoogleProvider = getLinkedProviderIds().includes('google.com');
+        if (providerKey === 'google' && hasFirebaseGoogleProvider) {
+            await firebaseAuth.currentUser.unlink('google.com');
+            firebaseGoogleUnlinked = true;
+        }
+
+        if (backendResult?.signed_out_required) {
+            await firebaseAuth.signOut();
+            signedOutAfterUnlink = true;
+            setSignedOutState();
+            showAppMessage(t('mypage_provider_unlink_success_signed_out'), { tone: 'success' });
+            navigateTo('login', renderLogin);
+            return;
+        }
+
+        state.account = {
+            ...(state.account || {}),
+            ...backendResult,
+            profile: backendResult.profile,
+            linked_providers: backendResult.linked_providers || [],
+        };
+        state.isAdmin = !!backendResult?.is_admin;
+        await refreshAccountFromFirebaseUser();
+        showAppMessage(t('mypage_provider_unlink_success'), { tone: 'success' });
+    } catch (e) {
+        console.error('Social provider unlink failed', providerKey, e);
+        if (providerKey === 'google' && backendResult && !firebaseGoogleUnlinked && firebaseAuth?.currentUser) {
+            try {
+                const token = await firebaseAuth.currentUser.getIdToken(true);
+                state.account = await apiRecordFirebaseProviderLink(token, 'google');
+            } catch (rollbackError) {
+                console.error('Google provider unlink rollback failed', rollbackError);
+            }
+        }
+        const detailKey = e?.message || 'auth_provider_unlink_failed';
+        showAppMessage(t('mypage_provider_unlink_error', { detail: t(detailKey) }), { tone: 'error' });
+    } finally {
+        state.isLoginSubmitting = false;
+        renderSidebar();
+        if (!signedOutAfterUnlink) renderMyPage();
     }
 }
 
@@ -962,4 +1528,118 @@ async function signOutAccount() {
     }
     setSignedOutState();
     renderSidebar();
+}
+
+// ─── 닉네임(display_name) 변경 ────────────────────────────────────────
+
+function handleDisplayNameChangeBtnClick() {
+    if (isDisplayNameChangeCooldown()) {
+        const availableDate = getDisplayNameChangeAvailableDate();
+        const msg = t('display_name_change_cooldown_desc', { date: availableDate });
+        showAppMessage(msg, { tone: 'info' });
+        return;
+    }
+    openDisplayNameChangeDialog();
+}
+
+function openDisplayNameChangeDialog() {
+    state.accountDisplayNameChange = {
+        open: true,
+        displayName: '',
+        available: null,
+        checking: false,
+        submitting: false,
+        errorKey: null,
+        takenKey: null,
+    };
+    renderMyPage();
+    setTimeout(() => {
+        document.getElementById('display-name-change-input')?.focus();
+    }, 50);
+}
+
+function closeDisplayNameChangeDialog() {
+    state.accountDisplayNameChange = {
+        open: false,
+        displayName: '',
+        available: null,
+        checking: false,
+        submitting: false,
+        errorKey: null,
+        takenKey: null,
+    };
+    renderMyPage();
+}
+
+function handleDisplayNameChangeInput() {
+    const val = document.getElementById('display-name-change-input')?.value || '';
+    state.accountDisplayNameChange.displayName = val;
+    state.accountDisplayNameChange.available = null;
+    state.accountDisplayNameChange.errorKey = null;
+    state.accountDisplayNameChange.takenKey = null;
+    renderMyPageModalRoot();
+}
+
+async function handleDisplayNameChangeCheck() {
+    const displayName = (state.accountDisplayNameChange?.displayName || '').trim();
+    if (!displayName) return;
+    state.accountDisplayNameChange.checking = true;
+    state.accountDisplayNameChange.available = null;
+    state.accountDisplayNameChange.errorKey = null;
+    state.accountDisplayNameChange.takenKey = null;
+    renderMyPageModalRoot();
+    try {
+        const result = await apiCheckMyDisplayNameAvailability(displayName);
+        state.accountDisplayNameChange.available = result.available;
+        if (!result.available) {
+            state.accountDisplayNameChange.takenKey = 'auth_display_name_taken';
+        }
+    } catch (e) {
+        const errKey = e?.message || 'display_name_check_failed';
+        state.accountDisplayNameChange.available = false;
+        state.accountDisplayNameChange.errorKey = errKey;
+    } finally {
+        state.accountDisplayNameChange.checking = false;
+        renderMyPageModalRoot();
+    }
+}
+
+async function handleDisplayNameChangeSubmit() {
+    const s = state.accountDisplayNameChange;
+    if (!s || s.available !== true || s.submitting) return;
+    const displayName = (s.displayName || '').trim();
+    if (!displayName) return;
+
+    s.submitting = true;
+    renderMyPageModalRoot();
+
+    try {
+        const result = await apiChangeMyDisplayName(displayName);
+        // 로컬 state 업데이트
+        if (state.account?.profile) {
+            state.account.profile.display_name = result.display_name;
+            state.account.profile.display_name_changed_at = result.display_name_changed_at;
+        }
+        if (state.account) {
+            state.account.display_name_changed_at = result.display_name_changed_at;
+        }
+        closeDisplayNameChangeDialog();
+        showAppMessage(t('display_name_change_success'), { tone: 'success' });
+        // 마이페이지 데이터 새로고침
+        await apiFetchMyPage();
+        renderMyPage();
+    } catch (e) {
+        s.submitting = false;
+        const errKey = e?.message || 'display_name_change_failed';
+        if (errKey === 'display_name_change_cooldown') {
+            s.errorKey = 'display_name_change_cooldown_error';
+            s.available = null;
+        } else if (errKey === 'display_name_taken') {
+            s.available = false;
+            s.takenKey = 'auth_display_name_taken';
+        } else {
+            s.errorKey = errKey;
+        }
+        renderMyPageModalRoot();
+    }
 }

@@ -62,6 +62,12 @@ function applyAnimationVars(element, vars) {
 function navigateTo(viewId, renderFunction, ...args) {
     const onboardingViews = ['login'];
     const contentViews = ['category', 'list', 'play', 'about', 'results', 'mypage', 'privacy'];
+    if (viewId !== 'login' && typeof requiresDisplayNameSetup === 'function' && requiresDisplayNameSetup()) {
+        state.authMode = 'display_name';
+        viewId = 'login';
+        renderFunction = renderLogin;
+        args = [];
+    }
 
     const onboardingLayer = document.getElementById('onboarding-layer');
     const onboardingSlider = document.getElementById('onboarding-slider');

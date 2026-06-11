@@ -1,4 +1,5 @@
 async function selectCategory(category) {
+    if (!ensureDisplayNameSetupComplete()) return;
     state.selectedCategory = category;
     try {
         await apiFetchUserEvals();
@@ -26,6 +27,7 @@ async function handleLogout() {
 }
 
 async function openMyPage() {
+    if (!ensureDisplayNameSetupComplete()) return;
     try {
         await apiFetchMyPage();
         state.profileBadgeSelection = state.myPageData?.profile_badge_key || '';
