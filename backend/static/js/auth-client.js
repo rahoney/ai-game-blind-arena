@@ -1529,10 +1529,7 @@ function handleDisplayNameChangeBtnClick() {
     if (isDisplayNameChangeCooldown()) {
         const availableDate = getDisplayNameChangeAvailableDate();
         const msg = t('display_name_change_cooldown_desc', { date: availableDate });
-        showAppMessage(msg, {
-            tone: 'info',
-            title: t('display_name_change_cooldown_title'),
-        });
+        showAppMessage(msg, { tone: 'info' });
         return;
     }
     openDisplayNameChangeDialog();
