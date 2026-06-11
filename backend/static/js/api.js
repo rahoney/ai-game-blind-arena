@@ -114,6 +114,33 @@ async function apiCheckDisplayNameAvailability(displayName) {
     return data;
 }
 
+async function apiCheckMyDisplayNameAvailability(displayName) {
+    const headers = await getCurrentAuthHeaders();
+    const res = await fetch(`${API_BASE}/auth/me/display-name/check?display_name=${encodeURIComponent(displayName)}`, {
+        cache: 'no-store',
+        headers,
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'display_name_check_failed');
+    }
+    return data;
+}
+
+async function apiChangeMyDisplayName(displayName) {
+    const headers = await getCurrentAuthHeaders(true);
+    const res = await fetch(`${API_BASE}/auth/me/display-name`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ display_name: displayName }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        throw new Error(data?.detail || 'display_name_change_failed');
+    }
+    return data;
+}
+
 async function apiResolveLoginIdEmail(loginId) {
     const res = await fetch(`${API_BASE}/auth/login-id-email`, {
         method: 'POST',

@@ -1522,3 +1522,120 @@ async function signOutAccount() {
     setSignedOutState();
     renderSidebar();
 }
+
+// ─── 닉네임(display_name) 변경 ────────────────────────────────────────
+
+function handleDisplayNameChangeBtnClick() {
+    if (isDisplayNameChangeCooldown()) {
+        const availableDate = getDisplayNameChangeAvailableDate();
+        const msg = t('display_name_change_cooldown_desc', { date: availableDate });
+        showAppMessage(msg, {
+            tone: 'info',
+            title: t('display_name_change_cooldown_title'),
+        });
+        return;
+    }
+    openDisplayNameChangeDialog();
+}
+
+function openDisplayNameChangeDialog() {
+    state.accountDisplayNameChange = {
+        open: true,
+        displayName: '',
+        available: null,
+        checking: false,
+        submitting: false,
+        errorKey: null,
+        takenKey: null,
+    };
+    renderMyPage();
+    setTimeout(() => {
+        document.getElementById('display-name-change-input')?.focus();
+    }, 50);
+}
+
+function closeDisplayNameChangeDialog() {
+    state.accountDisplayNameChange = {
+        open: false,
+        displayName: '',
+        available: null,
+        checking: false,
+        submitting: false,
+        errorKey: null,
+        takenKey: null,
+    };
+    renderMyPage();
+}
+
+function handleDisplayNameChangeInput() {
+    const val = document.getElementById('display-name-change-input')?.value || '';
+    state.accountDisplayNameChange.displayName = val;
+    state.accountDisplayNameChange.available = null;
+    state.accountDisplayNameChange.errorKey = null;
+    state.accountDisplayNameChange.takenKey = null;
+    renderMyPageModalRoot();
+}
+
+async function handleDisplayNameChangeCheck() {
+    const displayName = (state.accountDisplayNameChange?.displayName || '').trim();
+    if (!displayName) return;
+    state.accountDisplayNameChange.checking = true;
+    state.accountDisplayNameChange.available = null;
+    state.accountDisplayNameChange.errorKey = null;
+    state.accountDisplayNameChange.takenKey = null;
+    renderMyPageModalRoot();
+    try {
+        const result = await apiCheckMyDisplayNameAvailability(displayName);
+        state.accountDisplayNameChange.available = result.available;
+        if (!result.available) {
+            state.accountDisplayNameChange.takenKey = 'auth_display_name_taken';
+        }
+    } catch (e) {
+        const errKey = e?.message || 'display_name_check_failed';
+        state.accountDisplayNameChange.available = false;
+        state.accountDisplayNameChange.errorKey = errKey;
+    } finally {
+        state.accountDisplayNameChange.checking = false;
+        renderMyPageModalRoot();
+    }
+}
+
+async function handleDisplayNameChangeSubmit() {
+    const s = state.accountDisplayNameChange;
+    if (!s || s.available !== true || s.submitting) return;
+    const displayName = (s.displayName || '').trim();
+    if (!displayName) return;
+
+    s.submitting = true;
+    renderMyPageModalRoot();
+
+    try {
+        const result = await apiChangeMyDisplayName(displayName);
+        // 로컬 state 업데이트
+        if (state.account?.profile) {
+            state.account.profile.display_name = result.display_name;
+            state.account.profile.display_name_changed_at = result.display_name_changed_at;
+        }
+        if (state.account) {
+            state.account.display_name_changed_at = result.display_name_changed_at;
+        }
+        closeDisplayNameChangeDialog();
+        showAppMessage(t('display_name_change_success'), { tone: 'success' });
+        // 마이페이지 데이터 새로고침
+        await apiFetchMyPage();
+        renderMyPage();
+    } catch (e) {
+        s.submitting = false;
+        const errKey = e?.message || 'display_name_change_failed';
+        if (errKey === 'display_name_change_cooldown') {
+            s.errorKey = 'display_name_change_cooldown_error';
+            s.available = null;
+        } else if (errKey === 'display_name_taken') {
+            s.available = false;
+            s.takenKey = 'auth_display_name_taken';
+        } else {
+            s.errorKey = errKey;
+        }
+        renderMyPageModalRoot();
+    }
+}

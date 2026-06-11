@@ -163,10 +163,89 @@ function renderAccountLoginIdSetupDialog() {
     `;
 }
 
+function isDisplayNameChangeCooldown() {
+    const profile = state.account?.profile || {};
+    const baseDate = state.account?.display_name_changed_at || profile.display_name_changed_at || profile.created_at;
+    if (!baseDate) return false;
+    const elapsed = (Date.now() - new Date(baseDate).getTime()) / (1000 * 60 * 60 * 24);
+    return elapsed < 30;
+}
+
+function getDisplayNameChangeAvailableDate() {
+    const profile = state.account?.profile || {};
+    const baseDate = state.account?.display_name_changed_at || profile.display_name_changed_at || profile.created_at;
+    if (!baseDate) return '';
+    const available = new Date(new Date(baseDate).getTime() + 30 * 24 * 60 * 60 * 1000);
+    return available.toISOString().slice(0, 10);
+}
+
+function renderDisplayNameChangeDialog() {
+    if (!state.accountDisplayNameChange?.open) return '';
+    const s = state.accountDisplayNameChange;
+    const isChecking = !!s.checking;
+    const isSubmitting = !!s.submitting;
+    const available = s.available;
+    const canSubmit = available === true && !isSubmitting;
+
+    let statusMsg = '';
+    if (s.errorKey) {
+        statusMsg = `<p class="auth-field-message error">${escapeHtml(t(s.errorKey))}</p>`;
+    } else if (available === true) {
+        statusMsg = `<p class="auth-field-message success">${t('auth_display_name_available')}</p>`;
+    } else if (available === false) {
+        statusMsg = `<p class="auth-field-message error">${t(s.takenKey || 'auth_display_name_taken')}</p>`;
+    }
+
+    return `
+        <div class="mypage-dialog-backdrop" role="presentation">
+            <div class="mypage-dialog" role="dialog" aria-modal="true" aria-labelledby="display-name-change-title">
+                <div class="mypage-dialog-header">
+                    <h3 id="display-name-change-title">${t('display_name_change_title')}</h3>
+                    <button type="button" class="mypage-dialog-close" onclick="closeDisplayNameChangeDialog()" aria-label="${t('btn_back')}">×</button>
+                </div>
+                <p class="mypage-dialog-desc">${t('display_name_change_desc')}</p>
+                <label class="mypage-dialog-label" for="display-name-change-input">${t('auth_display_name_label')}</label>
+                <div class="mypage-dialog-inline-field">
+                    <input
+                        type="text"
+                        id="display-name-change-input"
+                        maxlength="14"
+                        placeholder="${t('auth_display_name_placeholder')}"
+                        value="${escapeHtml(s.displayName || '')}"
+                        oninput="handleDisplayNameChangeInput()"
+                        ${isSubmitting ? 'disabled' : ''}
+                    >
+                    <button
+                        type="button"
+                        class="secondary"
+                        id="display-name-check-btn"
+                        onclick="handleDisplayNameChangeCheck()"
+                        ${isChecking || isSubmitting ? 'disabled' : ''}
+                    >${isChecking ? t('auth_display_name_checking') : t('auth_display_name_check')}</button>
+                </div>
+                ${statusMsg}
+                <div class="mypage-dialog-actions">
+                    <button
+                        id="display-name-change-submit-btn"
+                        type="button"
+                        onclick="handleDisplayNameChangeSubmit()"
+                        ${canSubmit ? '' : 'disabled'}
+                    >${t('display_name_change_submit')}</button>
+                    <button type="button" class="secondary" onclick="closeDisplayNameChangeDialog()">${t('admin_password_cancel')}</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function renderMyPageModalRoot() {
     const root = document.getElementById('global-modal-root');
     if (!root) return;
-    root.innerHTML = `${renderAccountEmailChangeDialog()}${renderAccountLoginIdSetupDialog()}`;
+    root.innerHTML = [
+        renderAccountEmailChangeDialog(),
+        renderAccountLoginIdSetupDialog(),
+        renderDisplayNameChangeDialog(),
+    ].join('');
 }
 
 function renderMyPageAccountManagementPanel() {
@@ -185,6 +264,17 @@ function renderMyPageAccountManagementPanel() {
             <div class="mypage-account-section">
                 <h4>${t('mypage_account_basic_info')}</h4>
                 <dl class="mypage-account-definition-list">
+                    <div>
+                        <dt>${t('mypage_display_name_label')}</dt>
+                        <dd>
+                            <span>${escapeHtml(getMyPageProfileValue('display_name') || '-')}</span>
+                            <button
+                                type="button"
+                                class="mypage-inline-link"
+                                onclick="handleDisplayNameChangeBtnClick()"
+                            >${t('mypage_display_name_change')}</button>
+                        </dd>
+                    </div>
                     <div>
                         <dt>${t('mypage_login_id_label')}</dt>
                         <dd>

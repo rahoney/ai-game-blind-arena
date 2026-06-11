@@ -173,3 +173,12 @@ class ProfileBadgeUpdate(BaseModel):
     @classmethod
     def strip_profile_badge_fields(cls, value):
         return value.strip() if isinstance(value, str) else value
+
+
+class AccountDisplayNameChange(BaseModel):
+    display_name: str = Field(min_length=1, max_length=20)
+
+    @field_validator("display_name", mode="before")
+    @classmethod
+    def strip_display_name_change(cls, value):
+        return value.strip() if isinstance(value, str) else value

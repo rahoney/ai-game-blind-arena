@@ -18,6 +18,13 @@ let state = {
         codeSent: false,
         expiresAt: 0,
     },
+    accountDisplayNameChange: {
+        open: false,
+        displayName: '',
+        available: null,
+        checking: false,
+        submitting: false,
+    },
     accountLoginIdSetup: {
         open: false,
         email: '',

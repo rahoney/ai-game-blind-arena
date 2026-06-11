@@ -39,6 +39,7 @@ try:
         CommentReplyCreate,
         AdminBlindToggle,
         ProfileBadgeUpdate,
+        AccountDisplayNameChange,
     )
     from .services import GAMES_DATA, get_category_meta
     from .utils import (
@@ -77,6 +78,7 @@ except ImportError:
         CommentReplyCreate,
         AdminBlindToggle,
         ProfileBadgeUpdate,
+        AccountDisplayNameChange,
     )
     from services import GAMES_DATA, get_category_meta
     from utils import (
@@ -2575,6 +2577,7 @@ async def auth_me(request: Request):
         "profile": profile,
         "linked_providers": linked_providers,
         "is_admin": profile.get("role") in ("admin", "super_admin"),
+        "display_name_changed_at": profile.get("display_name_changed_at"),
     }
 
 
@@ -2627,6 +2630,78 @@ async def check_display_name_availability(display_name: str):
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail="display_name_check_failed") from exc
+
+
+@app.get("/api/auth/me/display-name/check")
+async def check_my_display_name_availability(display_name: str, request: Request):
+    """로그인한 사용자의 닉네임 변경용 중복 확인. 본인 닉네임은 중복으로 처리하지 않는다."""
+    user = require_firebase_user(request)
+    uid = user.get("uid", "")
+    normalized = (display_name or "").strip()
+    is_valid, error_key = validate_display_name(normalized)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_key)
+    try:
+        return {
+            "display_name": normalized,
+            "available": not _is_display_name_taken(normalized, uid),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="display_name_check_failed") from exc
+
+
+@app.post("/api/auth/me/display-name")
+async def change_my_display_name(payload: AccountDisplayNameChange, request: Request):
+    """로그인한 사용자의 닉네임 변경. 30일 쿨다운 적용."""
+    user = require_firebase_user(request)
+    uid = user.get("uid", "")
+    display_name = payload.display_name
+
+    # Step 1: 쿨다운 체크 (가장 먼저)
+    profile = _resolve_profile_for_firebase_user(user)
+    base_date_str = profile.get("display_name_changed_at") or profile.get("created_at")
+    if base_date_str:
+        try:
+            from datetime import datetime, timezone, timedelta
+            base_date = datetime.fromisoformat(base_date_str.replace("Z", "+00:00"))
+            if datetime.now(timezone.utc) - base_date < timedelta(days=30):
+                raise HTTPException(status_code=429, detail="display_name_change_cooldown")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    # Step 2: 형식 + 필터 검증
+    is_valid, error_key = validate_display_name(display_name)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_key)
+
+    # Step 3: 중복 확인 (본인 제외)
+    if _is_display_name_taken(display_name, uid):
+        raise HTTPException(status_code=409, detail="display_name_taken")
+
+    # Step 4: DB 업데이트
+    now_iso = _now_iso()
+    if LOCAL_TEST_MODE:
+        if uid in LOCAL_DB["profiles"]:
+            LOCAL_DB["profiles"][uid]["display_name"] = display_name
+            LOCAL_DB["profiles"][uid]["display_name_changed_at"] = now_iso
+        return {"display_name": display_name, "display_name_changed_at": now_iso}
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    try:
+        supabase.table("profiles").update({
+            "display_name": display_name,
+            "display_name_changed_at": now_iso,
+            "updated_at": now_iso,
+        }).eq("firebase_uid", uid).execute()
+        return {"display_name": display_name, "display_name_changed_at": now_iso}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="display_name_change_failed") from exc
 
 
 @app.post("/api/auth/login-id-email")
