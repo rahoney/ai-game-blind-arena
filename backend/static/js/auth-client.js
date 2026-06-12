@@ -587,27 +587,116 @@ async function initializeFirebaseAuth() {
     }
 }
 
-async function refreshAccountFromFirebaseUser() {
+function rerenderPostAuthDataViews() {
+    if (state.currentView?.id === 'category') {
+        renderCategorySelection();
+    } else if (state.currentView?.id === 'list') {
+        renderGameList();
+    } else if (state.currentView?.id === 'mypage') {
+        renderMyPage();
+    }
+    renderSidebar();
+}
+
+function setAuthBusyState(isBusy, context = '') {
+    state.isLoginSubmitting = isBusy;
+    state.authBusyContext = isBusy ? context : '';
+}
+
+function rerenderAuthBusySurface() {
+    if (state.currentView?.id === 'mypage') {
+        renderMyPage();
+        return;
+    }
+    if (state.currentView?.id === 'login' || ['login', 'signup', 'display_name', 'verify_email', 'help', 'find_id', 'reset_password'].includes(state.authMode)) {
+        renderLogin();
+    }
+}
+
+function syncCurrentAuthUserSnapshot() {
+    if (!firebaseAuth?.currentUser) {
+        state.authUser = null;
+        return;
+    }
+    state.authUser = firebaseAuth.currentUser;
+}
+
+async function refreshGameCatalog(options = {}) {
+    const { rerender = true } = options;
+    const startedAt = window.performance?.now?.() || Date.now();
+    state.gamesLoading = true;
+    if (rerender) rerenderPostAuthDataViews();
+    try {
+        await apiFetchGames();
+        const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
+        console.info(`[perf] apiFetchGames ${elapsedMs.toFixed(1)}ms`);
+    } finally {
+        state.gamesLoading = false;
+        if (rerender) rerenderPostAuthDataViews();
+    }
+}
+
+async function refreshUserEvaluations(options = {}) {
+    const { rerender = true, force = false, minFreshMs = 0 } = options;
+    if (!firebaseAuth?.currentUser) {
+        state.userEvals = [];
+        state.userEvalsLoading = false;
+        state.userEvalsFetchedAt = 0;
+        if (rerender) rerenderPostAuthDataViews();
+        return;
+    }
+    const nowMs = Date.now();
+    if (!force && !state.userEvalsLoading && state.userEvalsFetchedAt && (nowMs - state.userEvalsFetchedAt) < minFreshMs) {
+        if (rerender) rerenderPostAuthDataViews();
+        return;
+    }
+    const startedAt = window.performance?.now?.() || Date.now();
+    state.userEvalsLoading = true;
+    try {
+        await apiFetchUserEvals();
+        state.userEvalsFetchedAt = Date.now();
+        const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
+        console.info(`[perf] apiFetchUserEvals ${elapsedMs.toFixed(1)}ms`);
+    } finally {
+        state.userEvalsLoading = false;
+        if (rerender) rerenderPostAuthDataViews();
+    }
+}
+
+async function refreshAccountFromFirebaseUser(options = {}) {
+    const { forceTokenRefresh = false } = options;
     if (!firebaseAuth?.currentUser) return null;
-    const token = await firebaseAuth.currentUser.getIdToken(true);
+    const startedAt = window.performance?.now?.() || Date.now();
+    const token = await firebaseAuth.currentUser.getIdToken(forceTokenRefresh);
+    syncCurrentAuthUserSnapshot();
     syncBlindSeedForAuthUser(firebaseAuth.currentUser.uid);
     state.account = await apiFetchAuthMe(token);
     state.isAdmin = !!state.account?.is_admin;
+    const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
+    console.info(`[perf] apiFetchAuthMe ${elapsedMs.toFixed(1)}ms forceTokenRefresh=${forceTokenRefresh}`);
     renderSidebar();
     return state.account;
 }
 
-async function refreshSignedInGameState() {
-    try {
-        await apiFetchGames();
-    } catch (e) {
+function refreshSignedInGameState(options = {}) {
+    const {
+        waitForGames = true,
+        waitForUserEvals = false,
+        rerender = true,
+    } = options;
+
+    const gamePromise = refreshGameCatalog({ rerender }).catch((e) => {
         console.error('Game data load failed', e);
-    }
-    try {
-        await apiFetchUserEvals();
-    } catch (e) {
+    });
+    const userEvalPromise = refreshUserEvaluations({ rerender }).catch((e) => {
         console.error('User evaluation load failed', e);
-    }
+    });
+
+    return {
+        gamePromise: waitForGames ? gamePromise : Promise.resolve(),
+        userEvalPromise: waitForUserEvals ? userEvalPromise : Promise.resolve(),
+        allPromise: Promise.allSettled([gamePromise, userEvalPromise]),
+    };
 }
 
 async function handleEmailAuth(mode) {
@@ -639,7 +728,8 @@ async function handleEmailAuth(mode) {
     }
 
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, mode === 'signup' ? 'signup_submit' : 'login_submit');
+        rerenderAuthBusySurface();
         if (mode === 'signup') {
             await firebaseAuth.createUserWithEmailAndPassword(email, password);
             await firebaseAuth.currentUser.updateProfile({ displayName: identity.display_name });
@@ -664,8 +754,13 @@ async function handleEmailAuth(mode) {
             renderLogin();
             return;
         }
-        await refreshSignedInGameState();
+        const { gamePromise, allPromise } = refreshSignedInGameState({
+            waitForGames: true,
+            waitForUserEvals: false,
+        });
+        await gamePromise;
         navigateTo('category', renderCategorySelection);
+        void allPromise;
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, mode), { tone: 'error' });
         if (mode === 'signup' && firebaseAuth.currentUser) {
@@ -673,7 +768,8 @@ async function handleEmailAuth(mode) {
             renderLogin();
         }
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
+        rerenderAuthBusySurface();
     }
 }
 
@@ -686,7 +782,8 @@ async function handleSignupEmailCodeRequest() {
         return;
     }
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, wasCodeSent ? 'signup_code_resend' : 'signup_code_send');
+        renderLogin();
         const data = await apiRequestSignupEmailCode(email);
         state.signupEmailVerification = {
             email,
@@ -703,7 +800,7 @@ async function handleSignupEmailCodeRequest() {
     } catch (e) {
         showAppMessage(getFriendlyAuthError({ code: e?.message || 'mail_send_failed' }, 'signup'), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderLogin();
     }
 }
@@ -717,7 +814,8 @@ async function handleSignupEmailCodeConfirm() {
         return;
     }
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, 'signup_code_confirm');
+        renderLogin();
         const data = await apiConfirmSignupEmailCode(email, code);
         state.signupEmailVerification = {
             ...state.signupEmailVerification,
@@ -729,7 +827,7 @@ async function handleSignupEmailCodeConfirm() {
     } catch (e) {
         showAppMessage(t('auth_signup_code_invalid'), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderLogin();
     }
 }
@@ -745,13 +843,14 @@ function getSignupCodeCountdownText() {
 async function handleResendVerificationEmail() {
     if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, 'verify_email_resend');
+        renderLogin();
         await firebaseAuth.currentUser.sendEmailVerification();
         showAppMessage(t('auth_email_verification_resent'), { tone: 'success' });
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, 'login'), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderLogin();
     }
 }
@@ -759,7 +858,8 @@ async function handleResendVerificationEmail() {
 async function handleVerifyEmailRefresh() {
     if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, 'verify_email_check');
+        renderLogin();
         await firebaseAuth.currentUser.reload();
         state.authUser = firebaseAuth.currentUser;
         if (needsEmailVerification()) {
@@ -773,12 +873,18 @@ async function handleVerifyEmailRefresh() {
             renderLogin();
             return;
         }
-        await refreshSignedInGameState();
+        const { gamePromise, allPromise } = refreshSignedInGameState({
+            waitForGames: true,
+            waitForUserEvals: false,
+        });
+        await gamePromise;
         navigateTo('category', renderCategorySelection);
+        void allPromise;
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, 'login'), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
+        rerenderAuthBusySurface();
     }
 }
 
@@ -794,7 +900,8 @@ async function handleSocialLogin(providerKey) {
     const providerConfig = SOCIAL_AUTH_PROVIDERS[providerKey];
     if (!providerConfig) return;
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, `social_login_${providerKey}`);
+        renderLogin();
         const provider = providerConfig.createProvider();
         await firebaseAuth.signInWithPopup(provider);
         await refreshAccountFromFirebaseUser();
@@ -803,12 +910,18 @@ async function handleSocialLogin(providerKey) {
             navigateTo('login', renderLogin);
             return;
         }
-        await refreshSignedInGameState();
+        const { gamePromise, allPromise } = refreshSignedInGameState({
+            waitForGames: true,
+            waitForUserEvals: false,
+        });
+        await gamePromise;
         navigateTo('category', renderCategorySelection);
+        void allPromise;
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, 'login'), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
+        rerenderAuthBusySurface();
     }
 }
 
@@ -833,7 +946,7 @@ function watchBackendOAuthPopup(popup, isLinking) {
         clearInterval(backendOAuthPopupTimerId);
         backendOAuthPopupTimerId = null;
         if (isLinking && state.isLoginSubmitting) {
-            state.isLoginSubmitting = false;
+            setAuthBusyState(false);
             renderMyPage();
         }
     }, 500);
@@ -850,7 +963,7 @@ async function handleBackendOAuthMessage(event) {
             clearInterval(backendOAuthPopupTimerId);
             backendOAuthPopupTimerId = null;
         }
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         if (isLinking) renderMyPage();
         return;
     }
@@ -872,7 +985,7 @@ async function handleBackendOAuthMessage(event) {
             errorMessage = `${baseMessage}${detail}`;
         }
         showAppMessage(errorMessage, { tone: 'error' });
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         if (isLinking) renderMyPage();
         return;
     }
@@ -888,7 +1001,7 @@ async function handleBackendOAuthMessage(event) {
         } catch (e) {
             showAppMessage(t('auth_social_link_error'), { tone: 'error' });
         } finally {
-            state.isLoginSubmitting = false;
+            setAuthBusyState(false);
             renderMyPage();
         }
         return;
@@ -898,7 +1011,8 @@ async function handleBackendOAuthMessage(event) {
     if (!firebaseAuth || state.isLoginSubmitting) return;
 
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, 'social_login_custom_token');
+        renderLogin();
         await firebaseAuth.signInWithCustomToken(data.customToken);
         if (backendOAuthPopupTimerId) {
             clearInterval(backendOAuthPopupTimerId);
@@ -910,12 +1024,18 @@ async function handleBackendOAuthMessage(event) {
             navigateTo('login', renderLogin);
             return;
         }
-        await refreshSignedInGameState();
+        const { gamePromise, allPromise } = refreshSignedInGameState({
+            waitForGames: true,
+            waitForUserEvals: false,
+        });
+        await gamePromise;
         navigateTo('category', renderCategorySelection);
+        void allPromise;
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, 'login'), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
+        rerenderAuthBusySurface();
     }
 }
 
@@ -953,7 +1073,8 @@ async function handleCurrentUserPasswordReset() {
         return;
     }
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, 'password_reset');
+        renderMyPage();
         if (profile.real_name && profile.login_id && profile.email) {
             await apiRecoverPassword({
                 real_name: profile.real_name,
@@ -961,7 +1082,7 @@ async function handleCurrentUserPasswordReset() {
                 email: profile.email,
             });
         } else if (firebaseAuth?.currentUser) {
-            const token = await firebaseAuth.currentUser.getIdToken(true);
+            const token = await firebaseAuth.currentUser.getIdToken();
             await apiSendCurrentUserPasswordReset(token);
         } else {
             throw new Error('invalid_recovery_input');
@@ -970,7 +1091,7 @@ async function handleCurrentUserPasswordReset() {
     } catch (e) {
         showAppMessage(getFriendlyAuthError({ code: e?.message || 'mail_send_failed' }, 'login'), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderMyPage();
     }
 }
@@ -1016,8 +1137,9 @@ async function handleAccountEmailChangeCodeRequest() {
         return;
     }
     try {
-        state.isLoginSubmitting = true;
-        const token = await firebaseAuth.currentUser.getIdToken(true);
+        setAuthBusyState(true, wasCodeSent ? 'account_email_code_resend' : 'account_email_code_send');
+        renderMyPage();
+        const token = await firebaseAuth.currentUser.getIdToken();
         const data = await apiRequestCurrentUserEmailChangeCode(token, email);
         state.accountEmailChange = {
             open: true,
@@ -1039,7 +1161,7 @@ async function handleAccountEmailChangeCodeRequest() {
                 : 'auth_mail_send_failed';
         showAppMessage(t(key), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderMyPage();
         updateAccountEmailChangeCodeState();
         startAccountEmailChangeCountdown();
@@ -1055,12 +1177,13 @@ async function handleAccountEmailChangeConfirm() {
         return;
     }
     try {
-        state.isLoginSubmitting = true;
-        const token = await firebaseAuth.currentUser.getIdToken(true);
+        setAuthBusyState(true, 'account_email_code_confirm');
+        renderMyPage();
+        const token = await firebaseAuth.currentUser.getIdToken();
         state.account = await apiConfirmCurrentUserEmailChange(token, email, code);
         state.isAdmin = !!state.account?.is_admin;
         await firebaseAuth.currentUser.reload();
-        await refreshAccountFromFirebaseUser();
+        syncCurrentAuthUserSnapshot();
         state.accountEmailChange = {
             open: false,
             email: '',
@@ -1077,7 +1200,7 @@ async function handleAccountEmailChangeConfirm() {
                 : 'auth_signup_code_invalid';
         showAppMessage(t(key), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderSidebar();
         renderMyPage();
     }
@@ -1172,8 +1295,9 @@ async function handleAccountLoginIdSetupCodeRequest() {
         return;
     }
     try {
-        state.isLoginSubmitting = true;
-        const token = await firebaseAuth.currentUser.getIdToken(true);
+        setAuthBusyState(true, wasCodeSent ? 'account_login_id_code_resend' : 'account_login_id_code_send');
+        renderMyPage();
+        const token = await firebaseAuth.currentUser.getIdToken();
         const data = await apiRequestCurrentUserLoginIdCode(token, email);
         state.accountLoginIdSetup = {
             open: true,
@@ -1196,7 +1320,7 @@ async function handleAccountLoginIdSetupCodeRequest() {
                 : 'auth_mail_send_failed';
         showAppMessage(t(key), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderMyPage();
         updateAccountLoginIdSetupCodeState();
         startAccountLoginIdSetupCountdown();
@@ -1212,7 +1336,8 @@ async function handleAccountLoginIdSetupCodeConfirm() {
         return;
     }
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, 'account_login_id_code_confirm');
+        renderMyPage();
         const data = await apiConfirmSignupEmailCode(email, code);
         state.accountLoginIdSetup = {
             ...(state.accountLoginIdSetup || {}),
@@ -1224,7 +1349,7 @@ async function handleAccountLoginIdSetupCodeConfirm() {
     } catch (e) {
         showAppMessage(t('auth_signup_code_invalid'), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderMyPage();
         updateAccountLoginIdSetupSubmitState();
     }
@@ -1258,7 +1383,8 @@ async function handleAccountLoginIdSetupSubmit() {
     }
 
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, 'account_login_id_submit');
+        renderMyPage();
         if (!getLinkedProviderIds().includes('password')) {
             const credential = firebase.auth.EmailAuthProvider.credential(email, password);
             await firebase.auth().currentUser.linkWithCredential(credential);
@@ -1272,7 +1398,7 @@ async function handleAccountLoginIdSetupSubmit() {
         });
         state.isAdmin = !!state.account?.is_admin;
         await firebaseAuth.currentUser.reload();
-        await refreshAccountFromFirebaseUser();
+        syncCurrentAuthUserSnapshot();
         closeAccountLoginIdSetupDialog();
         showAppMessage(t('account_login_id_create_success'), { tone: 'success' });
     } catch (e) {
@@ -1291,7 +1417,7 @@ async function handleAccountLoginIdSetupSubmit() {
                     : 'account_login_id_create_error';
         showAppMessage(t(key), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderSidebar();
         renderMyPage();
     }
@@ -1299,7 +1425,7 @@ async function handleAccountLoginIdSetupSubmit() {
 
 async function saveDisplayName(displayName) {
     if (!firebaseAuth?.currentUser) return null;
-    const token = await firebaseAuth.currentUser.getIdToken(true);
+    const token = await firebaseAuth.currentUser.getIdToken();
     state.account = await apiUpdateProfileDisplayName(token, displayName);
     state.isAdmin = !!state.account?.is_admin;
     return state.account;
@@ -1307,7 +1433,7 @@ async function saveDisplayName(displayName) {
 
 async function saveProfileIdentity(identity) {
     if (!firebaseAuth?.currentUser) return null;
-    const token = await firebaseAuth.currentUser.getIdToken(true);
+    const token = await firebaseAuth.currentUser.getIdToken();
     state.account = await apiUpdateProfileIdentity(token, identity);
     state.isAdmin = !!state.account?.is_admin;
     return state.account;
@@ -1315,7 +1441,7 @@ async function saveProfileIdentity(identity) {
 
 async function syncSocialProviders() {
     if (!firebaseAuth?.currentUser) return null;
-    const token = await firebaseAuth.currentUser.getIdToken(true);
+    const token = await firebaseAuth.currentUser.getIdToken();
     state.account = await apiUpdateSocialProviders(token, getLinkedProviderIds().map(normalizeProviderKey));
     state.isAdmin = !!state.account?.is_admin;
     renderSidebar();
@@ -1335,11 +1461,12 @@ async function handleLinkSocialProvider(providerKey) {
     if (!providerConfig) return;
     let firebaseLinked = false;
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, `provider_link_${providerKey}`);
+        renderMyPage();
         const provider = providerConfig.createProvider();
         await firebaseAuth.currentUser.linkWithPopup(provider);
         firebaseLinked = true;
-        const token = await firebaseAuth.currentUser.getIdToken(true);
+        const token = await firebaseAuth.currentUser.getIdToken();
         state.account = await apiRecordFirebaseProviderLink(token, providerKey);
         state.isAdmin = !!state.account?.is_admin;
         renderSidebar();
@@ -1354,12 +1481,17 @@ async function handleLinkSocialProvider(providerKey) {
             }
         }
         const code = e?.code || '';
-        const message = code === 'auth/provider-already-linked'
-            ? t('auth_social_already_linked')
+        const message = (
+            code === 'auth/provider-already-linked'
+            || code === 'auth/credential-already-in-use'
+            || code === 'auth/account-exists-with-different-credential'
+            || code === 'auth/email-already-in-use'
+        )
+            ? t('oauth_provider_already_in_use')
             : t('auth_social_link_error');
         showAppMessage(message, { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderMyPage();
     }
 }
@@ -1367,12 +1499,14 @@ async function handleLinkSocialProvider(providerKey) {
 async function handleBackendOAuthLink(providerKey) {
     if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, `provider_link_${providerKey}`);
+        renderMyPage();
         const data = await apiStartBackendOAuthLink(providerKey);
         const popup = window.open(data.url, `${providerKey}_link`, 'width=480,height=720');
         if (!popup) {
             showAppMessage(t('auth_popup_blocked'), { tone: 'error' });
-            state.isLoginSubmitting = false;
+            setAuthBusyState(false);
+            renderMyPage();
             return;
         }
         watchBackendOAuthPopup(popup, true);
@@ -1380,7 +1514,7 @@ async function handleBackendOAuthLink(providerKey) {
         console.error('Backend OAuth link start failed', providerKey, e);
         const detail = e?.message ? ` (${e.message})` : '';
         showAppMessage(`${t('auth_social_link_error')}${detail}`, { tone: 'error' });
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderMyPage();
     }
 }
@@ -1390,23 +1524,14 @@ async function handleUnlinkSocialProvider(providerKey) {
     if (!window.confirm(t('mypage_provider_unlink_confirm'))) return;
     let backendResult = null;
     let firebaseGoogleUnlinked = false;
-    let signedOutAfterUnlink = false;
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, `provider_unlink_${providerKey}`);
+        renderMyPage();
         backendResult = await apiUnlinkAuthProvider(providerKey);
         const hasFirebaseGoogleProvider = getLinkedProviderIds().includes('google.com');
         if (providerKey === 'google' && hasFirebaseGoogleProvider) {
             await firebaseAuth.currentUser.unlink('google.com');
             firebaseGoogleUnlinked = true;
-        }
-
-        if (backendResult?.signed_out_required) {
-            await firebaseAuth.signOut();
-            signedOutAfterUnlink = true;
-            setSignedOutState();
-            showAppMessage(t('mypage_provider_unlink_success_signed_out'), { tone: 'success' });
-            navigateTo('login', renderLogin);
-            return;
         }
 
         state.account = {
@@ -1416,13 +1541,13 @@ async function handleUnlinkSocialProvider(providerKey) {
             linked_providers: backendResult.linked_providers || [],
         };
         state.isAdmin = !!backendResult?.is_admin;
-        await refreshAccountFromFirebaseUser();
+        syncCurrentAuthUserSnapshot();
         showAppMessage(t('mypage_provider_unlink_success'), { tone: 'success' });
     } catch (e) {
         console.error('Social provider unlink failed', providerKey, e);
         if (providerKey === 'google' && backendResult && !firebaseGoogleUnlinked && firebaseAuth?.currentUser) {
             try {
-                const token = await firebaseAuth.currentUser.getIdToken(true);
+                const token = await firebaseAuth.currentUser.getIdToken();
                 state.account = await apiRecordFirebaseProviderLink(token, 'google');
             } catch (rollbackError) {
                 console.error('Google provider unlink rollback failed', rollbackError);
@@ -1431,9 +1556,9 @@ async function handleUnlinkSocialProvider(providerKey) {
         const detailKey = e?.message || 'auth_provider_unlink_failed';
         showAppMessage(t('mypage_provider_unlink_error', { detail: t(detailKey) }), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderSidebar();
-        if (!signedOutAfterUnlink) renderMyPage();
+        renderMyPage();
     }
 }
 
@@ -1441,7 +1566,8 @@ async function handleDeleteAccount() {
     if (!firebaseAuth?.currentUser || state.isLoginSubmitting) return;
     if (!window.confirm(t('mypage_delete_account_confirm'))) return;
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, 'account_delete');
+        renderMyPage();
         const token = await firebaseAuth.currentUser.getIdToken(true);
         await apiDeleteAccount(token);
         await firebaseAuth.signOut();
@@ -1451,7 +1577,7 @@ async function handleDeleteAccount() {
     } catch (e) {
         showAppMessage(t('mypage_delete_account_error', { detail: t(e?.message || 'account_delete_failed') }), { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
         renderSidebar();
     }
 }
@@ -1466,13 +1592,19 @@ async function handleDisplayNameSubmit() {
     }
 
     try {
-        state.isLoginSubmitting = true;
+        setAuthBusyState(true, 'display_name_submit');
+        rerenderAuthBusySurface();
         await firebaseAuth.currentUser.updateProfile({ displayName });
         await saveDisplayName(displayName);
         state.authMode = 'login';
-        await refreshSignedInGameState();
+        const { gamePromise, allPromise } = refreshSignedInGameState({
+            waitForGames: true,
+            waitForUserEvals: false,
+        });
+        await gamePromise;
         renderSidebar();
         navigateTo('category', renderCategorySelection);
+        void allPromise;
     } catch (e) {
         const detail = e?.message || '';
         const message = detail === 'display_name_taken'
@@ -1480,7 +1612,8 @@ async function handleDisplayNameSubmit() {
             : getDisplayNameErrorMessage(detail || 'display_name_generic_error');
         showAppMessage(message, { tone: 'error' });
     } finally {
-        state.isLoginSubmitting = false;
+        setAuthBusyState(false);
+        rerenderAuthBusySurface();
     }
 }
 

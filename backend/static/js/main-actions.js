@@ -1,12 +1,11 @@
 async function selectCategory(category) {
     if (!ensureDisplayNameSetupComplete()) return;
     state.selectedCategory = category;
-    try {
-        await apiFetchUserEvals();
-    } catch (e) {
-        console.error('User evaluation load failed', e);
-    }
     navigateTo('list', renderGameList);
+    refreshUserEvaluations({ minFreshMs: 10000 })
+        .catch((e) => {
+            console.error('User evaluation load failed', e);
+        });
 }
 
 async function handleLogout() {
@@ -28,14 +27,25 @@ async function handleLogout() {
 
 async function openMyPage() {
     if (!ensureDisplayNameSetupComplete()) return;
-    try {
-        await apiFetchMyPage();
-        state.profileBadgeSelection = state.myPageData?.profile_badge_key || '';
-        syncSeenUnlockedBadges(state.myPageData);
-        navigateTo('mypage', renderMyPage);
-    } catch (e) {
-        showAppMessage(t('mypage_load_error'), { tone: 'error' });
-    }
+    state.myPageLoading = true;
+    navigateTo('mypage', renderMyPage);
+    apiFetchMyPage()
+        .then((data) => {
+            state.profileBadgeSelection = data?.profile_badge_key || '';
+            syncSeenUnlockedBadges(data);
+            if (state.currentView?.id === 'mypage') {
+                renderMyPage();
+            }
+        })
+        .catch(() => {
+            showAppMessage(t('mypage_load_error'), { tone: 'error' });
+        })
+        .finally(() => {
+            state.myPageLoading = false;
+            if (state.currentView?.id === 'mypage') {
+                renderMyPage();
+            }
+        });
 }
 
 function selectProfileBadge(badgeKey) {
@@ -174,6 +184,21 @@ async function loadSelectedModelComments(options = {}) {
     }
 }
 
+async function readResponseErrorDetail(res, fallback = 'Unknown error') {
+    try {
+        const text = await res.text();
+        if (!text) return fallback;
+        try {
+            const data = JSON.parse(text);
+            return data?.detail || text || fallback;
+        } catch (parseError) {
+            return text || fallback;
+        }
+    } catch (readError) {
+        return fallback;
+    }
+}
+
 async function submitEvaluation() {
     if (state.isEvaluationSubmitting) return;
     const commentInput = document.getElementById('comment').value.trim();
@@ -200,20 +225,58 @@ async function submitEvaluation() {
     try {
         state.isEvaluationSubmitting = true;
         if (submitButton) submitButton.disabled = true;
-        const res = await apiSubmitEvaluation(payload);
-        if (res.ok) {
-            showAppMessage(t('evaluation_submit_success'), { tone: 'success' });
-            await apiFetchUserEvals();
-            const myPageData = await apiFetchMyPage();
-            notifyNewUnlockedBadges(myPageData, { shouldNotify: true });
-            document.getElementById('comment').value = '';
-            await loadSelectedModelComments({ showLoading: false });
-        } else {
-            const err = await res.json();
-            const translatedDetail = translateApiDetail(err?.detail);
-            showAppMessage(t('evaluation_submit_error', { detail: translatedDetail || err?.detail || 'Unknown error' }), { tone: 'error' });
+        let res;
+        try {
+            res = await apiSubmitEvaluation(payload);
+        } catch (requestError) {
+            console.error('Evaluation submit request failed', requestError);
+            showAppMessage(t('evaluation_submit_network_error'), { tone: 'error' });
+            return;
         }
-    } catch (e) {
+
+        if (!res.ok) {
+            const rawDetail = await readResponseErrorDetail(res, `HTTP ${res.status}`);
+            const translatedDetail = translateApiDetail(rawDetail);
+            console.error('Evaluation submit response failed', {
+                status: res.status,
+                detail: rawDetail,
+            });
+            showAppMessage(t('evaluation_submit_error', { detail: translatedDetail || rawDetail || 'Unknown error' }), { tone: 'error' });
+            return;
+        }
+
+        try {
+            showAppMessage(t('evaluation_submit_success'), { tone: 'success' });
+            const commentField = document.getElementById('comment');
+            if (commentField) {
+                commentField.value = '';
+            }
+        } catch (uiError) {
+            console.error('Evaluation success UI update failed', uiError);
+        }
+
+        try {
+            await refreshUserEvaluations({ rerender: false, force: true });
+        } catch (e) {
+            console.error('User evaluation refresh failed after submit', e);
+        }
+
+        try {
+            const myPageData = await apiFetchMyPage();
+            if (myPageData) {
+                notifyNewUnlockedBadges(myPageData, { shouldNotify: true });
+            }
+        } catch (e) {
+            console.error('My page refresh failed after submit', e);
+        }
+
+        try {
+            await loadSelectedModelComments({ showLoading: false });
+        } catch (e) {
+            console.error('Comment refresh failed after submit', e);
+        }
+    } catch (unexpectedError) {
+        console.error('Unexpected evaluation submit flow error', unexpectedError);
         showAppMessage(t('evaluation_submit_network_error'), { tone: 'error' });
     } finally {
         state.isEvaluationSubmitting = false;
