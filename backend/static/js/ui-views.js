@@ -81,17 +81,23 @@ function renderLogin() {
     const disabled = !state.authConfigured;
     const actionDisabled = disabled || state.isLoginSubmitting;
     const mode = ['signup', 'display_name', 'verify_email', 'help', 'find_id', 'reset_password'].includes(state.authMode) ? state.authMode : 'login';
+    const isDialog = state.authDialogOpen && state.currentView?.id !== 'login';
     const isSignup = mode === 'signup';
     const isDisplayName = mode === 'display_name';
     const isVerifyEmail = mode === 'verify_email';
     const isHelp = mode === 'help';
     const isFindId = mode === 'find_id';
     const isResetPassword = mode === 'reset_password';
+    const showDialogClose = isDialog && canCloseAuthDialog();
     const authBusyNotice = state.isLoginSubmitting
         ? `<p class="auth-inline-status">${t('auth_login_processing')}</p>`
         : '';
     el.innerHTML = `
-        <div class="card auth-card">
+        <div class="${isDialog ? 'auth-dialog-shell' : ''}">
+            ${showDialogClose ? `
+                <button type="button" class="auth-dialog-close" onclick="closeAuthDialog()" aria-label="${t('dialog_close')}">×</button>
+            ` : ''}
+            <div class="card auth-card ${isDialog ? 'auth-card-dialog' : ''}">
             ${isDisplayName || isVerifyEmail || isHelp || isFindId || isResetPassword ? `<p class="auth-description">${isDisplayName ? t('auth_display_name_setup_desc') : isVerifyEmail ? t('auth_verify_email_desc') : isHelp ? t('auth_help_desc') : isFindId ? t('auth_find_id_desc') : t('auth_reset_password_desc')}</p>` : ''}
             ${disabled ? `<p class="auth-status">${t('auth_not_configured')}</p>` : ''}
             <div class="auth-form">
@@ -200,6 +206,7 @@ function renderLogin() {
                 `}
             </div>
         </div>
+        </div>
     `;
     if (isSignup) {
         updateSignupSubmitState();
@@ -299,7 +306,30 @@ function renderPlayArea() {
             <div class="game-container" style="width: 100%; height: 1050px; border: 2px solid var(--border-color); background: #000; border-radius: 20px; overflow: hidden; box-shadow: 0 0 30px rgba(0,0,0,0.5); flex-shrink: 0;">
                 <iframe id="game-iframe" src="${game.file}" allowfullscreen="true" style="width: 100%; height: 100%; border: none;"></iframe>
             </div>
-            <div class="evaluation-form" style="background: var(--card-bg); padding: 3rem; border-radius: 24px; margin: 2rem auto 0; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 100%; max-width: 1100px; display: flex; flex-direction: column; align-items: center;">
+            <div id="play-evaluation-form-root">
+                ${renderPlayEvaluationForm()}
+            </div>
+            <div id="play-comments-container" style="width:100%; margin-top:2rem;">
+                ${renderPlayModelCommentsSection()}
+            </div>
+        </div>
+    `;
+}
+
+function renderPlayEvaluationForm() {
+    const game = state.selectedGame;
+    const participationLocked = !canParticipateWithAccount();
+    return `
+        <div class="evaluation-form play-evaluation-shell" style="background: var(--card-bg); padding: 3rem; border-radius: 24px; margin: 2rem auto 0; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 100%; max-width: 1100px; display: flex; flex-direction: column; align-items: center; position:relative;">
+            ${participationLocked ? `
+                <div class="participation-gate-overlay">
+                    <div class="participation-gate-card">
+                        <div class="participation-gate-title">${t('participation_login_required_title')}</div>
+                        <button type="button" class="primary-action participation-gate-button" onclick="openAuthDialog('login')">${t('menu_login')}</button>
+                    </div>
+                </div>
+            ` : ''}
+            <div class="play-evaluation-content" style="width:100%; opacity:${participationLocked ? '0.28' : '1'}; pointer-events:${participationLocked ? 'none' : 'auto'};">
                 <h3 style="margin-bottom: 2rem; color: var(--primary); font-size: 1.8rem; border-left: 6px solid var(--primary); padding-left: 1.5rem; align-self: flex-start; width: 100%;">${t('eval_submit')} - Model ${game.blind_id}</h3>
                 <div class="play-eval-grid" style="margin-top: 0; width: 100%;">
                     ${['control', 'structure', 'presentation', 'difficulty', 'fun', 'overall'].map((key) => `
@@ -309,7 +339,7 @@ function renderPlayArea() {
                                 <span id="val-${key}" style="color: var(--primary); font-size: 1.3rem; flex-shrink:0;">5</span>
                             </label>
                             <div class="liquid-range" data-progress="44.44" style="--range-progress: 44.44%;">
-                                <input type="range" id="score-${key}" min="1" max="10" value="5" oninput="updateScore('${key}')">
+                                <input type="range" id="score-${key}" min="1" max="10" value="5" oninput="updateScore('${key}')" ${participationLocked ? 'disabled' : ''}>
                                 <span class="liquid-range-glass" aria-hidden="true"></span>
                             </div>
                         </div>
@@ -317,15 +347,23 @@ function renderPlayArea() {
                 </div>
                 <div style="margin-top: 3rem; width: 100%; max-width: 1100px;">
                     <label style="display: block; margin-bottom: 1rem; font-size: 1.2rem; font-weight: bold; color: var(--primary);">${state.language === 'ko' ? '코멘트 (150자 이내)' : 'Comment (Max 150 chars)'}</label>
-                    <textarea id="comment" rows="4" maxlength="150" placeholder="${t('comment_placeholder')}" style="width: 100%; padding: 1.5rem; font-size: 1.2rem; border-radius: 15px; background: var(--surface-bg); color: var(--text-color); border: 1px solid var(--border-color); transition: border-color 0.3s; line-height: 1.6;"></textarea>
+                    <textarea id="comment" rows="4" maxlength="150" placeholder="${t('comment_placeholder')}" ${participationLocked ? 'disabled' : ''} style="width: 100%; padding: 1.5rem; font-size: 1.2rem; border-radius: 15px; background: var(--surface-bg); color: var(--text-color); border: 1px solid var(--border-color); transition: border-color 0.3s; line-height: 1.6;"></textarea>
                 </div>
-                <button type="button" id="evaluation-submit-btn" class="primary-action" onclick="submitEvaluation()" style="margin-top: 2.5rem; padding: 1.15rem 3rem; font-size: 1.4rem; font-weight: 800; width: auto; min-width: 300px;">${t('eval_submit')}</button>
-            </div>
-            <div id="play-comments-container" style="width:100%; margin-top:2rem;">
-                ${renderPlayModelCommentsSection()}
+                <button type="button" id="evaluation-submit-btn" class="primary-action" onclick="submitEvaluation()" ${participationLocked ? 'disabled' : ''} style="margin-top: 2.5rem; padding: 1.15rem 3rem; font-size: 1.4rem; font-weight: 800; width: auto; min-width: 300px;">${t('eval_submit')}</button>
             </div>
         </div>
     `;
+}
+
+function rerenderPlayInteractionPanels() {
+    const evaluationRoot = document.getElementById('play-evaluation-form-root');
+    if (evaluationRoot) {
+        evaluationRoot.innerHTML = renderPlayEvaluationForm();
+    }
+    const commentsContainer = document.getElementById('play-comments-container');
+    if (commentsContainer) {
+        commentsContainer.innerHTML = renderPlayModelCommentsSection();
+    }
 }
 
 function renderAbout() {
