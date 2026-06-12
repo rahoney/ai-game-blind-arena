@@ -267,12 +267,20 @@ async function refreshCurrentCommentsView() {
 }
 
 function toggleReplies(evaluationId) {
+    if (!canParticipateWithAccount()) {
+        openAuthDialog('login');
+        return;
+    }
     if (state.expandedCommentIds.has(evaluationId)) state.expandedCommentIds.delete(evaluationId);
     else state.expandedCommentIds.add(evaluationId);
     rerenderCurrentCommentsView();
 }
 
 async function submitCommentReply(evaluationId) {
+    if (!canParticipateWithAccount()) {
+        openAuthDialog('login');
+        return;
+    }
     const replyElement = document.getElementById(`reply-input-${evaluationId}`);
     if (!replyElement) return;
 

@@ -80,6 +80,10 @@ async function setCommentSort(sortKey) {
 }
 
 async function toggleCommentReaction(evaluationId, reactionType) {
+    if (!canParticipateWithAccount()) {
+        openAuthDialog('login');
+        return;
+    }
     const reactionKey = `${evaluationId}:${reactionType}`;
     if (state.pendingReactionIds.has(reactionKey)) return;
     try {
@@ -201,6 +205,10 @@ async function readResponseErrorDetail(res, fallback = 'Unknown error') {
 
 async function submitEvaluation() {
     if (state.isEvaluationSubmitting) return;
+    if (!canParticipateWithAccount()) {
+        openAuthDialog('login');
+        return;
+    }
     const commentInput = document.getElementById('comment').value.trim();
     const commentValidationError = validateCommentInput(commentInput);
     if (commentValidationError) {

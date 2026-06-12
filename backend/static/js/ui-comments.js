@@ -13,12 +13,13 @@ const COMMENT_TEXTAREA_BG = 'var(--surface-bg)';
 const COMMENT_TEXTAREA_BORDER = 'var(--border-color)';
 
 function renderCommentReactionButton(comment, reactionType, symbol, count, activeColor) {
+    const canInteract = canParticipateWithAccount();
     const isActive = comment.user_reaction === reactionType;
     const isPending = state.pendingReactionIds.has(`${comment.id}:${reactionType}`);
     return `
-        <button type="button" onclick="toggleCommentReaction('${comment.id}', '${reactionType}')"
-            ${isPending ? 'disabled' : ''}
-            style="display:inline-flex; align-items:center; gap:0.28rem; padding:0; border:none; background:transparent; color:${isActive ? activeColor : COMMENT_CONTENT_TEXT}; cursor:${isPending ? 'not-allowed' : 'pointer'}; font-weight:800; opacity:${isPending ? '0.55' : '1'}; width:auto; min-width:auto; box-shadow:none;">
+        <button type="button" ${canInteract ? `onclick="toggleCommentReaction('${comment.id}', '${reactionType}')"` : '' }
+            ${(!canInteract || isPending) ? 'disabled' : ''}
+            style="display:inline-flex; align-items:center; gap:0.28rem; padding:0; border:none; background:transparent; color:${isActive ? activeColor : COMMENT_CONTENT_TEXT}; cursor:${(!canInteract || isPending) ? 'not-allowed' : 'pointer'}; font-weight:800; opacity:${(!canInteract || isPending) ? '0.45' : '1'}; width:auto; min-width:auto; box-shadow:none;">
             <span style="font-size:1.12rem; line-height:1;">${symbol}</span>
             <span>${count}</span>
         </button>
@@ -61,7 +62,8 @@ function renderCommentCard(comment, options = {}) {
         includeModelName = false,
         compact = false,
     } = options;
-    const isExpanded = state.expandedCommentIds.has(comment.id);
+    const canInteract = canParticipateWithAccount();
+    const isExpanded = canInteract && state.expandedCommentIds.has(comment.id);
     const isPendingReply = state.pendingReplyIds.has(comment.id);
     const replies = comment.replies || [];
     const blindKey = `comment:${comment.id}`;
@@ -77,7 +79,7 @@ function renderCommentCard(comment, options = {}) {
             <div style="margin-top:1rem; padding:0.9rem 1rem; border-radius:14px; background:${COMMENT_REPLY_SECTION_BG}; border:1px solid var(--border-color);">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:0.75rem;">
                     <div style="font-size:0.95rem; font-weight:700; color:${COMMENT_CONTENT_MUTED};">${t('replies_count', { count: replies.length })}</div>
-                    <button type="button" class="secondary" onclick="toggleReplies('${comment.id}')" style="width:auto; padding:0.55rem 0.9rem;">${t('replies_toggle_close')}</button>
+                    <button type="button" class="secondary" onclick="toggleReplies('${comment.id}')" ${canInteract ? '' : 'disabled'} style="width:auto; padding:0.55rem 0.9rem; opacity:${canInteract ? '1' : '0.55'}; cursor:${canInteract ? 'pointer' : 'not-allowed'};">${t('replies_toggle_close')}</button>
                 </div>
                 <div style="margin-bottom:0.9rem;">
                     ${replies.length ? replies.map(renderReplyCard).join('') : `<div style="padding:0.35rem 0; color:${COMMENT_CONTENT_MUTED};">${t('replies_empty')}</div>`}
@@ -93,7 +95,7 @@ function renderCommentCard(comment, options = {}) {
         : `
             <div style="display:flex; align-items:center; gap:0.8rem; margin-top:1rem;">
                 <div style="font-size:0.95rem; font-weight:700; color:${COMMENT_CONTENT_MUTED};">${t('replies_count', { count: replies.length })}</div>
-                <button type="button" class="secondary" onclick="toggleReplies('${comment.id}')" style="width:auto; padding:0.55rem 0.9rem;">${t('replies_toggle_open')}</button>
+                <button type="button" class="secondary" onclick="toggleReplies('${comment.id}')" ${canInteract ? '' : 'disabled'} style="width:auto; padding:0.55rem 0.9rem; opacity:${canInteract ? '1' : '0.55'}; cursor:${canInteract ? 'pointer' : 'not-allowed'};">${t('replies_toggle_open')}</button>
             </div>
         `;
 
@@ -130,6 +132,16 @@ function renderCommentCard(comment, options = {}) {
     `;
 }
 
+function renderCommentParticipationNotice() {
+    if (canParticipateWithAccount()) return '';
+    return `
+        <div class="comment-login-notice">
+            <div class="comment-login-notice-text">${t('comment_login_required_notice')}</div>
+            <button type="button" class="primary-action comment-login-notice-button" onclick="openAuthDialog('login')">${t('menu_login')}</button>
+        </div>
+    `;
+}
+
 function renderPlayModelCommentsContent() {
     if (state.playCommentsLoading) {
         return `<div style="color:var(--text-muted);">${t('play_comments_loading')}</div>`;
@@ -148,6 +160,7 @@ function renderPlayModelCommentsContent() {
                 <h3 style="margin:0; color:var(--primary);">${title}</h3>
                 <div style="font-size:0.92rem; color:var(--text-muted);">${t('comments_count', { count: 0 })}</div>
             </div>
+            ${renderCommentParticipationNotice()}
             <div style="color:var(--text-muted);">${t('play_comments_empty')}</div>
         `;
     }
@@ -157,6 +170,7 @@ function renderPlayModelCommentsContent() {
             <h3 style="margin:0; color:var(--primary);">${title}</h3>
             <div style="font-size:0.92rem; color:var(--text-muted);">${t('comments_count', { count: comments.length })}</div>
         </div>
+        ${renderCommentParticipationNotice()}
         ${comments.map((comment) => renderCommentCard(comment, { compact: true })).join('')}
     `;
 }
@@ -211,6 +225,7 @@ function renderResultsCommentsSection(results = state.resultsData || []) {
                 <button type="button" class="comment-sort-button ${state.commentSort === 'likes' ? 'active' : ''}" onclick="setCommentSort('likes')">${t('comments_sort_likes')}</button>
             </div>
         </div>
+        ${renderCommentParticipationNotice()}
         ${commentsSectionsHtml}
     `;
 }

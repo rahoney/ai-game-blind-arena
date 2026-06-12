@@ -92,7 +92,76 @@ function setSignedOutState() {
     state.authUser = null;
     state.account = null;
     state.isAdmin = false;
+    state.authDialogOpen = false;
     clearBlindSeed();
+}
+
+function canParticipateWithAccount() {
+    return !!state.authUser && !!state.account?.profile && state.account.profile.display_name_set !== false;
+}
+
+function syncAuthDialogVisibility() {
+    const onboardingLayer = document.getElementById('onboarding-layer');
+    const contentLayer = document.getElementById('content-layer');
+    const onboardingSlider = document.getElementById('onboarding-slider');
+    if (!onboardingLayer || !contentLayer || !onboardingSlider) return;
+
+    if (state.authDialogOpen) {
+        onboardingLayer.classList.remove('hidden');
+        onboardingLayer.classList.add('auth-dialog-layer');
+        contentLayer.classList.remove('hidden');
+        document.body.classList.add('auth-dialog-open');
+        document.documentElement.classList.add('auth-dialog-open');
+        onboardingSlider.style.transform = 'translate3d(0, 0, 0)';
+        return;
+    }
+
+    onboardingLayer.classList.remove('auth-dialog-layer');
+    document.body.classList.remove('auth-dialog-open');
+    document.documentElement.classList.remove('auth-dialog-open');
+    if (state.currentView?.id !== 'login') {
+        onboardingLayer.classList.add('hidden');
+    }
+}
+
+function openAuthDialog(mode = 'login') {
+    if (state.isLoginSubmitting || canParticipateWithAccount()) return;
+    state.authDialogOpen = true;
+    state.authMode = mode === 'signup' ? 'signup' : 'login';
+    renderLogin();
+    syncAuthDialogVisibility();
+}
+
+function canCloseAuthDialog() {
+    return state.authDialogOpen && !state.isLoginSubmitting && !requiresDisplayNameSetup() && !needsEmailVerification();
+}
+
+function closeAuthDialog() {
+    if (!canCloseAuthDialog()) return;
+    state.authDialogOpen = false;
+    state.authMode = 'login';
+    renderLogin();
+    syncAuthDialogVisibility();
+}
+
+function completeAuthDialogSuccess() {
+    if (!state.authDialogOpen) return false;
+    state.authDialogOpen = false;
+    state.authMode = 'login';
+    syncAuthDialogVisibility();
+    if (state.currentView?.id === 'play') {
+        if (typeof rerenderPlayInteractionPanels === 'function') {
+            rerenderPlayInteractionPanels();
+        }
+        void refreshCurrentCommentsView().catch((e) => console.error('Play comments refresh failed after auth dialog success', e));
+    } else if (state.currentView?.id === 'results') {
+        rerenderCurrentCommentsView();
+        void refreshCurrentCommentsView().catch((e) => console.error('Results comments refresh failed after auth dialog success', e));
+    } else {
+        rerenderPostAuthDataViews();
+    }
+    renderSidebar();
+    return true;
 }
 
 function setAuthMode(mode) {
@@ -592,6 +661,13 @@ function rerenderPostAuthDataViews() {
         renderCategorySelection();
     } else if (state.currentView?.id === 'list') {
         renderGameList();
+    } else if (state.currentView?.id === 'play') {
+        if (typeof rerenderPlayInteractionPanels === 'function') {
+            rerenderPlayInteractionPanels();
+        }
+        rerenderCurrentCommentsView();
+    } else if (state.currentView?.id === 'results') {
+        rerenderCurrentCommentsView();
     } else if (state.currentView?.id === 'mypage') {
         renderMyPage();
     }
@@ -608,7 +684,7 @@ function rerenderAuthBusySurface() {
         renderMyPage();
         return;
     }
-    if (state.currentView?.id === 'login' || ['login', 'signup', 'display_name', 'verify_email', 'help', 'find_id', 'reset_password'].includes(state.authMode)) {
+    if (state.authDialogOpen || state.currentView?.id === 'login' || ['login', 'signup', 'display_name', 'verify_email', 'help', 'find_id', 'reset_password'].includes(state.authMode)) {
         renderLogin();
     }
 }
@@ -759,7 +835,9 @@ async function handleEmailAuth(mode) {
             waitForUserEvals: false,
         });
         await gamePromise;
-        navigateTo('category', renderCategorySelection);
+        if (!completeAuthDialogSuccess()) {
+            navigateTo('category', renderCategorySelection);
+        }
         void allPromise;
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, mode), { tone: 'error' });
@@ -878,7 +956,9 @@ async function handleVerifyEmailRefresh() {
             waitForUserEvals: false,
         });
         await gamePromise;
-        navigateTo('category', renderCategorySelection);
+        if (!completeAuthDialogSuccess()) {
+            navigateTo('category', renderCategorySelection);
+        }
         void allPromise;
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, 'login'), { tone: 'error' });
@@ -907,7 +987,12 @@ async function handleSocialLogin(providerKey) {
         await refreshAccountFromFirebaseUser();
         if (state.account?.profile && !state.account.profile.display_name_set) {
             state.authMode = 'display_name';
-            navigateTo('login', renderLogin);
+            if (state.authDialogOpen) {
+                renderLogin();
+                syncAuthDialogVisibility();
+            } else {
+                navigateTo('login', renderLogin);
+            }
             return;
         }
         const { gamePromise, allPromise } = refreshSignedInGameState({
@@ -915,7 +1000,9 @@ async function handleSocialLogin(providerKey) {
             waitForUserEvals: false,
         });
         await gamePromise;
-        navigateTo('category', renderCategorySelection);
+        if (!completeAuthDialogSuccess()) {
+            navigateTo('category', renderCategorySelection);
+        }
         void allPromise;
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, 'login'), { tone: 'error' });
@@ -1021,7 +1108,12 @@ async function handleBackendOAuthMessage(event) {
         await refreshAccountFromFirebaseUser();
         if (state.account?.profile && !state.account.profile.display_name_set) {
             state.authMode = 'display_name';
-            navigateTo('login', renderLogin);
+            if (state.authDialogOpen) {
+                renderLogin();
+                syncAuthDialogVisibility();
+            } else {
+                navigateTo('login', renderLogin);
+            }
             return;
         }
         const { gamePromise, allPromise } = refreshSignedInGameState({
@@ -1029,7 +1121,9 @@ async function handleBackendOAuthMessage(event) {
             waitForUserEvals: false,
         });
         await gamePromise;
-        navigateTo('category', renderCategorySelection);
+        if (!completeAuthDialogSuccess()) {
+            navigateTo('category', renderCategorySelection);
+        }
         void allPromise;
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, 'login'), { tone: 'error' });
@@ -1603,7 +1697,9 @@ async function handleDisplayNameSubmit() {
         });
         await gamePromise;
         renderSidebar();
-        navigateTo('category', renderCategorySelection);
+        if (!completeAuthDialogSuccess()) {
+            navigateTo('category', renderCategorySelection);
+        }
         void allPromise;
     } catch (e) {
         const detail = e?.message || '';
@@ -1660,7 +1756,8 @@ async function signOutAccount() {
         await firebaseAuth.signOut();
     }
     setSignedOutState();
-    renderSidebar();
+    syncAuthDialogVisibility();
+    rerenderPostAuthDataViews();
 }
 
 // ─── 닉네임(display_name) 변경 ────────────────────────────────────────

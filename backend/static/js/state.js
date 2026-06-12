@@ -68,6 +68,7 @@ let state = {
     isEvaluationSubmitting: false,
     isAdmin: false,
     authBusyContext: '',
+    authDialogOpen: false,
     privacyReturnView: null,
     pendingReactionIds: new Set(),
     pendingReplyIds: new Set(),
