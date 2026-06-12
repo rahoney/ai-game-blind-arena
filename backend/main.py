@@ -1353,8 +1353,14 @@ def _revoke_kakao_provider_account(account: dict):
     return True
 
 
+def _is_provider_revoke_supported(provider: str | None):
+    return _normalize_provider_key(provider) in {"kakao"}
+
+
 def _revoke_provider_account(account: dict):
-    provider = account.get("provider")
+    provider = _normalize_provider_key(account.get("provider"))
+    if not _is_provider_revoke_supported(provider):
+        return False
     try:
         if provider == "kakao":
             return _revoke_kakao_provider_account(account)
@@ -1992,6 +1998,17 @@ def _delete_provider_account_for_profile(profile_id: str, provider: str):
     supabase.table("auth_provider_accounts").delete().eq("profile_id", profile_id).eq("provider", provider).execute()
 
 
+def _is_foundational_oauth_provider_for_profile(profile: dict, provider: str, provider_account: dict | None = None):
+    provider = _normalize_provider_key(provider)
+    if provider not in {"kakao", "naver", "github", "discord", "steam"}:
+        return False
+    account = provider_account or _get_provider_account_for_profile(profile.get("id", ""), provider)
+    provider_user_id = str((account or {}).get("provider_user_id") or "").strip()
+    if not provider_user_id:
+        return False
+    return str(profile.get("firebase_uid") or "").strip() == f"{provider}:{provider_user_id}"
+
+
 def _remove_profile_provider_field(profile: dict | None, provider: str):
     if not profile or not profile.get("id"):
         return profile
@@ -2035,6 +2052,14 @@ def _unlink_oauth_profile_provider(profile: dict, provider: str, current_auth_pr
     if not has_login_id and not remaining_providers:
         raise HTTPException(status_code=409, detail="auth_provider_unlink_last_method")
 
+    provider_account = _get_provider_account_for_profile(profile_id, provider)
+    if _is_foundational_oauth_provider_for_profile(profile, provider, provider_account):
+        raise HTTPException(status_code=409, detail="auth_provider_unlink_requires_migration")
+    provider_revoke_supported = _is_provider_revoke_supported(provider)
+    provider_revoked = False
+    if provider_account and provider_revoke_supported:
+        provider_revoked = _revoke_provider_account(provider_account)
+
     _delete_provider_account_for_profile(profile_id, provider)
     refreshed_profile = _get_profile_by_id(profile_id) or profile
     updated_profile = _update_profile_provider_fields(refreshed_profile, remaining_providers)
@@ -2042,7 +2067,10 @@ def _unlink_oauth_profile_provider(profile: dict, provider: str, current_auth_pr
         "profile": updated_profile,
         "linked_providers": _linked_provider_keys_for_profile(updated_profile),
         "is_admin": updated_profile.get("role") in ("admin", "super_admin"),
-        "signed_out_required": _normalize_provider_key(current_auth_provider) == provider,
+        "signed_out_required": False,
+        "provider_mapping_deleted": True,
+        "provider_revoke_supported": provider_revoke_supported,
+        "provider_revoked": provider_revoked,
     }
 
 

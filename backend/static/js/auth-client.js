@@ -1524,7 +1524,6 @@ async function handleUnlinkSocialProvider(providerKey) {
     if (!window.confirm(t('mypage_provider_unlink_confirm'))) return;
     let backendResult = null;
     let firebaseGoogleUnlinked = false;
-    let signedOutAfterUnlink = false;
     try {
         setAuthBusyState(true, `provider_unlink_${providerKey}`);
         renderMyPage();
@@ -1533,15 +1532,6 @@ async function handleUnlinkSocialProvider(providerKey) {
         if (providerKey === 'google' && hasFirebaseGoogleProvider) {
             await firebaseAuth.currentUser.unlink('google.com');
             firebaseGoogleUnlinked = true;
-        }
-
-        if (backendResult?.signed_out_required) {
-            await firebaseAuth.signOut();
-            signedOutAfterUnlink = true;
-            setSignedOutState();
-            showAppMessage(t('mypage_provider_unlink_success_signed_out'), { tone: 'success' });
-            navigateTo('login', renderLogin);
-            return;
         }
 
         state.account = {
@@ -1568,7 +1558,7 @@ async function handleUnlinkSocialProvider(providerKey) {
     } finally {
         setAuthBusyState(false);
         renderSidebar();
-        if (!signedOutAfterUnlink) renderMyPage();
+        renderMyPage();
     }
 }
 
