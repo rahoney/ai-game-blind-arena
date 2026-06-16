@@ -526,6 +526,24 @@ function renderSidebar() {
     bindSidebarGlassTarget();
 }
 
+function renderHeaderActions() {
+    const root = document.getElementById('header-auth-actions');
+    if (!root) return;
+    const isHome = state.currentView?.id === 'home';
+    const showAuthActions = isHome && !state.account;
+    root.innerHTML = showAuthActions
+        ? `
+            <button type="button" class="header-login-button" onclick="openAuthDialog('login')">${t('menu_login')}</button>
+        `
+        : '';
+    root.classList.toggle('active', showAuthActions);
+}
+
+function goToHomeView() {
+    if (!ensureDisplayNameSetupComplete()) return;
+    navigateTo('home', renderLanding);
+}
+
 function sidebarSelectCategory(category) { toggleSidebar(); if (!ensureDisplayNameSetupComplete()) return; selectCategory(category); }
 function sidebarSelectAbout() { toggleSidebar(); if (!ensureDisplayNameSetupComplete()) return; navigateTo('about', renderAbout); }
 function sidebarSelectLogin() { toggleSidebar(); setAuthMode('login'); navigateTo('login', renderLogin); }

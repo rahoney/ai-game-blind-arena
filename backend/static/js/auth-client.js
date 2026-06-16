@@ -94,6 +94,9 @@ function setSignedOutState() {
     state.isAdmin = false;
     state.authDialogOpen = false;
     clearBlindSeed();
+    if (typeof renderHeaderActions === 'function') {
+        renderHeaderActions();
+    }
 }
 
 function canParticipateWithAccount() {
@@ -161,6 +164,9 @@ function completeAuthDialogSuccess() {
         rerenderPostAuthDataViews();
     }
     renderSidebar();
+    if (typeof renderHeaderActions === 'function') {
+        renderHeaderActions();
+    }
     return true;
 }
 

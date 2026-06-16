@@ -27,7 +27,11 @@ async function initApp() {
         navigateTo('login', renderLogin);
         return;
     }
-    navigateTo('category', renderCategorySelection);
+    if (state.authUser) {
+        navigateTo('category', renderCategorySelection);
+    } else {
+        navigateTo('home', renderLanding);
+    }
     void initialUserEvalPromise;
 }
 
@@ -40,6 +44,8 @@ function detectDefaultLanguage() {
 
 function applyDocumentLanguage() {
     document.documentElement.lang = state.language === 'ko' ? 'ko' : 'en';
+    document.body.classList.toggle('lang-en', state.language === 'en');
+    document.body.classList.toggle('lang-ko', state.language !== 'en');
 }
 
 function animateOrApply(target, fromVars, toVars) {
@@ -68,7 +74,7 @@ function applyAnimationVars(element, vars) {
 
 function navigateTo(viewId, renderFunction, ...args) {
     const onboardingViews = ['login'];
-    const contentViews = ['category', 'list', 'play', 'about', 'results', 'mypage', 'privacy'];
+    const contentViews = ['home', 'category', 'list', 'play', 'about', 'results', 'mypage', 'privacy'];
     if (viewId !== 'login' && typeof requiresDisplayNameSetup === 'function' && requiresDisplayNameSetup()) {
         state.authMode = 'display_name';
         viewId = 'login';
@@ -82,9 +88,13 @@ function navigateTo(viewId, renderFunction, ...args) {
     const hamburger = document.getElementById('hamburger');
     const header = document.getElementById('main-header');
     document.body.classList.toggle('theme-mypage', viewId === 'mypage');
+    document.body.classList.toggle('theme-home', viewId === 'home');
 
     state.currentView = { id: viewId, func: renderFunction, args: args };
     renderFunction(...args);
+    if (typeof renderHeaderActions === 'function') {
+        renderHeaderActions();
+    }
 
     if (onboardingViews.includes(viewId)) {
         onboardingLayer.classList.remove('hidden');
@@ -134,6 +144,9 @@ async function changeLanguage(lang) {
     await refreshGameCatalog({ rerender: false }); // 언어 변경 시 해당 언어의 게임 목록으로 업데이트
     if (state.currentView) {
         state.currentView.func(...state.currentView.args);
+    }
+    if (typeof renderHeaderActions === 'function') {
+        renderHeaderActions();
     }
     renderSidebar();
 }
