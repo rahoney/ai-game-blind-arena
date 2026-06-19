@@ -216,6 +216,428 @@ function renderLogin() {
     }
 }
 
+const LANDING_CATEGORY_IMAGES = {
+    '1인칭 미니 FPS': '/static/landing/fps-main.png',
+    '던전 탐색': '/static/landing/dungeon-main.jpeg',
+    '서바이벌 디펜스': '/static/landing/defense-main.jpeg',
+    '강화된 벽돌깨기': '/static/landing/brick-main.jpeg',
+    '카드배틀': '/static/landing/card-main.jpeg',
+    '횡스크롤 액션': '/static/landing/side-main.jpeg',
+};
+
+const LANDING_MARQUEE_IMAGE_GROUPS = {
+    fps: [1, 2, 3, 4, 5].map((n) => `/static/landing/marquee/fps-${n}.jpg`),
+    dungeon: [1, 2, 3, 4, 5].map((n) => `/static/landing/marquee/dungeon-${n}.jpg`),
+    defense: [1, 2, 3, 4, 5].map((n) => `/static/landing/marquee/defense-${n}.jpg`),
+    brick: [1, 2, 3, 4, 5].map((n) => `/static/landing/marquee/brick-${n}.jpg`),
+    card: [1, 2, 3, 4, 5].map((n) => `/static/landing/marquee/card-${n}.jpg`),
+    side: [1, 2, 3, 4, 5].map((n) => `/static/landing/marquee/side-${n}.jpg`),
+};
+
+const LANDING_CATEGORY_IMAGE_GROUPS = {
+    '1인칭 미니 FPS': LANDING_MARQUEE_IMAGE_GROUPS.fps,
+    '던전 탐색': LANDING_MARQUEE_IMAGE_GROUPS.dungeon,
+    '서바이벌 디펜스': LANDING_MARQUEE_IMAGE_GROUPS.defense,
+    '강화된 벽돌깨기': LANDING_MARQUEE_IMAGE_GROUPS.brick,
+    '카드배틀': LANDING_MARQUEE_IMAGE_GROUPS.card,
+    '횡스크롤 액션': LANDING_MARQUEE_IMAGE_GROUPS.side,
+};
+
+let landingCategoryCarouselController = null;
+
+function shuffleLandingItems(items) {
+    const shuffled = [...items];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+}
+
+function getLandingMarqueeImages() {
+    const groups = Object.entries(LANDING_MARQUEE_IMAGE_GROUPS).map(([key, images]) => ({
+        key,
+        images: shuffleLandingItems(images),
+    }));
+    const sequence = [];
+    let lastKey = null;
+
+    for (let index = 0; index < 5; index += 1) {
+        let round = shuffleLandingItems(groups);
+        if (round[0]?.key === lastKey) {
+            const swapIndex = round.findIndex((group) => group.key !== lastKey);
+            if (swapIndex > 0) {
+                [round[0], round[swapIndex]] = [round[swapIndex], round[0]];
+            }
+        }
+        round.forEach((group) => {
+            sequence.push(group.images[index]);
+            lastKey = group.key;
+        });
+    }
+
+    const firstKind = sequence[0]?.match(/marquee\/([a-z]+)-/)?.[1];
+    const lastKind = sequence[sequence.length - 1]?.match(/marquee\/([a-z]+)-/)?.[1];
+    if (firstKind && firstKind === lastKind) {
+        const swapIndex = sequence.findIndex((src) => src.match(/marquee\/([a-z]+)-/)?.[1] !== firstKind);
+        if (swapIndex > 0) {
+            [sequence[0], sequence[swapIndex]] = [sequence[swapIndex], sequence[0]];
+        }
+    }
+
+    return sequence;
+}
+
+function formatLandingHeroTitle() {
+    return t('landing_hero_title');
+}
+
+function initLandingScrollAnimations(root) {
+    if (!root) return;
+    const targets = root.querySelectorAll('.landing-reveal');
+    if (!targets.length) return;
+
+    if (!('IntersectionObserver' in window)) {
+        targets.forEach((target) => target.classList.add('visible'));
+        return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+
+    targets.forEach((target) => observer.observe(target));
+}
+
+function initLandingCategoryCarousel(root) {
+    if (landingCategoryCarouselController?.stop) {
+        landingCategoryCarouselController.stop();
+    }
+    landingCategoryCarouselController = null;
+    if (!root) return;
+
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const mediaNodes = Array.from(root.querySelectorAll('.landing-category-carousel'));
+    if (reduceMotion || mediaNodes.length === 0 || !('IntersectionObserver' in window)) return;
+
+    const visibleNodes = new Set();
+    const items = mediaNodes.map((media) => {
+        let images = [];
+        try {
+            images = JSON.parse(media.dataset.images || '[]');
+        } catch (error) {
+            images = [];
+        }
+        return {
+            media,
+            current: media.querySelector('.landing-category-image-current'),
+            next: media.querySelector('.landing-category-image-next'),
+            images,
+            index: 0,
+            animating: false,
+        };
+    }).filter((item) => item.current && item.next && item.images.length > 1);
+
+    if (!items.length) return;
+
+    let stopped = false;
+    let timerId = null;
+    const displayMs = 4000;
+    const staggerMs = 145;
+    const transitionMs = 460;
+
+    const getVisibleItems = () => items.filter((item) => visibleNodes.has(item.media) && item.media.isConnected);
+
+    const preloadNextImages = () => {
+        getVisibleItems().forEach((item) => {
+            const preload = new Image();
+            preload.src = item.images[(item.index + 1) % item.images.length];
+        });
+    };
+
+    const schedule = () => {
+        window.clearTimeout(timerId);
+        if (stopped) return;
+        timerId = window.setTimeout(runSequence, displayMs);
+    };
+
+    const finishTransition = (item, nextSrc) => {
+        item.media.classList.add('is-resetting');
+        item.current.src = nextSrc;
+        item.next.classList.remove('is-active');
+        item.next.removeAttribute('src');
+        item.media.classList.remove('is-sliding');
+        item.media.offsetHeight;
+        window.requestAnimationFrame(() => {
+            item.media.classList.remove('is-resetting');
+        });
+        item.animating = false;
+    };
+
+    const transitionItem = (item) => {
+        if (item.animating || item.images.length < 2) return;
+        const nextIndex = (item.index + 1) % item.images.length;
+        const nextSrc = item.images[nextIndex];
+        item.animating = true;
+        item.index = nextIndex;
+        item.next.src = nextSrc;
+        item.next.alt = item.current.alt;
+
+        window.requestAnimationFrame(() => {
+            if (stopped || !visibleNodes.has(item.media) || !item.media.isConnected) {
+                finishTransition(item, nextSrc);
+                return;
+            }
+            item.media.classList.add('is-sliding');
+            item.next.classList.add('is-active');
+        });
+
+        window.setTimeout(() => finishTransition(item, nextSrc), transitionMs);
+    };
+
+    function runSequence() {
+        if (stopped) return;
+        if (document.hidden) {
+            schedule();
+            return;
+        }
+
+        const sequence = getVisibleItems();
+        if (!sequence.length) {
+            schedule();
+            return;
+        }
+
+        preloadNextImages();
+        sequence.forEach((item, index) => {
+            window.setTimeout(() => {
+                if (!stopped && visibleNodes.has(item.media) && item.media.isConnected) {
+                    transitionItem(item);
+                }
+            }, index * staggerMs);
+        });
+
+        window.setTimeout(schedule, Math.max(0, (sequence.length - 1) * staggerMs + transitionMs));
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                visibleNodes.add(entry.target);
+            } else {
+                visibleNodes.delete(entry.target);
+            }
+        });
+        preloadNextImages();
+    }, { threshold: 0.45, rootMargin: '0px 0px -8% 0px' });
+
+    items.forEach((item) => observer.observe(item.media));
+    const handleVisibilityChange = () => {
+        if (!document.hidden) schedule();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    schedule();
+
+    landingCategoryCarouselController = {
+        stop() {
+            stopped = true;
+            window.clearTimeout(timerId);
+            observer.disconnect();
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        },
+    };
+}
+
+function renderLanding() {
+    const el = document.getElementById('view-home');
+    const isSignedIn = !!state.account?.profile;
+    const categoryCount = state.categories?.length || 0;
+    const variantsPerCategory = Math.max(
+        0,
+        ...((state.categories || []).map((category) => state.games?.[category.name]?.length || 0))
+    );
+    const totalBlindVariants = Object.values(state.games || {}).reduce((sum, items) => sum + items.length, 0);
+    const processSteps = [
+        { title: t('landing_step_1_title') },
+        { title: t('landing_step_2_title') },
+        { title: t('landing_step_3_title') },
+        { title: t('landing_step_4_title') },
+    ];
+    const processStepsHtml = processSteps.map((step, index) => `
+        <article class="landing-process-step landing-reveal">
+            <div class="landing-process-number"></div>
+            <h4>${step.title}</h4>
+        </article>
+        ${index < processSteps.length - 1 ? '<div class="landing-process-arrow" aria-hidden="true">›</div>' : ''}
+    `).join('');
+    const renderCategoryCards = (groupName) => (state.categories || [])
+        .filter((category) => category.group === groupName && state.games?.[category.name]?.length)
+        .map((category) => {
+            const imageSet = LANDING_CATEGORY_IMAGE_GROUPS[category.name] || [LANDING_CATEGORY_IMAGES[category.name]].filter(Boolean);
+            const imageSrc = imageSet[0];
+            const guide = getGameGuideContent(category.name);
+            const summary = guide?.lines?.[0] || '';
+            return `
+                <article class="landing-category-card landing-reveal" onclick="selectCategory('${category.name}')">
+                    <div class="landing-category-media landing-category-carousel" data-images="${escapeHtml(JSON.stringify(imageSet))}">
+                        <img class="landing-category-image landing-category-image-current" src="${imageSrc}" alt="${escapeHtml(getCategoryDisplayName(category.name))}">
+                        <img class="landing-category-image landing-category-image-next" alt="" aria-hidden="true">
+                    </div>
+                    <div class="landing-category-body">
+                        <h3>${escapeHtml(getCategoryDisplayName(category.name))}</h3>
+                        <p>${escapeHtml(summary)}</p>
+                    </div>
+                </article>
+            `;
+        }).join('');
+    const strictCategoryCards = renderCategoryCards('strict');
+    const advancedCategoryCards = renderCategoryCards('advanced');
+    const landingMarqueeImages = getLandingMarqueeImages();
+    const marqueeImages = [...landingMarqueeImages, ...landingMarqueeImages].map((src) => `
+        <div class="landing-marquee-item">
+            <img src="${src}" alt="">
+        </div>
+    `).join('');
+
+    el.innerHTML = `
+        <div class="landing-page">
+            <section class="landing-band landing-hero">
+                <div class="landing-hero-marquee" aria-hidden="true">
+                    <div class="landing-marquee-track">
+                        ${marqueeImages}
+                    </div>
+                </div>
+                <div class="landing-shell landing-hero-grid">
+                    <div class="landing-hero-copy">
+                        <div class="landing-hero-main-copy">${t('landing_hero_main_copy')}</div>
+                        <h2>${formatLandingHeroTitle()}</h2>
+                        <p class="landing-hero-lead">${t('landing_hero_copy')}</p>
+                        <div class="landing-hero-actions">
+                            <button type="button" class="primary-action landing-primary" onclick="navigateTo('category', renderCategorySelection)">${t('landing_cta_browse')}</button>
+                            ${isSignedIn ? `<button type="button" class="secondary landing-secondary" onclick="openMyPage()">${t('menu_mypage')}</button>` : ''}
+                        </div>
+                        <div class="landing-metrics">
+                            <div class="landing-metric">
+                                <strong>${categoryCount}</strong>
+                                <span>${t('landing_metric_categories')}</span>
+                            </div>
+                            <div class="landing-metric">
+                                <strong>${variantsPerCategory || 15}</strong>
+                                <span>${t('landing_metric_variants')}</span>
+                            </div>
+                            <div class="landing-metric">
+                                <strong>${totalBlindVariants || 90}</strong>
+                                <span>${t('landing_metric_total')}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="landing-band">
+                <div class="landing-shell landing-intro-grid">
+                    <div class="landing-section-heading landing-reveal">
+                        <span class="landing-kicker">${t('landing_intro_kicker')}</span>
+                        <h3>${t('landing_intro_title')}</h3>
+                    </div>
+                    <div class="landing-intro-copy landing-reveal">
+                        <p>${t('landing_intro_copy_1')}</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="landing-band">
+                <div class="landing-shell">
+                    <div class="landing-section-heading landing-reveal">
+                        <span class="landing-kicker">${t('landing_modes_kicker')}</span>
+                        <h3>${t('landing_modes_title')}</h3>
+                    </div>
+                    <div class="landing-mode-grid">
+                        <article class="landing-mode-card landing-reveal">
+                            <div class="landing-mode-icon landing-mode-icon-strict" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <rect x="5" y="5" width="14" height="14" rx="3"></rect>
+                                    <path d="M9 9h6M9 12h6M9 15h4"></path>
+                                </svg>
+                            </div>
+                            <h4>${t('group_strict_title')}</h4>
+                            <p>${t('landing_mode_strict_body')}</p>
+                        </article>
+                        <article class="landing-mode-card landing-reveal">
+                            <div class="landing-mode-icon landing-mode-icon-advanced" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <rect x="4.5" y="7" width="8" height="8" rx="2"></rect>
+                                    <rect x="11.5" y="9" width="8" height="8" rx="2"></rect>
+                                </svg>
+                            </div>
+                            <h4>${t('group_advanced_title')}</h4>
+                            <p>${t('landing_mode_advanced_body')}</p>
+                        </article>
+                    </div>
+                </div>
+            </section>
+
+            <section class="landing-band">
+                <div class="landing-shell">
+                    <div class="landing-section-heading landing-reveal">
+                        <span class="landing-kicker">${t('landing_process_kicker')}</span>
+                        <h3>${t('landing_process_title')}</h3>
+                    </div>
+                    <div class="landing-process-grid">
+                        ${processStepsHtml}
+                    </div>
+                </div>
+            </section>
+
+            <section class="landing-band">
+                <div class="landing-shell">
+                    <div class="landing-section-heading landing-reveal">
+                        <span class="landing-kicker">${t('landing_categories_kicker')}</span>
+                        <h3>${t('landing_categories_title')}</h3>
+                        <p>${t('landing_categories_desc')}</p>
+                    </div>
+                    <div class="landing-category-group">
+                        <div class="landing-category-group-title landing-reveal">
+                            <span class="landing-category-group-icon landing-category-group-icon-strict" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <rect x="5" y="5" width="14" height="14" rx="3"></rect>
+                                    <path d="M9 9h6M9 12h6M9 15h4"></path>
+                                </svg>
+                            </span>
+                            <span>${t('group_strict_title')}</span>
+                        </div>
+                        <div class="landing-category-grid">
+                            ${strictCategoryCards}
+                        </div>
+                    </div>
+                    <div class="landing-category-group">
+                        <div class="landing-category-group-title landing-reveal">
+                            <span class="landing-category-group-icon landing-category-group-icon-advanced" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none">
+                                    <rect x="4.5" y="7" width="8" height="8" rx="2"></rect>
+                                    <rect x="11.5" y="9" width="8" height="8" rx="2"></rect>
+                                </svg>
+                            </span>
+                            <span>${t('group_advanced_title')}</span>
+                        </div>
+                        <div class="landing-category-grid">
+                            ${advancedCategoryCards}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    `;
+    initLandingScrollAnimations(el);
+    initLandingCategoryCarousel(el);
+}
+
 function renderCategorySelection() {
     const el = document.getElementById('view-category');
     const strictCategories = state.categories.filter(category => category.group === 'strict');
@@ -370,7 +792,10 @@ function renderAbout() {
     const el = document.getElementById('view-list');
     el.innerHTML = `
         <div class="card" style="max-width: 900px; margin-top: 2rem; line-height: 1.8;">
-            <h2 style="text-align: center; margin-bottom: 0.5rem; color: var(--primary); font-size: 2.5rem;">${t('title')}</h2>
+            <div class="about-brand">
+                <h2 class="visually-hidden">${t('title')}</h2>
+                <img src="/static/og-image.png?v=20260619-og1" alt="" aria-hidden="true">
+            </div>
             <p style="text-align: center; margin-bottom: 2rem; font-size: 1.2rem; color: var(--text-muted); font-weight: 500; border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem;">${t('subtitle')}</p>
             <div style="color: var(--text-color); font-size: 1.2rem; text-align: left; padding: 0 1rem;">
                 <p style="margin-bottom: 1.5rem;">${t('about_desc_1')}</p>
