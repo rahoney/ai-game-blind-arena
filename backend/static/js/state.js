@@ -57,6 +57,7 @@ let state = {
     userEvalsFetchedAt: 0,
     myPageData: null,
     myPageLoading: false,
+    myPageReturnView: null,
     mypageAccountManagementOpen: false,
     resultsData: [],
     playModelCommentsResult: null,

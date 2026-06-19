@@ -22,17 +22,21 @@ async function handleLogout() {
     state.playCommentsLoading = false;
     state.profileBadgeSelection = '';
     state.isAdmin = false;
-    navigateTo('category', renderCategorySelection);
+    navigateTo('home', renderLanding);
 }
 
 async function openMyPage() {
     if (!ensureDisplayNameSetupComplete()) return;
+    if (state.currentView?.id !== 'mypage') {
+        state.myPageReturnView = state.currentView ? { ...state.currentView } : null;
+    }
     state.myPageLoading = true;
     navigateTo('mypage', renderMyPage);
     apiFetchMyPage()
         .then((data) => {
             state.profileBadgeSelection = data?.profile_badge_key || '';
             syncSeenUnlockedBadges(data);
+            renderGlobalNavigation();
             if (state.currentView?.id === 'mypage') {
                 renderMyPage();
             }
@@ -46,6 +50,16 @@ async function openMyPage() {
                 renderMyPage();
             }
         });
+}
+
+function closeMyPage() {
+    const previous = state.myPageReturnView;
+    state.myPageReturnView = null;
+    if (previous?.func && previous.id !== 'mypage') {
+        navigateTo(previous.id, previous.func, ...(previous.args || []));
+        return;
+    }
+    navigateTo('home', renderLanding);
 }
 
 function selectProfileBadge(badgeKey) {
@@ -72,6 +86,7 @@ async function saveProfileBadge() {
     state.profileBadgeSelection = data.profile_badge_key;
     showAppMessage(t('profile_badge_save_success'), { tone: 'success' });
     renderMyPage();
+    renderGlobalNavigation();
 }
 
 async function setCommentSort(sortKey) {

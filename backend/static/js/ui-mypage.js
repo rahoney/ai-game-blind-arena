@@ -387,7 +387,7 @@ function renderMyPage() {
     el.innerHTML = `
         <div class="card mypage-card">
             <div class="mypage-header">
-                <button class="secondary mypage-back-button" onclick="navigateTo('list', renderGameList)">← ${t('btn_back')}</button>
+                <button class="secondary mypage-back-button" onclick="closeMyPage()">← ${t('btn_back')}</button>
                 <h2>${t('menu_mypage')}</h2>
                 <div class="mypage-header-spacer"></div>
             </div>

@@ -182,7 +182,7 @@ function closePrivacyPolicy() {
         navigateTo(previous.id, previous.func, ...(previous.args || []));
         return;
     }
-    navigateTo(state.selectedCategory ? 'list' : 'category', state.selectedCategory ? renderGameList : renderCategorySelection);
+    navigateTo(state.selectedCategory ? 'list' : 'home', state.selectedCategory ? renderGameList : renderLanding);
 }
 
 function renderPrivacyPolicy() {

@@ -163,7 +163,7 @@ function completeAuthDialogSuccess() {
     } else {
         rerenderPostAuthDataViews();
     }
-    renderSidebar();
+    renderGlobalNavigation();
     if (typeof renderHeaderActions === 'function') {
         renderHeaderActions();
     }
@@ -649,7 +649,7 @@ async function initializeFirebaseAuth() {
                     setSignedOutState();
                 } finally {
                     state.authReady = true;
-                    renderSidebar();
+                    renderGlobalNavigation();
                     unsubscribe();
                     resolve();
                 }
@@ -663,9 +663,7 @@ async function initializeFirebaseAuth() {
 }
 
 function rerenderPostAuthDataViews() {
-    if (state.currentView?.id === 'category') {
-        renderCategorySelection();
-    } else if (state.currentView?.id === 'list') {
+    if (state.currentView?.id === 'list') {
         renderGameList();
     } else if (state.currentView?.id === 'play') {
         if (typeof rerenderPlayInteractionPanels === 'function') {
@@ -677,7 +675,7 @@ function rerenderPostAuthDataViews() {
     } else if (state.currentView?.id === 'mypage') {
         renderMyPage();
     }
-    renderSidebar();
+    renderGlobalNavigation();
 }
 
 function setAuthBusyState(isBusy, context = '') {
@@ -756,7 +754,7 @@ async function refreshAccountFromFirebaseUser(options = {}) {
     state.isAdmin = !!state.account?.is_admin;
     const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
     console.info(`[perf] apiFetchAuthMe ${elapsedMs.toFixed(1)}ms forceTokenRefresh=${forceTokenRefresh}`);
-    renderSidebar();
+    renderGlobalNavigation();
     return state.account;
 }
 
@@ -842,7 +840,7 @@ async function handleEmailAuth(mode) {
         });
         await gamePromise;
         if (!completeAuthDialogSuccess()) {
-            navigateTo('category', renderCategorySelection);
+            navigateTo('home', renderLanding);
         }
         void allPromise;
     } catch (e) {
@@ -963,7 +961,7 @@ async function handleVerifyEmailRefresh() {
         });
         await gamePromise;
         if (!completeAuthDialogSuccess()) {
-            navigateTo('category', renderCategorySelection);
+            navigateTo('home', renderLanding);
         }
         void allPromise;
     } catch (e) {
@@ -1007,7 +1005,7 @@ async function handleSocialLogin(providerKey) {
         });
         await gamePromise;
         if (!completeAuthDialogSuccess()) {
-            navigateTo('category', renderCategorySelection);
+            navigateTo('home', renderLanding);
         }
         void allPromise;
     } catch (e) {
@@ -1128,7 +1126,7 @@ async function handleBackendOAuthMessage(event) {
         });
         await gamePromise;
         if (!completeAuthDialogSuccess()) {
-            navigateTo('category', renderCategorySelection);
+            navigateTo('home', renderLanding);
         }
         void allPromise;
     } catch (e) {
@@ -1301,7 +1299,7 @@ async function handleAccountEmailChangeConfirm() {
         showAppMessage(t(key), { tone: 'error' });
     } finally {
         setAuthBusyState(false);
-        renderSidebar();
+        renderGlobalNavigation();
         renderMyPage();
     }
 }
@@ -1518,7 +1516,7 @@ async function handleAccountLoginIdSetupSubmit() {
         showAppMessage(t(key), { tone: 'error' });
     } finally {
         setAuthBusyState(false);
-        renderSidebar();
+        renderGlobalNavigation();
         renderMyPage();
     }
 }
@@ -1544,7 +1542,7 @@ async function syncSocialProviders() {
     const token = await firebaseAuth.currentUser.getIdToken();
     state.account = await apiUpdateSocialProviders(token, getLinkedProviderIds().map(normalizeProviderKey));
     state.isAdmin = !!state.account?.is_admin;
-    renderSidebar();
+    renderGlobalNavigation();
     return state.account;
 }
 
@@ -1569,7 +1567,7 @@ async function handleLinkSocialProvider(providerKey) {
         const token = await firebaseAuth.currentUser.getIdToken();
         state.account = await apiRecordFirebaseProviderLink(token, providerKey);
         state.isAdmin = !!state.account?.is_admin;
-        renderSidebar();
+        renderGlobalNavigation();
         showAppMessage(t('auth_social_link_success'), { tone: 'success' });
     } catch (e) {
         console.error('Social provider link failed', providerKey, e);
@@ -1657,7 +1655,7 @@ async function handleUnlinkSocialProvider(providerKey) {
         showAppMessage(t('mypage_provider_unlink_error', { detail: t(detailKey) }), { tone: 'error' });
     } finally {
         setAuthBusyState(false);
-        renderSidebar();
+        renderGlobalNavigation();
         renderMyPage();
     }
 }
@@ -1678,7 +1676,7 @@ async function handleDeleteAccount() {
         showAppMessage(t('mypage_delete_account_error', { detail: t(e?.message || 'account_delete_failed') }), { tone: 'error' });
     } finally {
         setAuthBusyState(false);
-        renderSidebar();
+        renderGlobalNavigation();
     }
 }
 
@@ -1702,9 +1700,9 @@ async function handleDisplayNameSubmit() {
             waitForUserEvals: false,
         });
         await gamePromise;
-        renderSidebar();
+        renderGlobalNavigation();
         if (!completeAuthDialogSuccess()) {
-            navigateTo('category', renderCategorySelection);
+            navigateTo('home', renderLanding);
         }
         void allPromise;
     } catch (e) {

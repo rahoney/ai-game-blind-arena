@@ -185,16 +185,6 @@ function renderGameGuideCard(categoryName, options = {}) {
     `;
 }
 
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('sidebar-overlay');
-    const willOpen = !sidebar.classList.contains('open');
-    sidebar.classList.toggle('open', willOpen);
-    overlay.classList.toggle('open', willOpen);
-    document.body.classList.toggle('sidebar-open', willOpen);
-    document.documentElement.classList.toggle('sidebar-open', willOpen);
-}
-
 let sidebarGlassRenderer = null;
 let sidebarGlassResizeHandler = null;
 
@@ -462,94 +452,223 @@ function bindSidebarGlassTarget() {
     hideSidebarGlassTarget();
 }
 
-function renderSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    if (!sidebar || !state.games) return;
+let headerNavigationEventsBound = false;
 
-    const strictCategories = state.categories.filter(category => category.group === 'strict');
-    const advancedCategories = state.categories.filter(category => category.group === 'advanced');
+function getHeaderProfileBadgeKey() {
+    return state.myPageData?.profile_badge_key
+        || state.account?.profile?.profile_badge_key
+        || state.account?.profile_badge_key
+        || 'badge_egg';
+}
 
-    const getCategoryLabel = (category) => getCategoryDisplayName(category.name);
-    const getMenuItem = (category) => {
-        if (!state.games[category.name]) return '';
-        const activeClass = state.selectedCategory === category.name ? 'active' : '';
-        return `<li class="sidebar-menu-item ${activeClass}" 
-                    onclick="sidebarSelectCategory('${category.name}')">
-            <span><strong>${getCategoryLabel(category)}</strong></span>
-        </li>`;
-    };
+function getHeaderDisplayName() {
+    return state.account?.profile?.display_name || '';
+}
 
-    sidebar.innerHTML = `
-        <div class="sidebar-body">
-            <div class="sidebar-main">
-                <h2 class="sidebar-title">${t('menu_title')}</h2>
-                <div class="sidebar-group-label">
-                    ${t('group_strict_title')}
-                </div>
-                <ul class="sidebar-menu-list">
-                    ${strictCategories.map(getMenuItem).join('')}
-                </ul>
+function getHeaderAccountLabel() {
+    const displayName = getHeaderDisplayName();
+    if (!displayName) return t('menu_mypage');
+    return state.language === 'ko' ? `${displayName} 님` : `Hi, ${displayName}`;
+}
 
-                <div class="sidebar-group-label">
-                    ${t('group_advanced_title')}
-                </div>
-                <ul class="sidebar-menu-list">
-                    ${advancedCategories.map(getMenuItem).join('')}
-                </ul>
-
-                <button type="button" class="sidebar-about-button" onclick="sidebarSelectAbout()"><span>About</span></button>
+function renderHeaderCategoryGroups({ mobile = false } = {}) {
+    const categories = state.categories || [];
+    const groups = [
+        { key: 'strict', label: t('group_strict_title') },
+        { key: 'advanced', label: t('group_advanced_title') },
+    ];
+    return groups.map((group) => {
+        const items = categories
+            .filter((category) => category.group === group.key && state.games?.[category.name])
+            .map((category) => `
+                <button
+                    type="button"
+                    class="${mobile ? 'header-mobile-category' : 'header-dropdown-item'}${state.selectedCategory === category.name ? ' active' : ''}"
+                    onclick='headerSelectCategory(${JSON.stringify(category.name)})'
+                >${escapeHtml(getCategoryDisplayName(category.name))}</button>
+            `).join('');
+        return items ? `
+            <div class="${mobile ? 'header-mobile-group' : 'header-dropdown-group'}">
+                <div class="${mobile ? 'header-mobile-group-label' : 'header-dropdown-label'}">${group.label}</div>
+                ${items}
             </div>
+        ` : '';
+    }).join('');
+}
 
-            <div class="sidebar-footer">
-                <div class="sidebar-language-block">
-                    <div class="sidebar-language-switch" role="group" aria-label="${t('menu_language')}">
-                        <button type="button" class="${state.language === 'ko' ? 'active' : ''}" onclick="sidebarChangeLanguage('ko')"><span>한국어</span></button>
-                        <button type="button" class="${state.language === 'en' ? 'active' : ''}" onclick="sidebarChangeLanguage('en')"><span>English</span></button>
-                    </div>
+function renderLanguageMenu({ mobile = false } = {}) {
+    const itemClass = mobile ? 'header-mobile-language' : 'header-dropdown-item';
+    return `
+        <button type="button" class="${itemClass}${state.language === 'ko' ? ' active' : ''}" onclick="headerChangeLanguage('ko')">한국어</button>
+        <button type="button" class="${itemClass}${state.language === 'en' ? ' active' : ''}" onclick="headerChangeLanguage('en')">English</button>
+    `;
+}
+
+function renderGlobalNavigation() {
+    const publicRoot = document.getElementById('header-public-nav');
+    const accountRoot = document.getElementById('header-auth-actions');
+    const mobileRoot = document.getElementById('header-mobile-menu');
+    if (!publicRoot || !accountRoot || !mobileRoot) return;
+
+    const isSignedIn = !!state.account?.profile;
+    const badgeMarkup = renderBadgeSvg(getHeaderProfileBadgeKey(), 30);
+    const accountLabel = escapeHtml(getHeaderAccountLabel());
+
+    publicRoot.innerHTML = `
+        <div class="header-menu" data-header-menu="game">
+            <button type="button" class="header-nav-button" aria-haspopup="true" aria-expanded="false" onclick="toggleHeaderDropdown('game', event)">
+                GAME <span class="header-menu-caret" aria-hidden="true"></span>
+            </button>
+            <div class="header-dropdown header-game-dropdown" role="menu">
+                ${renderHeaderCategoryGroups()}
+            </div>
+        </div>
+        <button type="button" class="header-nav-button" onclick="headerOpenAbout()">ABOUT</button>
+    `;
+
+    accountRoot.innerHTML = `
+        ${isSignedIn ? `
+            <div class="header-menu header-account-menu" data-header-menu="account">
+                <button type="button" class="header-account-button" aria-haspopup="true" aria-expanded="false" onclick="toggleHeaderDropdown('account', event)">
+                    <span class="header-account-badge">${badgeMarkup}</span>
+                    <span class="header-account-name">${accountLabel}</span>
+                    <span class="header-menu-caret" aria-hidden="true"></span>
+                </button>
+                <div class="header-dropdown header-account-dropdown" role="menu">
+                    <button type="button" class="header-dropdown-item" onclick="headerOpenMyPage()">${t('menu_mypage')}</button>
+                    <button type="button" class="header-dropdown-item header-logout-button" onclick="headerLogout()">${t('menu_logout')}</button>
                 </div>
-                <ul style="list-style: none;">
-                    ${state.account ? `<li class="sidebar-account-actions">
-                        <button type="button" class="sidebar-footer-item" onclick="sidebarSelectMyPage()">
-                            <span><strong>${t('menu_mypage')}</strong></span>
-                        </button>
-                        <button type="button" class="sidebar-footer-item sidebar-logout-item" onclick="sidebarLogout()">
-                            <span><strong>${t('menu_logout')}</strong></span>
-                        </button>
-                    </li>` : `<li class="sidebar-footer-item" onclick="sidebarSelectLogin()">
-                        <span><strong>${t('menu_login')}</strong></span>
-                    </li>`}
-                </ul>
+            </div>
+        ` : `
+            <button type="button" class="header-login-button" onclick="openAuthDialog('login')">${t('menu_login')}</button>
+        `}
+        <div class="header-menu header-language-menu" data-header-menu="language">
+            <button type="button" class="header-language-button" aria-haspopup="true" aria-expanded="false" onclick="toggleHeaderDropdown('language', event)">
+                ${t('menu_language')} <span class="header-menu-caret" aria-hidden="true"></span>
+            </button>
+            <div class="header-dropdown header-language-dropdown" role="menu">
+                ${renderLanguageMenu()}
             </div>
         </div>
     `;
-    sidebarGlassRenderer = null;
-    bindSidebarGlassTarget();
+    accountRoot.classList.add('active');
+
+    mobileRoot.innerHTML = `
+        <div class="header-mobile-account">
+            ${isSignedIn ? `
+                <div class="header-mobile-profile">
+                    <span class="header-account-badge">${badgeMarkup}</span>
+                    <strong>${accountLabel}</strong>
+                </div>
+                <div class="header-mobile-account-actions">
+                    <button type="button" onclick="headerOpenMyPage()">${t('menu_mypage')}</button>
+                    <button type="button" class="header-logout-button" onclick="headerLogout()">${t('menu_logout')}</button>
+                </div>
+            ` : `
+                <button type="button" class="header-mobile-login" onclick="headerOpenLogin()">${t('menu_login')}</button>
+            `}
+        </div>
+        <div class="header-mobile-section">
+            <div class="header-mobile-section-title">GAME</div>
+            ${renderHeaderCategoryGroups({ mobile: true })}
+        </div>
+        <button type="button" class="header-mobile-about" onclick="headerOpenAbout()">ABOUT</button>
+        <div class="header-mobile-section header-mobile-language-section">
+            <div class="header-mobile-section-title">${t('menu_language')}</div>
+            <div class="header-mobile-language-options">${renderLanguageMenu({ mobile: true })}</div>
+        </div>
+    `;
+
+    bindHeaderNavigationEvents();
 }
 
 function renderHeaderActions() {
-    const root = document.getElementById('header-auth-actions');
-    if (!root) return;
-    const isHome = state.currentView?.id === 'home';
-    const showAuthActions = isHome && !state.account;
-    root.innerHTML = showAuthActions
-        ? `
-            <button type="button" class="header-login-button" onclick="openAuthDialog('login')">${t('menu_login')}</button>
-        `
-        : '';
-    root.classList.toggle('active', showAuthActions);
+    renderGlobalNavigation();
+}
+
+function bindHeaderNavigationEvents() {
+    if (headerNavigationEventsBound) return;
+    headerNavigationEventsBound = true;
+    document.addEventListener('click', (event) => {
+        if (!event.target.closest('.header-inner')) closeHeaderMenus();
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeHeaderMenus();
+    });
+}
+
+function toggleHeaderDropdown(menuName, event) {
+    event?.stopPropagation();
+    const menu = document.querySelector(`[data-header-menu="${menuName}"]`);
+    if (!menu) return;
+    const shouldOpen = !menu.classList.contains('open');
+    closeHeaderMenus();
+    if (shouldOpen) {
+        menu.classList.add('open');
+        menu.querySelector('[aria-expanded]')?.setAttribute('aria-expanded', 'true');
+    }
+}
+
+function toggleMobileNavigation(event) {
+    event?.stopPropagation();
+    const trigger = document.getElementById('header-mobile-trigger');
+    const menu = document.getElementById('header-mobile-menu');
+    if (!trigger || !menu) return;
+    const shouldOpen = !menu.classList.contains('open');
+    closeHeaderMenus();
+    menu.classList.toggle('open', shouldOpen);
+    menu.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
+    trigger.classList.toggle('open', shouldOpen);
+    trigger.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+}
+
+function closeHeaderMenus() {
+    document.querySelectorAll('.header-menu.open').forEach((menu) => {
+        menu.classList.remove('open');
+        menu.querySelector('[aria-expanded]')?.setAttribute('aria-expanded', 'false');
+    });
+    const trigger = document.getElementById('header-mobile-trigger');
+    const mobileMenu = document.getElementById('header-mobile-menu');
+    trigger?.classList.remove('open');
+    trigger?.setAttribute('aria-expanded', 'false');
+    mobileMenu?.classList.remove('open');
+    mobileMenu?.setAttribute('aria-hidden', 'true');
+}
+
+function headerSelectCategory(category) {
+    closeHeaderMenus();
+    if (!ensureDisplayNameSetupComplete()) return;
+    selectCategory(category);
+}
+
+function headerOpenAbout() {
+    closeHeaderMenus();
+    if (!ensureDisplayNameSetupComplete()) return;
+    navigateTo('about', renderAbout);
+}
+
+function headerOpenMyPage() {
+    closeHeaderMenus();
+    if (!ensureDisplayNameSetupComplete()) return;
+    openMyPage();
+}
+
+function headerOpenLogin() {
+    closeHeaderMenus();
+    openAuthDialog('login');
+}
+
+async function headerLogout() {
+    closeHeaderMenus();
+    await handleLogout();
+}
+
+async function headerChangeLanguage(lang) {
+    closeHeaderMenus();
+    await changeLanguage(lang);
 }
 
 function goToHomeView() {
     if (!ensureDisplayNameSetupComplete()) return;
     navigateTo('home', renderLanding);
-}
-
-function sidebarSelectCategory(category) { toggleSidebar(); if (!ensureDisplayNameSetupComplete()) return; selectCategory(category); }
-function sidebarSelectAbout() { toggleSidebar(); if (!ensureDisplayNameSetupComplete()) return; navigateTo('about', renderAbout); }
-function sidebarSelectLogin() { toggleSidebar(); setAuthMode('login'); navigateTo('login', renderLogin); }
-function sidebarSelectMyPage() { toggleSidebar(); if (!ensureDisplayNameSetupComplete()) return; openMyPage(); }
-function sidebarLinkGoogle() { toggleSidebar(); handleLinkGoogleProvider(); }
-function sidebarLogout() { toggleSidebar(); handleLogout(); }
-async function sidebarChangeLanguage(lang) {
-    await changeLanguage(lang);
 }
