@@ -463,17 +463,68 @@ function renderLanding() {
     );
     const totalBlindVariants = Object.values(state.games || {}).reduce((sum, items) => sum + items.length, 0);
     const processSteps = [
-        { title: t('landing_step_1_title') },
-        { title: t('landing_step_2_title') },
-        { title: t('landing_step_3_title') },
-        { title: t('landing_step_4_title') },
+        {
+            title: t('landing_step_1_title'),
+            color: '#4fc3f7',
+            nextColor: '#6cb1f8',
+            icon: `
+                <circle cx="10" cy="8" r="3.6"></circle>
+                <path d="M4 22v-2.2a6 6 0 0 1 12 0V22"></path>
+                <rect x="14.5" y="14.5" width="9" height="7.5" rx="1.6"></rect>
+                <path d="M16.2 14.5v-2a2.8 2.8 0 0 1 5.6 0v2"></path>
+            `,
+        },
+        {
+            title: t('landing_step_2_title'),
+            color: '#6cb1f8',
+            nextColor: '#899ef9',
+            icon: `
+                <circle cx="14" cy="8" r="4.2"></circle>
+                <path class="landing-process-icon-fill" d="M12 12.3h4l-.7 6.2h-2.6z"></path>
+                <rect x="5" y="19" width="18" height="5" rx="2.4"></rect>
+            `,
+        },
+        {
+            title: t('landing_step_3_title'),
+            color: '#899ef9',
+            nextColor: '#a78bfa',
+            icon: `
+                <rect x="5" y="5" width="18" height="20" rx="2.2"></rect>
+                <rect x="10" y="3" width="8" height="4" rx="1.2"></rect>
+                <path d="m9 13 2 2 3.5-3.5"></path>
+                <path d="M17 12h3"></path>
+                <path d="m9 19 2 2 3.5-3.5"></path>
+                <path d="M17 18h3"></path>
+            `,
+        },
+        {
+            title: t('landing_step_4_title'),
+            color: '#a78bfa',
+            nextColor: '#a78bfa',
+            icon: `
+                <circle cx="11" cy="8" r="3.6"></circle>
+                <path d="M5 22v-2.2a6 6 0 0 1 12 0V22"></path>
+                <rect x="15.5" y="14.5" width="8.5" height="7" rx="1.6"></rect>
+                <path d="M17 14.5v-2.4a2.6 2.6 0 0 1 4.8-1.3"></path>
+            `,
+        },
     ];
     const processStepsHtml = processSteps.map((step, index) => `
-        <article class="landing-process-step landing-reveal">
-            <div class="landing-process-number"></div>
+        <article class="landing-process-step landing-reveal" style="--step-color: ${step.color};">
+            <span class="landing-process-tag">STEP ${String(index + 1).padStart(2, '0')}</span>
+            <div class="landing-process-icon" aria-hidden="true">
+                <svg viewBox="0 0 28 28" fill="none">
+                    ${step.icon}
+                </svg>
+            </div>
             <h4>${step.title}</h4>
         </article>
-        ${index < processSteps.length - 1 ? '<div class="landing-process-arrow" aria-hidden="true">›</div>' : ''}
+        ${index < processSteps.length - 1 ? `
+            <div class="landing-process-arrow" aria-hidden="true" style="--arrow-color: ${step.nextColor};">
+                <span></span>
+                <span></span>
+            </div>
+        ` : ''}
     `).join('');
     const renderCategoryCards = (groupName) => (state.categories || [])
         .filter((category) => category.group === groupName && state.games?.[category.name]?.length)
@@ -553,7 +604,7 @@ function renderLanding() {
 
             <section class="landing-band">
                 <div class="landing-shell">
-                    <div class="landing-section-heading landing-reveal">
+                    <div class="landing-section-heading landing-section-heading-with-cards landing-reveal">
                         <span class="landing-kicker">${t('landing_modes_kicker')}</span>
                         <h3>${t('landing_modes_title')}</h3>
                     </div>
@@ -584,7 +635,7 @@ function renderLanding() {
 
             <section class="landing-band">
                 <div class="landing-shell">
-                    <div class="landing-section-heading landing-reveal">
+                    <div class="landing-section-heading landing-section-heading-with-cards landing-reveal">
                         <span class="landing-kicker">${t('landing_process_kicker')}</span>
                         <h3>${t('landing_process_title')}</h3>
                     </div>
@@ -796,7 +847,6 @@ function renderAbout() {
                 <h2 class="visually-hidden">${t('title')}</h2>
                 <img src="/static/og-image.png?v=20260619-og1" alt="" aria-hidden="true">
             </div>
-            <p style="text-align: center; margin-bottom: 2rem; font-size: 1.2rem; color: var(--text-muted); font-weight: 500; border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem;">${t('subtitle')}</p>
             <div style="color: var(--text-color); font-size: 1.2rem; text-align: left; padding: 0 1rem;">
                 <p style="margin-bottom: 1.5rem;">${t('about_desc_1')}</p>
                 <p style="margin-bottom: 2.5rem;">${t('about_desc_2')}</p>
