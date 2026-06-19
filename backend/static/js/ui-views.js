@@ -234,6 +234,17 @@ const LANDING_MARQUEE_IMAGE_GROUPS = {
     side: [1, 2, 3, 4, 5].map((n) => `/static/landing/marquee/side-${n}.jpg`),
 };
 
+const LANDING_CATEGORY_IMAGE_GROUPS = {
+    '1인칭 미니 FPS': LANDING_MARQUEE_IMAGE_GROUPS.fps,
+    '던전 탐색': LANDING_MARQUEE_IMAGE_GROUPS.dungeon,
+    '서바이벌 디펜스': LANDING_MARQUEE_IMAGE_GROUPS.defense,
+    '강화된 벽돌깨기': LANDING_MARQUEE_IMAGE_GROUPS.brick,
+    '카드배틀': LANDING_MARQUEE_IMAGE_GROUPS.card,
+    '횡스크롤 액션': LANDING_MARQUEE_IMAGE_GROUPS.side,
+};
+
+let landingCategoryCarouselController = null;
+
 function shuffleLandingItems(items) {
     const shuffled = [...items];
     for (let i = shuffled.length - 1; i > 0; i -= 1) {
@@ -303,6 +314,145 @@ function initLandingScrollAnimations(root) {
     targets.forEach((target) => observer.observe(target));
 }
 
+function initLandingCategoryCarousel(root) {
+    if (landingCategoryCarouselController?.stop) {
+        landingCategoryCarouselController.stop();
+    }
+    landingCategoryCarouselController = null;
+    if (!root) return;
+
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const mediaNodes = Array.from(root.querySelectorAll('.landing-category-carousel'));
+    if (reduceMotion || mediaNodes.length === 0 || !('IntersectionObserver' in window)) return;
+
+    const visibleNodes = new Set();
+    const items = mediaNodes.map((media) => {
+        let images = [];
+        try {
+            images = JSON.parse(media.dataset.images || '[]');
+        } catch (error) {
+            images = [];
+        }
+        return {
+            media,
+            current: media.querySelector('.landing-category-image-current'),
+            next: media.querySelector('.landing-category-image-next'),
+            images,
+            index: 0,
+            animating: false,
+        };
+    }).filter((item) => item.current && item.next && item.images.length > 1);
+
+    if (!items.length) return;
+
+    let stopped = false;
+    let timerId = null;
+    const displayMs = 4000;
+    const staggerMs = 145;
+    const transitionMs = 460;
+
+    const getVisibleItems = () => items.filter((item) => visibleNodes.has(item.media) && item.media.isConnected);
+
+    const preloadNextImages = () => {
+        getVisibleItems().forEach((item) => {
+            const preload = new Image();
+            preload.src = item.images[(item.index + 1) % item.images.length];
+        });
+    };
+
+    const schedule = () => {
+        window.clearTimeout(timerId);
+        if (stopped) return;
+        timerId = window.setTimeout(runSequence, displayMs);
+    };
+
+    const finishTransition = (item, nextSrc) => {
+        item.media.classList.add('is-resetting');
+        item.current.src = nextSrc;
+        item.next.classList.remove('is-active');
+        item.next.removeAttribute('src');
+        item.media.classList.remove('is-sliding');
+        item.media.offsetHeight;
+        window.requestAnimationFrame(() => {
+            item.media.classList.remove('is-resetting');
+        });
+        item.animating = false;
+    };
+
+    const transitionItem = (item) => {
+        if (item.animating || item.images.length < 2) return;
+        const nextIndex = (item.index + 1) % item.images.length;
+        const nextSrc = item.images[nextIndex];
+        item.animating = true;
+        item.index = nextIndex;
+        item.next.src = nextSrc;
+        item.next.alt = item.current.alt;
+
+        window.requestAnimationFrame(() => {
+            if (stopped || !visibleNodes.has(item.media) || !item.media.isConnected) {
+                finishTransition(item, nextSrc);
+                return;
+            }
+            item.media.classList.add('is-sliding');
+            item.next.classList.add('is-active');
+        });
+
+        window.setTimeout(() => finishTransition(item, nextSrc), transitionMs);
+    };
+
+    function runSequence() {
+        if (stopped) return;
+        if (document.hidden) {
+            schedule();
+            return;
+        }
+
+        const sequence = getVisibleItems();
+        if (!sequence.length) {
+            schedule();
+            return;
+        }
+
+        preloadNextImages();
+        sequence.forEach((item, index) => {
+            window.setTimeout(() => {
+                if (!stopped && visibleNodes.has(item.media) && item.media.isConnected) {
+                    transitionItem(item);
+                }
+            }, index * staggerMs);
+        });
+
+        window.setTimeout(schedule, Math.max(0, (sequence.length - 1) * staggerMs + transitionMs));
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                visibleNodes.add(entry.target);
+            } else {
+                visibleNodes.delete(entry.target);
+            }
+        });
+        preloadNextImages();
+    }, { threshold: 0.45, rootMargin: '0px 0px -8% 0px' });
+
+    items.forEach((item) => observer.observe(item.media));
+    const handleVisibilityChange = () => {
+        if (!document.hidden) schedule();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    schedule();
+
+    landingCategoryCarouselController = {
+        stop() {
+            stopped = true;
+            window.clearTimeout(timerId);
+            observer.disconnect();
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        },
+    };
+}
+
 function renderLanding() {
     const el = document.getElementById('view-home');
     const isSignedIn = !!state.account?.profile;
@@ -328,20 +478,19 @@ function renderLanding() {
     const renderCategoryCards = (groupName) => (state.categories || [])
         .filter((category) => category.group === groupName && state.games?.[category.name]?.length)
         .map((category) => {
-            const imageSrc = LANDING_CATEGORY_IMAGES[category.name];
+            const imageSet = LANDING_CATEGORY_IMAGE_GROUPS[category.name] || [LANDING_CATEGORY_IMAGES[category.name]].filter(Boolean);
+            const imageSrc = imageSet[0];
             const guide = getGameGuideContent(category.name);
             const summary = guide?.lines?.[0] || '';
-            const modelCount = state.games?.[category.name]?.length || 0;
             return `
                 <article class="landing-category-card landing-reveal" onclick="selectCategory('${category.name}')">
-                    <div class="landing-category-media">
-                        <img src="${imageSrc}" alt="${escapeHtml(getCategoryDisplayName(category.name))}">
+                    <div class="landing-category-media landing-category-carousel" data-images="${escapeHtml(JSON.stringify(imageSet))}">
+                        <img class="landing-category-image landing-category-image-current" src="${imageSrc}" alt="${escapeHtml(getCategoryDisplayName(category.name))}">
+                        <img class="landing-category-image landing-category-image-next" alt="" aria-hidden="true">
                     </div>
                     <div class="landing-category-body">
-                        <div class="landing-category-meta">${t('landing_category_models', { count: modelCount })}</div>
                         <h3>${escapeHtml(getCategoryDisplayName(category.name))}</h3>
                         <p>${escapeHtml(summary)}</p>
-                        <button type="button" class="landing-inline-action" onclick="event.stopPropagation(); selectCategory('${category.name}')">${t('landing_category_action')}</button>
                     </div>
                 </article>
             `;
@@ -486,6 +635,7 @@ function renderLanding() {
         </div>
     `;
     initLandingScrollAnimations(el);
+    initLandingCategoryCarousel(el);
 }
 
 function renderCategorySelection() {
@@ -642,7 +792,10 @@ function renderAbout() {
     const el = document.getElementById('view-list');
     el.innerHTML = `
         <div class="card" style="max-width: 900px; margin-top: 2rem; line-height: 1.8;">
-            <h2 style="text-align: center; margin-bottom: 0.5rem; color: var(--primary); font-size: 2.5rem;">${t('title')}</h2>
+            <div class="about-brand">
+                <h2 class="visually-hidden">${t('title')}</h2>
+                <img src="/static/og-image.png?v=20260619-og1" alt="" aria-hidden="true">
+            </div>
             <p style="text-align: center; margin-bottom: 2rem; font-size: 1.2rem; color: var(--text-muted); font-weight: 500; border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem;">${t('subtitle')}</p>
             <div style="color: var(--text-color); font-size: 1.2rem; text-align: left; padding: 0 1rem;">
                 <p style="margin-bottom: 1.5rem;">${t('about_desc_1')}</p>

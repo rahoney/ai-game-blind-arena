@@ -35,4 +35,6 @@ google_adsense_guide.md
 *.png
 !backend/static/social/
 !backend/static/social/*.png
+!backend/static/brand/*.png
+!backend/static/og-image.png
 배지 이미지/
