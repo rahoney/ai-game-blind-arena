@@ -90,7 +90,7 @@ function renderLogin() {
     const isResetPassword = mode === 'reset_password';
     const showDialogClose = isDialog && canCloseAuthDialog();
     const authBusyNotice = state.isLoginSubmitting
-        ? `<p class="auth-inline-status">${t('auth_login_processing')}</p>`
+        ? `<p class="auth-inline-status auth-progress-status" role="status" aria-live="polite">${getAuthBusyMessage()}</p>`
         : '';
     el.innerHTML = `
         <div class="${isDialog ? 'auth-dialog-shell' : ''}">
