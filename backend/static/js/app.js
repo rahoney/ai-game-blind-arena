@@ -27,11 +27,7 @@ async function initApp() {
         navigateTo('login', renderLogin);
         return;
     }
-    if (state.authUser) {
-        navigateTo('category', renderCategorySelection);
-    } else {
-        navigateTo('home', renderLanding);
-    }
+    navigateTo('home', renderLanding);
     void initialUserEvalPromise;
 }
 
@@ -74,7 +70,7 @@ function applyAnimationVars(element, vars) {
 
 function navigateTo(viewId, renderFunction, ...args) {
     const onboardingViews = ['login'];
-    const contentViews = ['home', 'category', 'list', 'play', 'about', 'results', 'mypage', 'privacy'];
+    const contentViews = ['home', 'list', 'play', 'about', 'results', 'mypage', 'privacy'];
     if (viewId !== 'login' && typeof requiresDisplayNameSetup === 'function' && requiresDisplayNameSetup()) {
         state.authMode = 'display_name';
         viewId = 'login';
@@ -85,8 +81,8 @@ function navigateTo(viewId, renderFunction, ...args) {
     const onboardingLayer = document.getElementById('onboarding-layer');
     const onboardingSlider = document.getElementById('onboarding-slider');
     const contentLayer = document.getElementById('content-layer');
-    const hamburger = document.getElementById('hamburger');
     const header = document.getElementById('main-header');
+    if (typeof closeHeaderMenus === 'function') closeHeaderMenus();
     document.body.classList.toggle('theme-mypage', viewId === 'mypage');
     document.body.classList.toggle('theme-home', viewId === 'home');
 
@@ -99,7 +95,6 @@ function navigateTo(viewId, renderFunction, ...args) {
     if (onboardingViews.includes(viewId)) {
         onboardingLayer.classList.remove('hidden');
         contentLayer.classList.add('hidden');
-        hamburger.classList.remove('hidden');
         animateOrApply(header, null, { y: 0, duration: 0.5 });
         const nextIndex = onboardingViews.indexOf(viewId);
         const slideHeight = onboardingLayer ? onboardingLayer.clientHeight : 0;
@@ -118,7 +113,6 @@ function navigateTo(viewId, renderFunction, ...args) {
     } else if (contentViews.includes(viewId)) {
         onboardingLayer.classList.add('hidden');
         contentLayer.classList.remove('hidden');
-        hamburger.classList.remove('hidden');
         
         animateOrApply(header, null, { y: 0, duration: 0.5 });
 
@@ -132,7 +126,7 @@ function navigateTo(viewId, renderFunction, ...args) {
 
         animateOrApply(contentLayer, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6 });
         
-        renderSidebar();
+        renderGlobalNavigation();
     }
 }
 // 언어 변경 함수: 현재 뷰 유지
@@ -148,7 +142,7 @@ async function changeLanguage(lang) {
     if (typeof renderHeaderActions === 'function') {
         renderHeaderActions();
     }
-    renderSidebar();
+    renderGlobalNavigation();
 }
 
 window.addEventListener('resize', () => {

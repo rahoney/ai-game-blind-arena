@@ -569,7 +569,7 @@ function renderLanding() {
                         <h2>${formatLandingHeroTitle()}</h2>
                         <p class="landing-hero-lead">${t('landing_hero_copy')}</p>
                         <div class="landing-hero-actions">
-                            <button type="button" class="primary-action landing-primary" onclick="navigateTo('category', renderCategorySelection)">${t('landing_cta_browse')}</button>
+                            <button type="button" class="primary-action landing-primary" onclick="scrollLandingToCategories()">${t('landing_cta_browse')}</button>
                             ${isSignedIn ? `<button type="button" class="secondary landing-secondary" onclick="openMyPage()">${t('menu_mypage')}</button>` : ''}
                         </div>
                         <div class="landing-metrics">
@@ -645,7 +645,7 @@ function renderLanding() {
                 </div>
             </section>
 
-            <section class="landing-band">
+            <section id="landing-game-categories" class="landing-band">
                 <div class="landing-shell">
                     <div class="landing-section-heading landing-reveal">
                         <span class="landing-kicker">${t('landing_categories_kicker')}</span>
@@ -689,41 +689,13 @@ function renderLanding() {
     initLandingCategoryCarousel(el);
 }
 
-function renderCategorySelection() {
-    const el = document.getElementById('view-category');
-    const strictCategories = state.categories.filter(category => category.group === 'strict');
-    const advancedCategories = state.categories.filter(category => category.group === 'advanced');
-    const getCategoryLabel = (category) => {
-        const key = category.translation_key || category.name;
-        return key.startsWith('cat_') ? t(key) : key;
-    };
-    const getCategoryHtml = (category) => {
-        if (!state.games[category.name]) return '';
-        return `<div class="game-card" onclick="selectCategory('${category.name}')">
-            <h3 style="font-size: 1.6rem;">${getCategoryLabel(category)}</h3>
-        </div>`;
-    };
-
-    el.innerHTML = `
-        <div class="card" style="max-width: 900px;">
-            <h2 style="margin-bottom: 1rem; font-size: 2.2rem; text-align: center;">${t('category_selection_title')}</h2>
-            <p style="margin-bottom: 3rem; color: var(--text-muted); font-size: 1.3rem; text-align: center; font-weight: 600;">${t('category_selection_desc')}</p>
-            <div style="margin-bottom: 3rem;">
-                <h3 style="color: var(--primary); font-size: 1.6rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem;">${t('group_strict_title')}</h3>
-                <p style="color: var(--text-muted); font-size: 1.2rem; margin-bottom: 1.5rem;">${t('group_strict_desc')}</p>
-                <div class="grid">
-                    ${strictCategories.map(getCategoryHtml).join('')}
-                </div>
-            </div>
-            <div>
-                <h3 style="color: var(--primary); font-size: 1.6rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem;">${t('group_advanced_title')}</h3>
-                <p style="color: var(--text-muted); font-size: 1.2rem; margin-bottom: 1.5rem;">${t('group_advanced_desc')}</p>
-                <div class="grid">
-                    ${advancedCategories.map(getCategoryHtml).join('')}
-                </div>
-            </div>
-        </div>
-    `;
+function scrollLandingToCategories() {
+    const target = document.getElementById('landing-game-categories');
+    if (!target) return;
+    target.scrollIntoView({
+        behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'start',
+    });
 }
 
 function renderGameList() {
