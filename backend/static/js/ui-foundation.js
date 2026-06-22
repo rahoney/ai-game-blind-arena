@@ -580,6 +580,18 @@ function renderGlobalNavigation() {
     `;
 
     bindHeaderNavigationEvents();
+    renderFooter();
+}
+
+function renderFooter() {
+    const supportText = document.getElementById('footer-support-text');
+    const supportKr = document.getElementById('footer-support-kr');
+    const supportGlobal = document.getElementById('footer-support-global');
+    const projectsLabel = document.getElementById('footer-projects-label');
+    if (supportText) supportText.textContent = t('footer_support_text');
+    if (supportKr) supportKr.textContent = t('support_kr');
+    if (supportGlobal) supportGlobal.textContent = t('support_global');
+    if (projectsLabel) projectsLabel.textContent = t('footer_other_projects');
 }
 
 function renderHeaderActions() {
