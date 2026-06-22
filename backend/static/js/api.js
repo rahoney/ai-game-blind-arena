@@ -70,7 +70,7 @@ async function apiRequestSignupEmailCode(email) {
     const res = await fetch(`${API_BASE}/auth/signup/email-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, language: state.language || 'ko' })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -202,7 +202,7 @@ async function apiRequestCurrentUserEmailChangeCode(idToken, email) {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${idToken}`
         },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, language: state.language || 'ko' })
     });
     const data = await res.json();
     if (!res.ok) {
@@ -234,7 +234,7 @@ async function apiRequestCurrentUserLoginIdCode(idToken, email) {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${idToken}`
         },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, language: state.language || 'ko' })
     });
     const data = await res.json();
     if (!res.ok) {

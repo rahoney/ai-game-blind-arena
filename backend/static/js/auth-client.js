@@ -152,6 +152,7 @@ function completeAuthDialogSuccess() {
     state.authDialogOpen = false;
     state.authMode = 'login';
     syncAuthDialogVisibility();
+    let navigationRendered = false;
     if (state.currentView?.id === 'play') {
         if (typeof rerenderPlayInteractionPanels === 'function') {
             rerenderPlayInteractionPanels();
@@ -162,11 +163,9 @@ function completeAuthDialogSuccess() {
         void refreshCurrentCommentsView().catch((e) => console.error('Results comments refresh failed after auth dialog success', e));
     } else {
         rerenderPostAuthDataViews();
+        navigationRendered = true;
     }
-    renderGlobalNavigation();
-    if (typeof renderHeaderActions === 'function') {
-        renderHeaderActions();
-    }
+    if (!navigationRendered) renderGlobalNavigation();
     return true;
 }
 
@@ -683,6 +682,68 @@ function setAuthBusyState(isBusy, context = '') {
     state.authBusyContext = isBusy ? context : '';
 }
 
+function setAuthBusyContext(context) {
+    if (!state.isLoginSubmitting) return;
+    state.authBusyContext = context || '';
+    rerenderAuthBusySurface();
+}
+
+function startAuthPerformanceTrace(operation) {
+    return {
+        operation,
+        startedAt: window.performance?.now?.() || Date.now(),
+        lastStepAt: window.performance?.now?.() || Date.now(),
+        steps: [],
+    };
+}
+
+function markAuthPerformanceStep(trace, step) {
+    if (!trace) return;
+    const now = window.performance?.now?.() || Date.now();
+    trace.steps.push({
+        step,
+        durationMs: Number((now - trace.lastStepAt).toFixed(1)),
+        elapsedMs: Number((now - trace.startedAt).toFixed(1)),
+    });
+    trace.lastStepAt = now;
+}
+
+function finishAuthPerformanceTrace(trace, outcome = 'success') {
+    if (!trace) return null;
+    const now = window.performance?.now?.() || Date.now();
+    const result = {
+        operation: trace.operation,
+        outcome,
+        totalMs: Number((now - trace.startedAt).toFixed(1)),
+        steps: trace.steps,
+        recordedAt: new Date().toISOString(),
+    };
+    state.authPerformance = [...(state.authPerformance || []), result].slice(-20);
+    console.info('[auth-perf]', result);
+    return result;
+}
+
+function getAuthPerformanceReport() {
+    return [...(state.authPerformance || [])];
+}
+
+function getAuthBusyMessage() {
+    const contextKeys = {
+        login_submit: 'auth_busy_login_prepare',
+        login_resolve_id: 'auth_busy_login_resolve',
+        login_authenticate: 'auth_busy_login_authenticate',
+        signup_code_send: 'auth_busy_code_send',
+        signup_code_resend: 'auth_busy_code_send',
+        signup_code_confirm: 'auth_busy_code_confirm',
+        signup_submit: 'auth_busy_signup_prepare',
+        signup_account_create: 'auth_busy_signup_create',
+        signup_profile_save: 'auth_busy_profile_save',
+        auth_profile_load: 'auth_busy_profile_load',
+        display_name_submit: 'auth_busy_display_name_save',
+    };
+    return t(contextKeys[state.authBusyContext] || 'auth_login_processing');
+}
+
 function rerenderAuthBusySurface() {
     if (state.currentView?.id === 'mypage') {
         renderMyPage();
@@ -703,14 +764,23 @@ function syncCurrentAuthUserSnapshot() {
 
 async function refreshGameCatalog(options = {}) {
     const { rerender = true } = options;
+    if (state.gamesRefreshPromise) {
+        await state.gamesRefreshPromise;
+        if (rerender) rerenderPostAuthDataViews();
+        return;
+    }
     const startedAt = window.performance?.now?.() || Date.now();
     state.gamesLoading = true;
     if (rerender) rerenderPostAuthDataViews();
-    try {
+    state.gamesRefreshPromise = (async () => {
         await apiFetchGames();
         const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
         console.info(`[perf] apiFetchGames ${elapsedMs.toFixed(1)}ms`);
+    })();
+    try {
+        await state.gamesRefreshPromise;
     } finally {
+        state.gamesRefreshPromise = null;
         state.gamesLoading = false;
         if (rerender) rerenderPostAuthDataViews();
     }
@@ -730,21 +800,30 @@ async function refreshUserEvaluations(options = {}) {
         if (rerender) rerenderPostAuthDataViews();
         return;
     }
+    if (state.userEvalsRefreshPromise) {
+        await state.userEvalsRefreshPromise;
+        if (rerender) rerenderPostAuthDataViews();
+        return;
+    }
     const startedAt = window.performance?.now?.() || Date.now();
     state.userEvalsLoading = true;
-    try {
+    state.userEvalsRefreshPromise = (async () => {
         await apiFetchUserEvals();
         state.userEvalsFetchedAt = Date.now();
         const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
         console.info(`[perf] apiFetchUserEvals ${elapsedMs.toFixed(1)}ms`);
+    })();
+    try {
+        await state.userEvalsRefreshPromise;
     } finally {
+        state.userEvalsRefreshPromise = null;
         state.userEvalsLoading = false;
         if (rerender) rerenderPostAuthDataViews();
     }
 }
 
 async function refreshAccountFromFirebaseUser(options = {}) {
-    const { forceTokenRefresh = false } = options;
+    const { forceTokenRefresh = false, renderNavigation = true } = options;
     if (!firebaseAuth?.currentUser) return null;
     const startedAt = window.performance?.now?.() || Date.now();
     const token = await firebaseAuth.currentUser.getIdToken(forceTokenRefresh);
@@ -754,7 +833,7 @@ async function refreshAccountFromFirebaseUser(options = {}) {
     state.isAdmin = !!state.account?.is_admin;
     const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
     console.info(`[perf] apiFetchAuthMe ${elapsedMs.toFixed(1)}ms forceTokenRefresh=${forceTokenRefresh}`);
-    renderGlobalNavigation();
+    if (renderNavigation) renderGlobalNavigation();
     return state.account;
 }
 
@@ -807,42 +886,61 @@ async function handleEmailAuth(mode) {
         }
     }
 
+    const trace = startAuthPerformanceTrace(mode === 'signup' ? 'email_signup' : 'email_login');
+    let outcome = 'error';
     try {
         setAuthBusyState(true, mode === 'signup' ? 'signup_submit' : 'login_submit');
         rerenderAuthBusySurface();
         if (mode === 'signup') {
+            setAuthBusyContext('signup_account_create');
             await firebaseAuth.createUserWithEmailAndPassword(email, password);
+            markAuthPerformanceStep(trace, 'firebase_account_created');
+            setAuthBusyContext('signup_profile_save');
             await firebaseAuth.currentUser.updateProfile({ displayName: identity.display_name });
             await saveProfileIdentity(identity);
+            markAuthPerformanceStep(trace, 'profile_identity_saved');
             state.signupEmailVerification = { email: '', codeSent: false, expiresAt: 0, token: '' };
             state.loginIdAvailability = { value: '', status: 'idle', message: '' };
             state.displayNameAvailability = { value: '', status: 'idle', message: '' };
             showAppMessage(t('auth_signup_complete'), { tone: 'success' });
         } else {
+            setAuthBusyContext('login_resolve_id');
             const data = await apiResolveLoginIdEmail(email);
+            markAuthPerformanceStep(trace, 'login_id_resolved');
+            setAuthBusyContext('login_authenticate');
             await firebaseAuth.signInWithEmailAndPassword(data.email, password);
+            markAuthPerformanceStep(trace, 'firebase_authenticated');
         }
-        await refreshAccountFromFirebaseUser();
+        setAuthBusyContext('auth_profile_load');
+        await refreshAccountFromFirebaseUser({ renderNavigation: false });
+        markAuthPerformanceStep(trace, 'account_profile_loaded');
         if (needsEmailVerification()) {
+            outcome = 'verification_required';
             state.authMode = 'verify_email';
             renderLogin();
             showAppMessage(t('auth_email_verification_required'), { tone: 'error' });
             return;
         }
         if (state.account?.profile && !state.account.profile.display_name_set) {
+            outcome = 'display_name_required';
             state.authMode = 'display_name';
             renderLogin();
             return;
         }
-        const { gamePromise, allPromise } = refreshSignedInGameState({
-            waitForGames: true,
+        const { allPromise } = refreshSignedInGameState({
+            waitForGames: false,
             waitForUserEvals: false,
+            rerender: false,
         });
-        await gamePromise;
         if (!completeAuthDialogSuccess()) {
             navigateTo('home', renderLanding);
         }
-        void allPromise;
+        markAuthPerformanceStep(trace, 'interactive_ui_ready');
+        outcome = 'success';
+        void allPromise.then(() => {
+            markAuthPerformanceStep(trace, 'background_data_synced');
+            finishAuthPerformanceTrace(trace, outcome);
+        });
     } catch (e) {
         showAppMessage(getFriendlyAuthError(e, mode), { tone: 'error' });
         if (mode === 'signup' && firebaseAuth.currentUser) {
@@ -850,6 +948,7 @@ async function handleEmailAuth(mode) {
             renderLogin();
         }
     } finally {
+        if (outcome !== 'success') finishAuthPerformanceTrace(trace, outcome);
         setAuthBusyState(false);
         rerenderAuthBusySurface();
     }
@@ -863,10 +962,13 @@ async function handleSignupEmailCodeRequest() {
         showAppMessage(getFriendlyAuthError({ code: 'auth/invalid-email' }, 'signup'), { tone: 'error' });
         return;
     }
+    const trace = startAuthPerformanceTrace(wasCodeSent ? 'signup_code_resend' : 'signup_code_send');
+    let outcome = 'error';
     try {
         setAuthBusyState(true, wasCodeSent ? 'signup_code_resend' : 'signup_code_send');
         renderLogin();
         const data = await apiRequestSignupEmailCode(email);
+        markAuthPerformanceStep(trace, 'verification_code_requested');
         state.signupEmailVerification = {
             email,
             codeSent: true,
@@ -879,9 +981,11 @@ async function handleSignupEmailCodeRequest() {
                 : t('auth_signup_code_sent'),
             { tone: 'success' }
         );
+        outcome = 'success';
     } catch (e) {
         showAppMessage(getFriendlyAuthError({ code: e?.message || 'mail_send_failed' }, 'signup'), { tone: 'error' });
     } finally {
+        finishAuthPerformanceTrace(trace, outcome);
         setAuthBusyState(false);
         renderLogin();
     }
@@ -895,10 +999,13 @@ async function handleSignupEmailCodeConfirm() {
         showAppMessage(t('auth_signup_code_invalid'), { tone: 'error' });
         return;
     }
+    const trace = startAuthPerformanceTrace('signup_code_confirm');
+    let outcome = 'error';
     try {
         setAuthBusyState(true, 'signup_code_confirm');
         renderLogin();
         const data = await apiConfirmSignupEmailCode(email, code);
+        markAuthPerformanceStep(trace, 'verification_code_confirmed');
         state.signupEmailVerification = {
             ...state.signupEmailVerification,
             token: data.email_verification_token || '',
@@ -906,9 +1013,11 @@ async function handleSignupEmailCodeConfirm() {
         stopSignupEmailCountdown();
         renderLogin();
         showAppMessage(t('auth_signup_email_verified'), { tone: 'success' });
+        outcome = 'success';
     } catch (e) {
         showAppMessage(t('auth_signup_code_invalid'), { tone: 'error' });
     } finally {
+        finishAuthPerformanceTrace(trace, outcome);
         setAuthBusyState(false);
         renderLogin();
     }
@@ -955,11 +1064,11 @@ async function handleVerifyEmailRefresh() {
             renderLogin();
             return;
         }
-        const { gamePromise, allPromise } = refreshSignedInGameState({
-            waitForGames: true,
+        const { allPromise } = refreshSignedInGameState({
+            waitForGames: false,
             waitForUserEvals: false,
+            rerender: false,
         });
-        await gamePromise;
         if (!completeAuthDialogSuccess()) {
             navigateTo('home', renderLanding);
         }
@@ -988,7 +1097,7 @@ async function handleSocialLogin(providerKey) {
         renderLogin();
         const provider = providerConfig.createProvider();
         await firebaseAuth.signInWithPopup(provider);
-        await refreshAccountFromFirebaseUser();
+        await refreshAccountFromFirebaseUser({ renderNavigation: false });
         if (state.account?.profile && !state.account.profile.display_name_set) {
             state.authMode = 'display_name';
             if (state.authDialogOpen) {
@@ -999,11 +1108,11 @@ async function handleSocialLogin(providerKey) {
             }
             return;
         }
-        const { gamePromise, allPromise } = refreshSignedInGameState({
-            waitForGames: true,
+        const { allPromise } = refreshSignedInGameState({
+            waitForGames: false,
             waitForUserEvals: false,
+            rerender: false,
         });
-        await gamePromise;
         if (!completeAuthDialogSuccess()) {
             navigateTo('home', renderLanding);
         }
@@ -1109,7 +1218,7 @@ async function handleBackendOAuthMessage(event) {
             clearInterval(backendOAuthPopupTimerId);
             backendOAuthPopupTimerId = null;
         }
-        await refreshAccountFromFirebaseUser();
+        await refreshAccountFromFirebaseUser({ renderNavigation: false });
         if (state.account?.profile && !state.account.profile.display_name_set) {
             state.authMode = 'display_name';
             if (state.authDialogOpen) {
@@ -1120,11 +1229,11 @@ async function handleBackendOAuthMessage(event) {
             }
             return;
         }
-        const { gamePromise, allPromise } = refreshSignedInGameState({
-            waitForGames: true,
+        const { allPromise } = refreshSignedInGameState({
+            waitForGames: false,
             waitForUserEvals: false,
+            rerender: false,
         });
-        await gamePromise;
         if (!completeAuthDialogSuccess()) {
             navigateTo('home', renderLanding);
         }
@@ -1689,22 +1798,31 @@ async function handleDisplayNameSubmit() {
         return;
     }
 
+    const trace = startAuthPerformanceTrace('display_name_submit');
+    let outcome = 'error';
     try {
         setAuthBusyState(true, 'display_name_submit');
         rerenderAuthBusySurface();
         await firebaseAuth.currentUser.updateProfile({ displayName });
+        markAuthPerformanceStep(trace, 'firebase_display_name_updated');
         await saveDisplayName(displayName);
+        markAuthPerformanceStep(trace, 'service_display_name_saved');
         state.authMode = 'login';
-        const { gamePromise, allPromise } = refreshSignedInGameState({
-            waitForGames: true,
+        const { allPromise } = refreshSignedInGameState({
+            waitForGames: false,
             waitForUserEvals: false,
+            rerender: false,
         });
-        await gamePromise;
         renderGlobalNavigation();
         if (!completeAuthDialogSuccess()) {
             navigateTo('home', renderLanding);
         }
-        void allPromise;
+        markAuthPerformanceStep(trace, 'interactive_ui_ready');
+        outcome = 'success';
+        void allPromise.then(() => {
+            markAuthPerformanceStep(trace, 'background_data_synced');
+            finishAuthPerformanceTrace(trace, outcome);
+        });
     } catch (e) {
         const detail = e?.message || '';
         const message = detail === 'display_name_taken'
@@ -1712,6 +1830,7 @@ async function handleDisplayNameSubmit() {
             : getDisplayNameErrorMessage(detail || 'display_name_generic_error');
         showAppMessage(message, { tone: 'error' });
     } finally {
+        if (outcome !== 'success') finishAuthPerformanceTrace(trace, outcome);
         setAuthBusyState(false);
         rerenderAuthBusySurface();
     }

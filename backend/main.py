@@ -12,6 +12,7 @@ import secrets
 import random
 import re
 import logging
+import html
 from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
@@ -407,21 +408,103 @@ def _log_brevo_error(context: str, exc: urllib_error.HTTPError):
     print(f"Brevo {context} error: status={exc.code} body={body}", flush=True)
 
 
-def _send_signup_verification_email(email: str, code: str):
+def _mail_logo_html():
+    asset_base_url = (os.environ.get("MAIL_ASSET_BASE_URL") or "").strip().rstrip("/")
+    if asset_base_url.startswith("https://"):
+        logo_url = f"{asset_base_url}/static/brand/veilplays-logo-light.png"
+        return (
+            f'<img src="{html.escape(logo_url)}" alt="{SERVICE_BRAND_NAME}" '
+            'width="220" style="display:block;width:220px;max-width:100%;height:auto;border:0;">'
+        )
+    return (
+        f'<div style="font-size:30px;line-height:1;font-weight:800;color:#f4f8ff;">'
+        f'Veil<span style="color:#1da1f2;">Plays</span></div>'
+    )
+
+
+def _build_branded_email_html(content_html: str):
+    return f"""<!doctype html>
+<html>
+<body style="margin:0;padding:0;background:#0b1424;font-family:Arial,'Noto Sans KR',sans-serif;color:#edf5ff;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b1424;">
+    <tr>
+      <td align="center" style="padding:36px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#14243d;border:1px solid #2d4567;border-radius:8px;">
+          <tr>
+            <td style="padding:32px 36px 20px;">{_mail_logo_html()}</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 36px 36px;font-size:16px;line-height:1.75;color:#c9d8eb;">
+              {content_html}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
+def _send_signup_verification_email(email: str, code: str, language: str | None = "ko"):
     api_key = os.environ.get("BREVO_API_KEY")
     sender_email = os.environ.get("MAIL_FROM_EMAIL")
     sender_name = os.environ.get("MAIL_FROM_NAME") or SERVICE_BRAND_NAME
     if not api_key or not sender_email:
         raise HTTPException(status_code=503, detail="mail_service_not_configured")
 
+    lang = _normalize_language(language)
+    if lang == "en":
+        subject = f"{SERVICE_BRAND_NAME} Email Verification Code"
+        text_content = (
+            f"Hello, this is {SERVICE_BRAND_NAME}.\n"
+            f"Here is your email verification code for registration.\n\n"
+            f"Verification code: {code}\n\n"
+            f"This code is valid for 5 minutes.\n"
+            f"If you did not request this, please ignore this email.\n\n"
+            f"{SERVICE_BRAND_NAME}\nGame-based AI model evaluation service"
+        )
+        html_content = _build_branded_email_html(
+            f"""<p style="margin:0 0 14px;">Hello, this is <strong style="color:#ffffff;">{SERVICE_BRAND_NAME}</strong>.</p>
+<p style="margin:0 0 24px;">Here is your email verification code for registration.</p>
+<div style="margin:0 0 24px;padding:18px 20px;background:#0d1a2e;border:1px solid #3b5b83;border-radius:8px;">
+  <span style="color:#9fb4cf;">Verification code:</span>
+  <strong style="display:block;margin-top:6px;font-size:30px;letter-spacing:6px;color:#65d4ff;">{html.escape(code)}</strong>
+</div>
+<p style="margin:0 0 8px;">This code is valid for 5 minutes.</p>
+<p style="margin:0 0 28px;">If you did not request this, please ignore this email.</p>
+<p style="margin:0;color:#ffffff;font-weight:700;">{SERVICE_BRAND_NAME}</p>
+<p style="margin:2px 0 0;color:#8fa6c2;">Game-based AI model evaluation service</p>"""
+        )
+    else:
+        subject = f"{SERVICE_BRAND_NAME} 이메일 인증 코드"
+        text_content = (
+            f"안녕하세요, {SERVICE_BRAND_NAME}입니다.\n"
+            f"회원가입을 위한 이메일 인증 코드입니다.\n\n"
+            f"인증 코드: {code}\n\n"
+            f"위 코드는 5분 동안 유효합니다.\n"
+            f"본인이 요청하지 않았다면 이 메일을 무시해 주세요.\n\n"
+            f"{SERVICE_BRAND_NAME}\n게임 기반 AI 모델 평가 서비스"
+        )
+        html_content = _build_branded_email_html(
+            f"""<p style="margin:0 0 14px;">안녕하세요, <strong style="color:#ffffff;">{SERVICE_BRAND_NAME}</strong>입니다.</p>
+<p style="margin:0 0 24px;">회원가입을 위한 이메일 인증 코드입니다.</p>
+<div style="margin:0 0 24px;padding:18px 20px;background:#0d1a2e;border:1px solid #3b5b83;border-radius:8px;">
+  <span style="color:#9fb4cf;">인증 코드:</span>
+  <strong style="display:block;margin-top:6px;font-size:30px;letter-spacing:6px;color:#65d4ff;">{html.escape(code)}</strong>
+</div>
+<p style="margin:0 0 8px;">위 코드는 5분 동안 유효합니다.</p>
+<p style="margin:0 0 28px;">본인이 요청하지 않았다면 이 메일을 무시해 주세요.</p>
+<p style="margin:0;color:#ffffff;font-weight:700;">{SERVICE_BRAND_NAME}</p>
+<p style="margin:2px 0 0;color:#8fa6c2;">게임 기반 AI 모델 평가 서비스</p>"""
+        )
+
     body = {
         "sender": {"name": sender_name, "email": sender_email},
         "to": [{"email": email}],
-        "subject": f"{SERVICE_BRAND_NAME} 이메일 인증 코드",
-        "textContent": (
-            f"{SERVICE_BRAND_NAME} 회원가입 인증 코드는 {code} 입니다. 10분 안에 입력해 주세요.\n\n"
-            f"{SERVICE_CONTEXT_NAME} 계정 인증 메일입니다."
-        ),
+        "subject": subject,
+        "textContent": text_content,
+        "htmlContent": html_content,
     }
     req = urllib_request.Request(
         "https://api.brevo.com/v3/smtp/email",
@@ -467,18 +550,42 @@ def _send_password_reset_email(email: str, language: str | None = "ko"):
     if lang == "en":
         subject = f"{SERVICE_BRAND_NAME} Password Reset"
         text_content = (
-            f"You requested a password reset for your {SERVICE_BRAND_NAME} account.\n\n"
-            f"Open the link below to set a new password.\n{reset_link}\n\n"
-            f"If you did not request this, you can ignore this email.\n\n"
-            f"This is an account email for {SERVICE_CONTEXT_NAME}."
+            f"Hello, this is {SERVICE_BRAND_NAME}.\n"
+            f"We received a request to reset your password.\n"
+            f"Use the link below to set a new password.\n\n{reset_link}\n\n"
+            f"If you did not request this, please ignore this email.\n\n"
+            f"{SERVICE_BRAND_NAME}\nGame-based AI model evaluation service"
+        )
+        html_content = _build_branded_email_html(
+            f"""<p style="margin:0 0 14px;">Hello, this is <strong style="color:#ffffff;">{SERVICE_BRAND_NAME}</strong>.</p>
+<p style="margin:0 0 8px;">We received a request to reset your password.</p>
+<p style="margin:0 0 24px;">Use the button below to set a new password.</p>
+<p style="margin:0 0 28px;text-align:center;">
+  <a href="{html.escape(reset_link)}" style="display:inline-block;padding:13px 24px;background:#3ca9d8;color:#ffffff;text-decoration:none;font-weight:700;border-radius:8px;">Reset Password</a>
+</p>
+<p style="margin:0 0 28px;">If you did not request this, please ignore this email.</p>
+<p style="margin:0;color:#ffffff;font-weight:700;">{SERVICE_BRAND_NAME}</p>
+<p style="margin:2px 0 0;color:#8fa6c2;">Game-based AI model evaluation service</p>"""
         )
     else:
         subject = f"{SERVICE_BRAND_NAME} 비밀번호 재설정"
         text_content = (
-            f"{SERVICE_BRAND_NAME} 비밀번호 재설정을 요청하셨습니다.\n\n"
-            f"아래 링크를 열어 새 비밀번호를 설정해 주세요.\n{reset_link}\n\n"
-            f"본인이 요청하지 않았다면 이 메일을 무시하셔도 됩니다.\n\n"
-            f"{SERVICE_CONTEXT_NAME} 계정 안내 메일입니다."
+            f"안녕하세요, {SERVICE_BRAND_NAME}입니다.\n"
+            f"비밀번호 재설정 요청이 접수되었습니다.\n"
+            f"아래 링크를 눌러 새 비밀번호를 설정해 주세요.\n\n{reset_link}\n\n"
+            f"본인이 요청하지 않았다면 이 메일을 무시해 주세요.\n\n"
+            f"{SERVICE_BRAND_NAME}\n게임 기반 AI 모델 평가 서비스"
+        )
+        html_content = _build_branded_email_html(
+            f"""<p style="margin:0 0 14px;">안녕하세요, <strong style="color:#ffffff;">{SERVICE_BRAND_NAME}</strong>입니다.</p>
+<p style="margin:0 0 8px;">비밀번호 재설정 요청이 접수되었습니다.</p>
+<p style="margin:0 0 24px;">아래 버튼을 눌러 새 비밀번호를 설정해 주세요.</p>
+<p style="margin:0 0 28px;text-align:center;">
+  <a href="{html.escape(reset_link)}" style="display:inline-block;padding:13px 24px;background:#3ca9d8;color:#ffffff;text-decoration:none;font-weight:700;border-radius:8px;">비밀번호 재설정</a>
+</p>
+<p style="margin:0 0 28px;">본인이 요청하지 않았다면 이 메일을 무시해 주세요.</p>
+<p style="margin:0;color:#ffffff;font-weight:700;">{SERVICE_BRAND_NAME}</p>
+<p style="margin:2px 0 0;color:#8fa6c2;">게임 기반 AI 모델 평가 서비스</p>"""
         )
 
     body = {
@@ -486,6 +593,7 @@ def _send_password_reset_email(email: str, language: str | None = "ko"):
         "to": [{"email": email}],
         "subject": subject,
         "textContent": text_content,
+        "htmlContent": html_content,
     }
     req = urllib_request.Request(
         "https://api.brevo.com/v3/smtp/email",
@@ -508,7 +616,7 @@ def _send_password_reset_email(email: str, language: str | None = "ko"):
         raise HTTPException(status_code=502, detail="mail_send_failed") from exc
 
 
-def _create_signup_email_verification(email: str, request: Request):
+def _create_signup_email_verification(email: str, request: Request, language: str | None = "ko"):
     normalized_email = _normalize_email(email)
     if not EMAIL_RE.fullmatch(normalized_email):
         _invalid_recovery_input()
@@ -535,7 +643,7 @@ def _create_signup_email_verification(email: str, request: Request):
             raise
     else:
         raise HTTPException(status_code=503, detail="Supabase is not configured")
-    _send_signup_verification_email(normalized_email, code)
+    _send_signup_verification_email(normalized_email, code, language)
     return {"sent": True, "expires_in_seconds": expires_in_seconds}
 
 
@@ -2735,7 +2843,7 @@ async def request_signup_email_code(payload: SignupEmailVerificationRequest, req
         raise HTTPException(status_code=409, detail="email_taken")
     identifier_hash = _hash_recovery_identifier("signup_email_code", payload.email)
     _check_recovery_rate_limit("signup_email_code", identifier_hash, request)
-    return _create_signup_email_verification(payload.email, request)
+    return _create_signup_email_verification(payload.email, request, payload.language)
 
 
 @app.post("/api/auth/signup/confirm-email-code")
@@ -2965,7 +3073,7 @@ async def request_current_user_email_change_code(payload: SignupEmailVerificatio
         raise HTTPException(status_code=409, detail="email_taken")
     identifier_hash = _hash_recovery_identifier("email_change_code", profile.get("id", ""), normalized_email)
     _check_recovery_rate_limit("email_change_code", identifier_hash, request)
-    return _create_signup_email_verification(normalized_email, request)
+    return _create_signup_email_verification(normalized_email, request, payload.language)
 
 
 @app.post("/api/auth/me/email-change/confirm")
@@ -2998,7 +3106,7 @@ async def request_current_user_login_id_code(payload: SignupEmailVerificationReq
         raise HTTPException(status_code=409, detail="email_taken")
     identifier_hash = _hash_recovery_identifier("login_id_create_code", profile.get("id", ""), normalized_email)
     _check_recovery_rate_limit("login_id_create_code", identifier_hash, request)
-    return _create_signup_email_verification(normalized_email, request)
+    return _create_signup_email_verification(normalized_email, request, payload.language)
 
 
 @app.post("/api/auth/me/login-id")

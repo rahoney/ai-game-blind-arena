@@ -37,8 +37,9 @@ class AccountLoginIdCreate(BaseModel):
 
 class SignupEmailVerificationRequest(BaseModel):
     email: str = Field(min_length=3, max_length=254)
+    language: Optional[str] = Field(default="ko", max_length=5)
 
-    @field_validator("email", mode="before")
+    @field_validator("email", "language", mode="before")
     @classmethod
     def strip_email(cls, value):
         return value.strip() if isinstance(value, str) else value
