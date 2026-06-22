@@ -305,13 +305,13 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
         }).join('');
 
         el.innerHTML = `
-            <div style="width: 100%; max-width: 1400px; padding-bottom: 4rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <div class="results-page-shell">
+                <div class="results-page-heading">
                     <button class="secondary" style="width: auto;" onclick="navigateTo('list', renderGameList)">← ${t('btn_back')}</button>
                     <h2 style="font-size: 2.2rem; color: var(--primary); margin: 0;">${state.language === 'ko' ? '전체 모델 비교 평가' : 'Overall Model Comparison'}</h2>
                     <div style="width: 100px;"></div>
                 </div>
-                <div class="card" style="max-width: 100%; padding: 0; overflow-x: auto; box-shadow: 0 18px 42px rgba(80, 120, 180, 0.16);">
+                <div class="card results-table-shell">
                     <table style="width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr>

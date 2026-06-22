@@ -85,6 +85,8 @@ function navigateTo(viewId, renderFunction, ...args) {
     if (typeof closeHeaderMenus === 'function') closeHeaderMenus();
     document.body.classList.toggle('theme-mypage', viewId === 'mypage');
     document.body.classList.toggle('theme-home', viewId === 'home');
+    document.body.classList.toggle('theme-model-list', viewId === 'list');
+    document.body.classList.toggle('theme-app', ['play', 'results', 'mypage', 'about', 'privacy'].includes(viewId));
 
     state.currentView = { id: viewId, func: renderFunction, args: args };
     renderFunction(...args);

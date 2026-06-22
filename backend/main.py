@@ -3065,8 +3065,11 @@ async def get_games(lang: str = 'ko', blind_seed: str = ''):
     seed = (blind_seed or "default")[:128]
     response_models_by_type = {}
     for g_type, models in lang_games.items():
-        response_models = [dict(model) for model in models]
-        random.Random(f"{seed}:{lang}:{g_type}").shuffle(response_models)
+        response_models = sorted(
+            (dict(model) for model in models),
+            key=lambda model: model["actual_model"],
+        )
+        random.Random(f"{seed}:{g_type}").shuffle(response_models)
         for index, model in enumerate(response_models):
             model["blind_id"] = chr(65 + index)
         response_models_by_type[g_type] = response_models

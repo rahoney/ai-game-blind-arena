@@ -706,35 +706,78 @@ function renderGameList() {
     const catLabel = categoryMeta && categoryMeta.translation_key?.startsWith('cat_')
         ? t(categoryMeta.translation_key)
         : category;
+    const evaluatedCount = models.filter((model) => checkEvaluated(category, model)).length;
+    const remainingCount = Math.max(models.length - evaluatedCount, 0);
 
     const modelsHtml = models.map((model) => {
         const isEval = checkEvaluated(category, model);
         const actualName = getActualModelNameIfEvaluated(category, model);
-        const evalClass = isEval ? 'completed' : '';
         const titleText = isEval
-            ? `✅ ${escapeHtml(actualName || `Model ${model.blind_id}`)}`
-            : `Model ${model.blind_id}`;
+            ? escapeHtml(actualName || `Model ${model.blind_id}`)
+            : `Model ${escapeHtml(model.blind_id)}`;
 
-        const launchDisabled = state.isPlayLaunching ? 'aria-disabled="true" style="pointer-events:none; opacity:0.68;"' : '';
-
-        return `<div class="game-card ${evalClass}" ${launchDisabled} onclick="playGame('${model.blind_id}')">
-            <h3>${titleText}</h3>
-            <div style="margin-top: 1rem; color: var(--text-muted); font-size: 0.9rem;">${t('view_count')}: ${model.play_count || 0}</div>
-            <div style="margin-top: 0.35rem; color: var(--text-muted); font-size: 0.9rem;">${t('eval_count')}: ${model.eval_count || 0}</div>
-        </div>`;
+        return `
+            <button
+                type="button"
+                class="model-selection-card${isEval ? ' completed' : ''}"
+                onclick='playGame(${JSON.stringify(model.blind_id)})'
+                ${state.isPlayLaunching ? 'disabled' : ''}
+            >
+                <strong class="model-selection-name">${titleText}</strong>
+                <span class="model-selection-stats">
+                    <span><b>${model.play_count || 0}</b>${t('view_count')}</span>
+                    <span><b>${model.eval_count || 0}</b>${t('eval_count')}</span>
+                </span>
+            </button>
+        `;
     }).join('');
 
     el.innerHTML = `
-        <div style="width: 100%; max-width: 1200px; padding-bottom: 4rem;">
-            <h2 style="font-size: 2.2rem; margin-bottom: 0.7rem; color: var(--primary); border-bottom: 2px solid var(--border-color); padding-bottom: 0.7rem; text-align: center;">${catLabel}</h2>
-            ${renderGameGuideCard(category, { concise: true, marginTop: '0', marginBottom: '1.1rem' })}
-            <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));">
+        <main class="model-selection-page">
+            <section
+                class="model-selection-hero"
+                aria-labelledby="model-selection-title"
+            >
+                <div class="model-selection-hero-copy">
+                    <span class="model-selection-kicker">${t('model_selection_kicker')}</span>
+                    <h2 id="model-selection-title">${catLabel}</h2>
+                    ${renderGameGuideCard(category, { concise: true, marginTop: '0', marginBottom: '0' })}
+                </div>
+                <dl class="model-selection-summary">
+                    <div>
+                        <dt>${t('model_selection_total')}</dt>
+                        <dd>${models.length}</dd>
+                    </div>
+                    <div>
+                        <dt>${t('model_selection_completed')}</dt>
+                        <dd>${evaluatedCount}</dd>
+                    </div>
+                    <div>
+                        <dt>${t('model_selection_remaining')}</dt>
+                        <dd>${remainingCount}</dd>
+                    </div>
+                </dl>
+            </section>
+
+            <section class="model-selection-content" aria-labelledby="model-selection-grid-title">
+                <div class="model-selection-heading">
+                    <div>
+                        <span class="model-selection-kicker">${t('model_selection_round_kicker')}</span>
+                        <h3 id="model-selection-grid-title">${t('model_selection_title')}</h3>
+                    </div>
+                    <p>${t('model_selection_description')}</p>
+                </div>
+                <div class="model-selection-grid">
                 ${modelsHtml}
+                </div>
+            </section>
+
+            <div class="model-selection-results">
+                <button type="button" class="model-selection-results-button" onclick="navigateTo('results', renderResults)">
+                    ${t('all_results')}
+                </button>
             </div>
-            <div style="margin-top: 3rem; text-align: center;">
-                <button class="primary-action" onclick="navigateTo('results', renderResults)" style="width: auto; padding: 1.25rem 2.8rem; font-size: 1.2rem;">${t('all_results')}</button>
-            </div>
-        </div>
+        </main>
     `;
 }
 
@@ -742,13 +785,13 @@ function renderPlayArea() {
     const el = document.getElementById('view-play');
     const game = state.selectedGame;
     el.innerHTML = `
-        <div style="width: 100%; max-width: 95vw; display: flex; flex-direction: column; min-height: 90vh; padding-bottom: 50px;">
+        <div class="play-page-shell">
             <div class="play-toolbar">
                 <button type="button" class="primary-action" style="width: auto; padding: 1.05rem 1.8rem;" onclick="navigateTo('list', renderGameList)">← ${state.language === 'ko' ? '모델 목록으로' : 'Back to Models'}</button>
                 <button type="button" class="primary-action" style="width: auto; padding: 1.05rem 1.8rem;" onclick="toggleFullScreen()">${state.language === 'ko' ? '전체화면 모드' : 'Fullscreen'}</button>
             </div>
             ${renderGameGuideCard(state.selectedCategory, { marginTop: '0', marginBottom: '1.5rem' })}
-            <div class="game-container" style="width: 100%; height: 1050px; border: 2px solid var(--border-color); background: #000; border-radius: 20px; overflow: hidden; box-shadow: 0 0 30px rgba(0,0,0,0.5); flex-shrink: 0;">
+            <div class="game-container play-game-frame" style="width: 100%; height: 1050px; background: #000; overflow: hidden; flex-shrink: 0;">
                 <iframe id="game-iframe" src="${game.file}" allowfullscreen="true" style="width: 100%; height: 100%; border: none;"></iframe>
             </div>
             <div id="play-evaluation-form-root">
@@ -814,35 +857,35 @@ function rerenderPlayInteractionPanels() {
 function renderAbout() {
     const el = document.getElementById('view-list');
     el.innerHTML = `
-        <div class="card" style="max-width: 900px; margin-top: 2rem; line-height: 1.8;">
+        <div class="card about-page-card">
             <div class="about-brand">
                 <h2 class="visually-hidden">${t('title')}</h2>
                 <img src="/static/og-image.png?v=20260619-og1" alt="" aria-hidden="true">
             </div>
-            <div style="color: var(--text-color); font-size: 1.2rem; text-align: left; padding: 0 1rem;">
+            <div class="about-page-copy">
                 <p style="margin-bottom: 1.5rem;">${t('about_desc_1')}</p>
                 <p style="margin-bottom: 2.5rem;">${t('about_desc_2')}</p>
                 <h3 style="margin-bottom: 1.5rem; color: var(--text-color); font-size: 1.8rem; border-left: 5px solid var(--primary); padding-left: 1rem;">${state.language === 'ko' ? '실험 조건' : 'Experiment Constraints'}</h3>
                 <div style="margin-bottom: 2.5rem;">
                     <p style="margin-bottom: 1.5rem;">${state.language === 'ko' ? '본 벤치마크는 두 가지 실험 조건으로 나뉘어 진행되었습니다.' : 'This benchmark was conducted under two different experimental conditions.'}</p>
-                    <ul style="list-style: none; padding: 0;">
-                        <li style="margin-bottom: 1.5rem; padding: 1.5rem; background: var(--surface-bg); border-radius: 12px; border: 1px solid var(--border-color);">
+                    <ul class="about-condition-list">
+                        <li>
                             <strong style="color: var(--primary); font-size: 1.3rem;">${t('about_cond_1_title')}</strong><br>
                             ${t('about_cond_1_desc')}
                         </li>
-                        <li style="margin-bottom: 1.5rem; padding: 1.5rem; background: var(--surface-bg); border-radius: 12px; border: 1px solid var(--border-color);">
+                        <li>
                             <strong style="color: var(--primary); font-size: 1.3rem;">${t('about_cond_2_title')}</strong><br>
                             ${t('about_cond_2_desc')}
                         </li>
-                        <li style="margin-bottom: 1.5rem; padding: 1.5rem; background: var(--surface-bg); border-radius: 12px; border: 1px solid var(--border-color);">
+                        <li>
                             <strong style="color: var(--primary); font-size: 1.3rem;">${t('about_cond_3_title')}</strong><br>
                             ${t('about_cond_3_desc')}
                         </li>
-                        <li style="margin-bottom: 1.5rem; padding: 1.5rem; background: var(--surface-bg); border-radius: 12px; border: 1px solid var(--border-color);">
+                        <li>
                             <strong style="color: var(--primary); font-size: 1.3rem;">${t('about_cond_4_title')}</strong><br>
                             ${t('about_cond_4_desc')}
                         </li>
-                        <li style="padding: 1.5rem; background: var(--surface-bg); border-radius: 12px; border: 1px solid var(--border-color);">
+                        <li>
                             <strong style="color: var(--primary); font-size: 1.3rem;">${t('about_cond_5_title')}</strong><br>
                             ${t('about_cond_5_desc')}
                         </li>
