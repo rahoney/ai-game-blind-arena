@@ -23,7 +23,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=20260619-brand1">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192x192.png?v=20260619-brand1">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png?v=20260619-brand1">
-    <link rel="stylesheet" href="/static/style.css?v=20260622-auth-ux2">
+    <link rel="stylesheet" href="/static/style.css?v=20260622-footer-support2">
 </head>
 <body>
     <div id="global-modal-root"></div>
@@ -72,11 +72,27 @@
     </main>
 
     <footer class="footer">
-        <div style="display:flex; flex-direction:column; align-items:center; gap:0.2rem; text-align:center;">
-            <p>&copy; 2026 WikiHoney. All rights reserved.</p>
-            <button type="button" class="secondary" onclick="openPrivacyPolicy()" style="width:auto; padding:0; border:none; text-decoration:underline; font-size:0.92rem; color:var(--text-muted);">
+        <div class="footer-inner">
+            <div class="footer-spacer" aria-hidden="true"></div>
+            <div class="footer-legal">
+                <p>&copy; 2026 WikiHoney. All rights reserved.</p>
+                <button type="button" class="footer-text-link" onclick="openPrivacyPolicy()">
                 Privacy Policy / 개인정보처리방침
-            </button>
+                </button>
+            </div>
+            <div class="footer-utilities">
+                <div class="footer-support">
+                    <span id="footer-support-text">이 프로젝트를 응원하고 싶다면</span>
+                    <a id="footer-support-kr" href="https://ctee.kr/place/wikihoney" target="_blank" rel="noopener noreferrer">한국 후원</a>
+                    <a id="footer-support-global" href="https://ko-fi.com/wikihoney" target="_blank" rel="noopener noreferrer">Global Support</a>
+                </div>
+                <details class="footer-projects">
+                    <summary id="footer-projects-label">다른 프로젝트</summary>
+                    <div class="footer-projects-menu">
+                        <a href="https://www.hrmz.today" target="_blank" rel="noopener noreferrer">Hormuz Monitor</a>
+                    </div>
+                </details>
+            </div>
         </div>
     </footer>
     
@@ -84,12 +100,12 @@
     <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics-compat.js"></script>
-    <script src="/static/js/i18n.js?v=20260622-auth-ux1"></script>
+    <script src="/static/js/i18n.js?v=20260622-footer-support1"></script>
     <script src="/static/js/state.js?v=20260622-auth-ux1"></script>
     <script src="/static/js/api.js?v=20260622-mail-language1"></script>
     <script src="/static/js/auth-client.js?v=20260622-auth-ux1"></script>
-    <script src="/static/js/ui-foundation.js?v=20260619-global-nav1"></script>
-    <script src="/static/js/ui-views.js?v=20260622-auth-ux1"></script>
+    <script src="/static/js/ui-foundation.js?v=20260622-footer-support1"></script>
+    <script src="/static/js/ui-views.js?v=20260622-footer-support1"></script>
     <script src="/static/js/ui-comments.js?v=20260622-app-theme1"></script>
     <script src="/static/js/ui-mypage.js?v=20260619-global-nav1"></script>
     <script src="/static/js/ui-policy.js?v=20260619-global-nav1"></script>

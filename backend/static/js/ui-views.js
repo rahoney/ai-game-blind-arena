@@ -895,9 +895,25 @@ function renderAbout() {
                 <p style="margin-bottom: 1rem;">${state.language === 'ko' ? '이 프로젝트를 통해 각 모델의 프롬프트 해석, 구현 역량, 창의성, 기술 활용력, 웹 디자인 감각의 차이를 살펴볼 수 있습니다.' : 'This project makes it possible to examine differences across models in prompt interpretation, implementation capability, creativity, technical execution, and web design sensibility.'}</p>
                 <p>${state.language === 'ko' ? '또한 여러 사람의 평가가 축적될수록, 개별적인 인상에 머물 수 있는 판단을 보다 비교 가능한 평가로 확장해볼 수 있습니다.' : 'As evaluations from more people accumulate, judgments that might otherwise remain subjective impressions can be extended into a more comparable form of evaluation.'}</p>
             </div>
-            <div style="margin-top: 4rem; text-align: center;">
-                <button class="primary-action" onclick="navigateToInquiry()" style="width: auto; padding: 1.25rem 3.6rem; font-size: 1.4rem;">${t('contact')}</button>
+            <div class="about-contact-section">
+                <button class="about-action-button" onclick="navigateToInquiry()">${t('contact')}</button>
             </div>
+            <section class="about-extra-section">
+                <h3>${t('support_heading')}</h3>
+                <p>${t('support_body_1')}</p>
+                <p>${t('support_body_2')}</p>
+                <div class="about-link-actions">
+                    <a class="about-action-button" href="https://ctee.kr/place/wikihoney" target="_blank" rel="noopener noreferrer">${t('support_kr')}</a>
+                    <a class="about-action-button" href="https://ko-fi.com/wikihoney" target="_blank" rel="noopener noreferrer">${t('support_global')}</a>
+                </div>
+            </section>
+            <section class="about-extra-section">
+                <h3>${t('footer_other_projects')}</h3>
+                <a class="about-project-link" href="https://www.hrmz.today" target="_blank" rel="noopener noreferrer">
+                    <strong>Hormuz Monitor</strong>
+                    <span>https://www.hrmz.today</span>
+                </a>
+            </section>
         </div>
     `;
 }
