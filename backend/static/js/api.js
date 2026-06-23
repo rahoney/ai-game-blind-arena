@@ -292,12 +292,14 @@ async function apiStartBackendOAuthLink(providerKey) {
     const url = `${API_BASE}/auth/oauth/${encodeURIComponent(providerKey)}/link/start`;
     let res = await fetch(url, {
         method: 'POST',
+        credentials: 'include',
         headers: await getCurrentAuthHeaders()
     });
     if (res.status === 401 && firebaseAuth?.currentUser) {
         const token = await firebaseAuth.currentUser.getIdToken(true);
         res = await fetch(url, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'Authorization': `Bearer ${token}`
             }

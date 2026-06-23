@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import json
@@ -109,6 +109,8 @@ app = FastAPI(
 logger = logging.getLogger("veilplays")
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "development").strip().lower()
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "").strip().rstrip("/")
 COMMENT_REACTION_RATE_LIMITS = make_rate_limit_store()
 COMMENT_REPLY_RATE_LIMITS = make_rate_limit_store()
 COMMENT_SUBMISSION_HISTORY = make_rate_limit_store()
@@ -216,9 +218,36 @@ def _load_game_stats_summary():
         play_counts, eval_counts = _copy_game_stats_cache()
     return play_counts, eval_counts, "miss"
 
-# Enable CORS for local development
-allowed_origins = [origin.strip() for origin in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",") if origin.strip()]
+def _validate_http_origin(value: str, setting_name: str) -> str:
+    parsed = urllib_parse.urlparse(value)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.username
+        or parsed.password
+        or parsed.path not in {"", "/"}
+        or parsed.params
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise RuntimeError(f"{setting_name} must contain an http(s) origin without a path")
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+if FRONTEND_ORIGIN:
+    FRONTEND_ORIGIN = _validate_http_origin(FRONTEND_ORIGIN, "FRONTEND_ORIGIN")
+elif ENVIRONMENT == "production":
+    raise RuntimeError("FRONTEND_ORIGIN must be configured in production")
+
+
+allowed_origins = [
+    _validate_http_origin(origin.strip(), "CORS_ALLOW_ORIGINS")
+    for origin in os.environ.get("CORS_ALLOW_ORIGINS", "").split(",")
+    if origin.strip()
+]
 if not allowed_origins:
+    if ENVIRONMENT == "production":
+        raise RuntimeError("CORS_ALLOW_ORIGINS must be configured in production")
     allowed_origins = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
@@ -233,6 +262,21 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "Accept-Language"],
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    if request.url.path.startswith("/api/") or request.url.path == "/healthz":
+        response.headers["Cache-Control"] = "no-store"
+    if ENVIRONMENT == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=86400"
+    return response
+
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -1407,6 +1451,7 @@ def _oauth_popup_html(payload: dict):
         .replace("\u2028", "\\u2028")
         .replace("\u2029", "\\u2029")
     )
+    frontend_origin_json = json.dumps(FRONTEND_ORIGIN or None)
     return HTMLResponse(
         f"""<!doctype html>
 <html lang="ko">
@@ -1415,8 +1460,9 @@ def _oauth_popup_html(payload: dict):
 <script>
 (function() {{
   const payload = {payload_json};
+  const targetOrigin = {frontend_origin_json} || window.location.origin;
   if (window.opener && !window.opener.closed) {{
-    window.opener.postMessage(payload, window.location.origin);
+    window.opener.postMessage(payload, targetOrigin);
   }}
   window.close();
 }}());
@@ -2639,6 +2685,16 @@ def _build_results_payload(game_type: str, data, reaction_rows, reply_rows, curr
         })
 
     return {"results": result, "is_admin": is_admin}
+
+@app.get("/healthz")
+async def health_check():
+    return {"status": "ok"}
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+async def api_robots():
+    return "User-agent: *\nDisallow: /\n"
+
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():

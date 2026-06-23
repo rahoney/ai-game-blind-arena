@@ -1,4 +1,21 @@
-const API_BASE = '/api';
+const RUNTIME_CONFIG = Object.freeze({
+    environment: window.VEILPLAYS_CONFIG?.environment || 'development',
+    frontendOrigin: window.VEILPLAYS_CONFIG?.frontendOrigin || '',
+    apiOrigin: window.VEILPLAYS_CONFIG?.apiOrigin || '',
+    gaMeasurementId: window.VEILPLAYS_CONFIG?.gaMeasurementId || '',
+});
+
+function resolveRuntimeOrigin(value, fallbackOrigin) {
+    try {
+        return new URL(value || fallbackOrigin).origin;
+    } catch (e) {
+        return fallbackOrigin;
+    }
+}
+
+const FRONTEND_ORIGIN = resolveRuntimeOrigin(RUNTIME_CONFIG.frontendOrigin, window.location.origin);
+const API_ORIGIN = resolveRuntimeOrigin(RUNTIME_CONFIG.apiOrigin, window.location.origin);
+const API_BASE = `${API_ORIGIN}/api`;
 
 let state = {
     authUser: null,

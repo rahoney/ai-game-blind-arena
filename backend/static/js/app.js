@@ -7,6 +7,7 @@ async function initApp() {
         state.language = detectDefaultLanguage();
     }
     applyDocumentLanguage();
+    initializeVeilPlaysAnalytics();
     await initializeFirebaseAuth();
     const initialGamePromise = refreshGameCatalog({ rerender: false }).catch((e) => {
         console.error("Game data load failed", e);
@@ -90,6 +91,7 @@ function navigateTo(viewId, renderFunction, ...args) {
 
     state.currentView = { id: viewId, func: renderFunction, args: args };
     renderFunction(...args);
+    trackVirtualPageView(viewId);
     if (typeof renderHeaderActions === 'function') {
         renderHeaderActions();
     }
@@ -136,6 +138,7 @@ async function changeLanguage(lang) {
     if (lang !== 'ko' && lang !== 'en') return;
     state.language = lang;
     localStorage.setItem('lang', lang);
+    trackAnalyticsEvent('language_change', { language: lang });
     applyDocumentLanguage();
     await refreshGameCatalog({ rerender: false }); // 언어 변경 시 해당 언어의 게임 목록으로 업데이트
     if (state.currentView) {
