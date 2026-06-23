@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roguelike Dungeon</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        :root {
+            --tile-size: 62px;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a12;
+            color: #e0e0ff;
+            font-family: 'Press Start 2P', system-ui;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            image-rendering: pixelated;
+        }
+        
+        #container {
+            width: 620px;
+            max-width: 96vw;
+            background: #1a1428;
+            border: 8px solid #5c3f8c;
+            border-radius: 12px;
+            box-shadow: 0 0 30px #8b5cf6,
+                        inset 0 0 20px rgba(139, 92, 246, 0.3);
+            padding: 20px;
+            position: relative;
+        }
+        
+        #start-screen {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        #title {
+            font-size: 2.8rem;
+            color: #c026d3;
+            text-shadow: 0 0 15px #c026d3;
+            margin-bottom: 30px;
+            line-height: 1.2;
+        }
+        
+        .subtitle {
+            font-size: 1rem;
+            color: #a5b4fc;
+            margin-bottom: 40px;
+            letter-spacing: 4px;
+        }
+        
+        #start-btn {
+            background: #22c55e;
+            color: #0a0a12;
+            border: none;
+            padding: 18px 42px;
+            font-family: 'Press Start 2P';
+            font-size: 1.3rem;
+            cursor: pointer;
+            border-radius: 8px;
+            box-shadow: 0 8px 0 #16a34a;
+            transition: all 0.1s;
+        }
+        
+        #start-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 4px 0 #16a34a;
+        }
+        
+        #game-container {
+            display: none;
+        }
+        
+        #header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #2a1f3f;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 1rem;
+            border: 3px solid #6b46c1;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .hp-bar {
+            width: 140px;
+            height: 18px;
+            background: #1f2937;
+            border: 2px solid #f43f5e;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hp-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #f43f5e, #fb7185);
+            transition: width 0.3s;
+        }
+        
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(8, var(--tile-size));
+            gap: 4px;
+            background: #111827;
+            padding: 8px;
+            border: 6px solid #4338ca;
+            border-radius: 8px;
+            box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.8);
+            margin: 0 auto;
+        }
+        
+        .tile {
+            width: var(--tile-size);
+            height: var(--tile-size);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 42px;
+            line-height: 1;
+            background: #1e2937;
+            border-radius: 4px;
+            box-shadow: 
+                2px 2px 0 #334155,
+                -2px -2px 0 #334155;
+            transition: transform 0.1s;
+        }
+        
+        .tile.fog {
+            background: #0f172a;
+            font-size: 36px;
+            color: #64748b;
+            box-shadow: none;
+        }
+        
+        #info {
+            margin-top: 18px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #94a3b8;
+            letter-spacing: 2px;
+        }
+        
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 18, 0.94);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            border-radius: 4px;
+            gap: 20px;
+        }
+        
+        #overlay h2 {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+        }
+        
+        #overlay p {
+            font-size: 1rem;
+            max-width: 340px;
+            text-align: center;
+            line-height: 1.5;
+        }
+        
+        #overlay button {
+            background: #eab308;
+            color: #0a0a12;
+            border: none;
+            padding: 16px 36px;
+            font-family: 'Press Start 2P';
+            font-size: 1.1rem;
+            cursor: pointer;
+            border-radius: 8px;
+            box-shadow: 0 8px 0 #ca8a04;
+            margin-top: 20px;
+        }
+        
+        #overlay button:active {
+            transform: translateY(4px);
+            box-shadow: 0 4px 0 #ca8a04;
+        }
+        
+        .win { color: #22c55e; text-shadow: 0 0 20px #22c55e; }
+        .lose { color: #f43f5e; text-shadow: 0 0 20px #f43f5e; }
+        
+        @keyframes flash {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        
+        <!-- 시작 화면 -->
+        <div id="start-screen">
+            <div id="title">🗡️<br>Roguelike<br>Dungeon</div>
+            <div class="subtitle">8×8 • TURN-BASED • FOG OF WAR</div>
+            <p style="margin-bottom: 30px; font-size: 0.9rem; color: #c7d2fe;">
+                P 🧙 E 👹 I 🧪 O 🚪<br>
+                Wall 🪨 Random generation • Escape guaranteed
+            </p>
+            <button id="start-btn">Start Game</button>
+            <div style="margin-top: 50px; font-size: 0.75rem; opacity: 0.6;">
+                Arrow keys or WASD<br>Turn-based Movement • Limited Vision
+            </div>
+        </div>
+        
+        <!-- 게임 화면 -->
+        <div id="game-container">
+            <div id="header">
+                <div class="status-item">
+                    <span style="color:#f43f5e;">❤️</span>
+                    <span id="hp-text">20</span>
+                    <div class="hp-bar">
+                        <div id="hp-fill" class="hp-fill" style="width:100%"></div>
+                    </div>
+                </div>
+                <div class="status-item">
+                    <span style="color:#eab308;">👹</span>
+                    <span id="kills-text">0</span>
+                </div>
+                <div style="font-size:0.8rem; color:#64748b;">8×8 Dungeon</div>
+            </div>
+            
+            <div id="grid"></div>
+            
+            <div id="info">
+                ↑↓←→ or WASD • Fog of War
+            </div>
+        </div>
+        
+        <!-- Game Over/승리 오버레이 -->
+        <div id="overlay"></div>
+    </div>
+
+    <script>
+        // ====================== 게임 상수 & 전역 변수 ======================
+        const SIZE = 8;
+        let walls = [];
+        let player = { x: 0, y: 0, hp: 20 };
+        let enemies = [];
+        let items = [];
+        let exitPos = { x: 0, y: 0 };
+        let visible = [];
+        let kills = 0;
+        let gameState = 'start'; // start, playing, win, lose
+        
+        const PLAYER_DMG = 6;
+        const ENEMY_DMG = 4;
+        const VIS_RADIUS = 3; // Chebyshev 거리 (주변만 보임)
+        
+        let gridElement = null;
+        let hpText = null;
+        let hpFill = null;
+        let killsText = null;
+        let overlay = null;
+        
+        // ====================== 핵심: BFS로 Exit 도달 가능 여부 확인 ======================
+        function isReachable(sx, sy, tx, ty) {
+            if (walls[sy][sx] || walls[ty][tx]) return false;
+            const visited = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+            const queue = [{ x: sx, y: sy }];
+            visited[sy][sx] = true;
+            
+            const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+            
+            while (queue.length > 0) {
+                const { x, y } = queue.shift();
+                if (x === tx && y === ty) return true;
+                
+                for (const [dx, dy] of dirs) {
+                    const nx = x + dx;
+                    const ny = y + dy;
+                    if (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE &&
+                        !walls[ny][nx] && !visited[ny][nx]) {
+                        visited[ny][nx] = true;
+                        queue.push({ x: nx, y: ny });
+                    }
+                }
+            }
+            return false;
+        }
+        
+        // ====================== 핵심: 맵 생성 (도달 보장 + 랜덤 배치) ======================
+        function generateMap() {
+            let attempts = 0;
+            while (attempts < 200) {
+                attempts++;
+                
+                // Wall 초기화
+                walls = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+                
+                // 랜덤 Wall 배치 (25~32개)
+                const wallCount = 25 + Math.floor(Math.random() * 8);
+                for (let i = 0; i < wallCount; i++) {
+                    const rx = Math.floor(Math.random() * SIZE);
+                    const ry = Math.floor(Math.random() * SIZE);
+                    walls[ry][rx] = true;
+                }
+                
+                // Player 배치
+                do {
+                    player.x = Math.floor(Math.random() * SIZE);
+                    player.y = Math.floor(Math.random() * SIZE);
+                } while (walls[player.y][player.x]);
+                
+                // Exit 배치
+                do {
+                    exitPos.x = Math.floor(Math.random() * SIZE);
+                    exitPos.y = Math.floor(Math.random() * SIZE);
+                } while (walls[exitPos.y][exitPos.x] || 
+                        (exitPos.x === player.x && exitPos.y === player.y));
+                
+                // 도달 가능 체크
+                if (isReachable(player.x, player.y, exitPos.x, exitPos.y)) break;
+            }
+            
+            // Enemy 배치 (4 monsters)
+            enemies = [];
+            while (enemies.length < 4) {
+                const ex = Math.floor(Math.random() * SIZE);
+                const ey = Math.floor(Math.random() * SIZE);
+                if (!walls[ey][ex] &&
+                    !(ex === player.x && ey === player.y) &&
+                    !(ex === exitPos.x && ey === exitPos.y) &&
+                    !enemies.some(e => e.x === ex && e.y === ey)) {
+                    enemies.push({ x: ex, y: ey, hp: 12 });
+                }
+            }
+            
+            // Recovery Item 배치 (3개)
+            items = [];
+            while (items.length < 3) {
+                const ix = Math.floor(Math.random() * SIZE);
+                const iy = Math.floor(Math.random() * SIZE);
+                if (!walls[iy][ix] &&
+                    !(ix === player.x && iy === player.y) &&
+                    !(ix === exitPos.x && iy === exitPos.y) &&
+                    !enemies.some(e => e.x === ix && e.y === iy) &&
+                    !items.some(i => i.x === ix && i.y === iy)) {
+                    items.push({ x: ix, y: iy });
+                }
+            }
+            
+            updateVisible();
+        }
+        
+        // ====================== 핵심: Fog of War (Player 주변만 표시) ======================
+        function updateVisible() {
+            visible = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+            for (let y = 0; y < SIZE; y++) {
+                for (let x = 0; x < SIZE; x++) {
+                    const dx = Math.abs(x - player.x);
+                    const dy = Math.abs(y - player.y);
+                    if (Math.max(dx, dy) <= VIS_RADIUS) {
+                        visible[y][x] = true;
+                    }
+                }
+            }
+        }
+        
+        // ====================== 핵심: Enemy 턴 AI (거리 최소화 이동 + 접촉 시 상호 데미지) ======================
+        function enemyTurn() {
+            if (gameState !== 'playing') return;
+            
+            for (let i = 0; i < enemies.length; i++) {
+                const en = enemies[i];
+                let bestDist = Infinity;
+                let bestX = en.x;
+                let bestY = en.y;
+                
+                const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+                
+                for (const [dx, dy] of dirs) {
+                    const nx = en.x + dx;
+                    const ny = en.y + dy;
+                    if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE || walls[ny][nx]) continue;
+                    
+                    const dist = Math.max(Math.abs(nx - player.x), Math.abs(ny - player.y));
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestX = nx;
+                        bestY = ny;
+                    }
+                }
+                
+                // 이동 시도
+                if (bestX !== en.x || bestY !== en.y) {
+                    // Player와 접촉하면 상호 데미지
+                    if (bestX === player.x && bestY === player.y) {
+                        player.hp -= ENEMY_DMG;
+                        en.hp -= PLAYER_DMG;
+                        
+                        if (en.hp <= 0) {
+                            enemies.splice(i, 1);
+                            kills++;
+                            i--;
+                        }
+                        if (player.hp <= 0) {
+                            gameState = 'lose';
+                            return;
+                        }
+                    } else {
+                        en.x = bestX;
+                        en.y = bestY;
+                    }
+                }
+            }
+            
+            // Enemy 이동 후 다시 Health 체크
+            if (player.hp <= 0) gameState = 'lose';
+        }
+        
+        // ====================== 핵심: Player 이동 처리 ======================
+        function movePlayer(dx, dy) {
+            if (gameState !== 'playing') return;
+            
+            const nx = player.x + dx;
+            const ny = player.y + dy;
+            
+            // 경계 / Wall 체크
+            if (nx < 0 || nx >= SIZE || ny < 0 || ny >= SIZE || walls[ny][nx]) return;
+            
+            // Enemy과 접촉 체크
+            const enemyIdx = enemies.findIndex(e => e.x === nx && e.y === ny);
+            if (enemyIdx !== -1) {
+                // 상호 전투 (접촉)
+                const enemy = enemies[enemyIdx];
+                enemy.hp -= PLAYER_DMG;
+                player.hp -= ENEMY_DMG;
+                
+                if (enemy.hp <= 0) {
+                    enemies.splice(enemyIdx, 1);
+                    kills++;
+                }
+                if (player.hp <= 0) {
+                    gameState = 'lose';
+                    render();
+                    showOverlay();
+                    return;
+                }
+                // Player는 이동하지 않음 (전투 후 제자리)
+                updateVisible();
+                enemyTurn();
+                render();
+                return;
+            }
+            
+            // 이동
+            player.x = nx;
+            player.y = ny;
+            
+            // Recovery Item 체크
+            const itemIdx = items.findIndex(i => i.x === nx && i.y === ny);
+            if (itemIdx !== -1) {
+                player.hp += 9;
+                if (player.hp > 30) player.hp = 30; // 최대 Health
+                items.splice(itemIdx, 1);
+            }
+            
+            // Exit 체크
+            if (nx === exitPos.x && ny === exitPos.y) {
+                gameState = 'win';
+                render();
+                showOverlay();
+                return;
+            }
+            
+            updateVisible();
+            enemyTurn();
+            render();
+        }
+        
+        // ====================== 렌더링 ======================
+        function render() {
+            gridElement.innerHTML = '';
+            
+            for (let y = 0; y < SIZE; y++) {
+                for (let x = 0; x < SIZE; x++) {
+                    const tile = document.createElement('div');
+                    tile.className = 'tile';
+                    
+                    if (!visible[y][x]) {
+                        tile.classList.add('fog');
+                        tile.textContent = '🌫️';
+                    } else if (walls[y][x]) {
+                        tile.textContent = '🪨';
+                    } else {
+                        // 우선순위: Player > Enemy > 아이템 > Exit > Floor
+                        let content = '⬛';
+                        
+                        if (player.x === x && player.y === y) {
+                            content = '🧙';
+                        } else if (enemies.some(e => e.x === x && e.y === y)) {
+                            content = '👹';
+                        } else if (items.some(i => i.x === x && i.y === y)) {
+                            content = '🧪';
+                        } else if (exitPos.x === x && exitPos.y === y) {
+                            content = '🚪';
+                        }
+                        
+                        tile.textContent = content;
+                    }
+                    gridElement.appendChild(tile);
+                }
+            }
+            
+            // Status UI 업데이트
+            const hpPercent = Math.max(0, Math.min(100, (player.hp / 30) * 100));
+            hpFill.style.width = `${hpPercent}%`;
+            hpText.textContent = Math.max(0, player.hp);
+            killsText.textContent = kills;
+            
+            // Game Over Status면 오버레이 표시 (render 후 호출)
+        }
+        
+        // ====================== 오버레이 표시 ======================
+        function showOverlay() {
+            overlay.style.display = 'flex';
+            let html = '';
+            
+            if (gameState === 'win') {
+                html = `
+                    <h2 class="win">🎉 Victory!</h2>
+                    <p>Reached the exit!<br>Defeated Enemies: ${kills} monsters</p>
+                    <button onclick="restartGame()">Restart</button>
+                `;
+            } else if (gameState === 'lose') {
+                html = `
+                    <h2 class="lose">💀 Defeat...</h2>
+                    <p>Fallen in the dungeon.<br>Final Kills: ${kills} monsters</p>
+                    <button onclick="restartGame()">Restart</button>
+                `;
+            }
+            
+            overlay.innerHTML = html;
+        }
+        
+        // ====================== 게임 초기화 ======================
+        function initGame() {
+            player = { x: 0, y: 0, hp: 20 };
+            enemies = [];
+            items = [];
+            kills = 0;
+            gameState = 'playing';
+            generateMap();
+        }
+        
+        // ====================== Restart (완전 초기화) ======================
+        window.restartGame = function() {
+            overlay.style.display = 'none';
+            initGame();
+            render();
+        };
+        
+        // ====================== 키 입력 ======================
+        function handleKey(e) {
+            if (gameState !== 'playing') return;
+            
+            let dx = 0, dy = 0;
+            
+            switch (e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W': dy = -1; break;
+                case 'ArrowDown':
+                case 's':
+                case 'S': dy = 1; break;
+                case 'ArrowLeft':
+                case 'a':
+                case 'A': dx = -1; break;
+                case 'ArrowRight':
+                case 'd':
+                case 'D': dx = 1; break;
+                default: return;
+            }
+            
+            if (dx !== 0 || dy !== 0) {
+                e.preventDefault();
+                movePlayer(dx, dy);
+            }
+        }
+        
+        // ====================== 시작 ======================
+        function startGame() {
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+            initGame();
+            render();
+        }
+        
+        // ====================== 메인 초기화 ======================
+        window.onload = function() {
+            gridElement = document.getElementById('grid');
+            hpText = document.getElementById('hp-text');
+            hpFill = document.getElementById('hp-fill');
+            killsText = document.getElementById('kills-text');
+            overlay = document.getElementById('overlay');
+            
+            // 시작 버튼
+            document.getElementById('start-btn').addEventListener('click', startGame);
+            
+            // 키보드
+            document.addEventListener('keydown', handleKey);
+            
+            // 모바일 터치 방지 (PC 중심)
+            console.log('%c✅ Roguelike Dungeon Fully loaded! Ready to play.', 'color:#c026d3; font-size:13px');
+        };
+    </script>
+</body>
+</html>

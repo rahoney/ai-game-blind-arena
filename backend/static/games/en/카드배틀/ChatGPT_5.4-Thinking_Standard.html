@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adorable Card Battle</title>
+  <style>
+    :root{
+      --bg1:#fff4fb;
+      --bg2:#f2f7ff;
+      --panel:#ffffffcc;
+      --pink:#ff8fc6;
+      --pink-deep:#ff66af;
+      --purple:#9d8cff;
+      --purple-deep:#7865ff;
+      --mint:#86e4c4;
+      --mint-deep:#46c79a;
+      --yellow:#ffd76f;
+      --yellow-deep:#ffbf3d;
+      --red:#ff8d8d;
+      --red-deep:#ff5f7c;
+      --text:#473b57;
+      --shadow:0 14px 40px rgba(123, 92, 160, 0.16);
+      --radius:24px;
+    }
+
+    *{box-sizing:border-box}
+    html,body{
+      margin:0;
+      min-height:100%;
+      font-family:"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 20% 20%, #ffe1f0 0%, transparent 20%),
+        radial-gradient(circle at 80% 20%, #e8e6ff 0%, transparent 20%),
+        radial-gradient(circle at 20% 80%, #dffaf1 0%, transparent 18%),
+        linear-gradient(135deg,var(--bg1),var(--bg2));
+      overflow:hidden;
+    }
+
+    body{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+    }
+
+    .game-shell{
+      width:min(1180px, 100%);
+      height:min(760px, calc(100vh - 40px));
+      position:relative;
+      border-radius:32px;
+      box-shadow:0 30px 70px rgba(114, 86, 153, 0.18);
+      overflow:hidden;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.7)),
+        linear-gradient(135deg,#fff6fb,#eef4ff 60%,#f6fff8);
+      border:1px solid rgba(255,255,255,0.8);
+      backdrop-filter: blur(14px);
+    }
+
+    .sparkles{
+      position:absolute; inset:0;
+      pointer-events:none;
+      overflow:hidden;
+    }
+    .sparkles span{
+      position:absolute;
+      width:10px;height:10px;border-radius:50%;
+      background:rgba(255,255,255,0.9);
+      box-shadow:0 0 16px rgba(255,255,255,0.8);
+      animation:float 10s linear infinite;
+      opacity:.65;
+    }
+    @keyframes float{
+      from{transform:translateY(40px) scale(.8); opacity:0}
+      10%{opacity:.8}
+      90%{opacity:.5}
+      to{transform:translateY(-780px) scale(1.2); opacity:0}
+    }
+
+    .screen{
+      position:absolute;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:linear-gradient(180deg, rgba(255,248,252,.65), rgba(243,247,255,.72));
+      backdrop-filter:blur(10px);
+      z-index:30;
+      padding:24px;
+    }
+    .screen.active{display:flex}
+
+    .screen-card{
+      width:min(520px, 100%);
+      text-align:center;
+      padding:34px 28px;
+      background:rgba(255,255,255,.86);
+      border:1px solid rgba(255,255,255,.9);
+      border-radius:30px;
+      box-shadow:var(--shadow);
+    }
+    .screen-card h1,.screen-card h2{
+      margin:0 0 12px;
+      font-size:40px;
+      line-height:1.15;
+    }
+    .screen-card p{
+      margin:10px 0;
+      line-height:1.7;
+      color:#6f6283;
+    }
+
+    .cute-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 14px;
+      border-radius:999px;
+      background:linear-gradient(135deg,#ffe2f1,#efe8ff);
+      font-weight:800;
+      margin-bottom:14px;
+      color:#6b4f90;
+      box-shadow:0 8px 20px rgba(120,101,255,0.12);
+    }
+
+    button{
+      border:none;
+      cursor:pointer;
+      border-radius:999px;
+      padding:14px 22px;
+      font-size:16px;
+      font-weight:800;
+      transition:transform .15s ease, filter .15s ease, opacity .15s ease;
+    }
+    button:hover{transform:translateY(-2px)}
+    button:active{transform:translateY(1px)}
+    .primary-btn{
+      color:white;
+      background:linear-gradient(135deg,var(--pink),var(--purple));
+      box-shadow:0 12px 28px rgba(157,140,255,.28);
+    }
+    .secondary-btn{
+      color:#6a5c7d;
+      background:linear-gradient(135deg,#fff,#f2eeff);
+      box-shadow:0 10px 24px rgba(129,117,172,.15);
+    }
+
+    .game{
+      position:relative;
+      z-index:1;
+      height:100%;
+      display:grid;
+      grid-template-rows:auto 1fr auto;
+      padding:20px 20px 18px;
+      gap:16px;
+    }
+
+    .topbar{
+      display:grid;
+      grid-template-columns:1fr auto 1fr;
+      gap:14px;
+      align-items:center;
+    }
+
+    .pill-row{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+
+    .pill{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:12px 16px;
+      border-radius:999px;
+      background:rgba(255,255,255,.74);
+      border:1px solid rgba(255,255,255,.9);
+      box-shadow:var(--shadow);
+      font-weight:800;
+      min-width:110px;
+      justify-content:center;
+    }
+
+    .center-turn{
+      text-align:center;
+      padding:12px 18px;
+      border-radius:999px;
+      background:linear-gradient(135deg,#fff,#fff8fd);
+      box-shadow:var(--shadow);
+      font-weight:900;
+      color:#755e9f;
+    }
+
+    .battlefield{
+      display:grid;
+      grid-template-columns:1fr 300px 1fr;
+      gap:20px;
+      align-items:center;
+      min-height:0;
+    }
+
+    .fighter-zone{
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+    }
+
+    .fighter-card{
+      width:min(100%, 360px);
+      height:420px;
+      padding:20px;
+      border-radius:32px;
+      background:rgba(255,255,255,.76);
+      border:1px solid rgba(255,255,255,.92);
+      box-shadow:var(--shadow);
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      position:relative;
+      overflow:hidden;
+      transition:transform .18s ease, filter .18s ease;
+    }
+
+    .fighter-card.player{
+      background:
+        linear-gradient(180deg, rgba(255,243,250,.98), rgba(255,255,255,.84)),
+        white;
+    }
+    .fighter-card.enemy{
+      background:
+        linear-gradient(180deg, rgba(244,247,255,.98), rgba(255,255,255,.84)),
+        white;
+    }
+
+    .fighter-card.hit{
+      animation:shake .28s linear;
+      filter:saturate(1.15);
+    }
+    .fighter-card.heal{
+      animation:healPulse .45s ease;
+    }
+    .fighter-card.buff{
+      animation:buffPulse .45s ease;
+    }
+    @keyframes shake{
+      0%,100%{transform:translateX(0)}
+      20%{transform:translateX(-8px) rotate(-1deg)}
+      40%{transform:translateX(8px) rotate(1deg)}
+      60%{transform:translateX(-5px)}
+      80%{transform:translateX(5px)}
+    }
+    @keyframes healPulse{
+      0%{transform:scale(1)}
+      45%{transform:scale(1.03)}
+      100%{transform:scale(1)}
+    }
+    @keyframes buffPulse{
+      0%{transform:scale(1)}
+      50%{transform:scale(1.04)}
+      100%{transform:scale(1)}
+    }
+
+    .fighter-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:10px;
+    }
+    .fighter-name{
+      font-size:26px;
+      font-weight:900;
+      line-height:1.1;
+    }
+    .sub{
+      color:#8a7ca1;
+      font-size:13px;
+      font-weight:700;
+      margin-top:4px;
+    }
+
+    .avatar-wrap{
+      position:relative;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex:1;
+      min-height:0;
+    }
+    .aura{
+      position:absolute;
+      width:190px;height:190px;border-radius:50%;
+      filter:blur(6px);
+      opacity:.9;
+    }
+    .player .aura{
+      background:radial-gradient(circle, rgba(255,160,212,.65), rgba(255,160,212,0));
+    }
+    .enemy .aura{
+      background:radial-gradient(circle, rgba(149,144,255,.55), rgba(149,144,255,0));
+    }
+    .avatar{
+      width:190px;height:190px;
+      border-radius:50%;
+      background:#fff;
+      box-shadow:inset 0 -10px 30px rgba(0,0,0,.05), 0 20px 30px rgba(100,82,140,.14);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:88px;
+      position:relative;
+      border:8px solid rgba(255,255,255,.82);
+      user-select:none;
+    }
+
+    .status-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+
+    .status-box{
+      background:rgba(255,255,255,.8);
+      border-radius:18px;
+      padding:12px;
+      border:1px solid rgba(255,255,255,.9);
+    }
+    .status-label{
+      font-size:12px;
+      font-weight:900;
+      color:#8a7ca1;
+      letter-spacing:.03em;
+      margin-bottom:7px;
+    }
+    .status-value{
+      font-size:24px;
+      font-weight:900;
+    }
+
+    .hp-bar-wrap{
+      background:#f4edf8;
+      height:14px;
+      border-radius:999px;
+      overflow:hidden;
+      box-shadow:inset 0 2px 4px rgba(0,0,0,.05);
+      margin-top:8px;
+    }
+    .hp-bar{
+      height:100%;
+      width:100%;
+      border-radius:999px;
+      background:linear-gradient(90deg,#ff95b7,#ff638d);
+      transition:width .28s ease;
+    }
+    .enemy .hp-bar{
+      background:linear-gradient(90deg,#9b9eff,#7f73ff);
+    }
+
+    .center-panel{
+      height:100%;
+      min-height:360px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:14px;
+    }
+
+    .log-panel{
+      flex:1;
+      min-height:0;
+      background:rgba(255,255,255,.74);
+      border-radius:28px;
+      border:1px solid rgba(255,255,255,.9);
+      box-shadow:var(--shadow);
+      padding:16px;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+
+    .log-title{
+      font-size:17px;
+      font-weight:900;
+      color:#6d5a8d;
+      margin-bottom:10px;
+    }
+
+    .log{
+      flex:1;
+      overflow:auto;
+      padding-right:6px;
+    }
+    .log::-webkit-scrollbar{width:8px}
+    .log::-webkit-scrollbar-thumb{
+      background:#dfd5f6;border-radius:999px;
+    }
+    .log-item{
+      background:linear-gradient(135deg,#fff,#faf7ff);
+      border:1px solid rgba(244,240,255,.9);
+      padding:10px 12px;
+      border-radius:16px;
+      margin-bottom:8px;
+      line-height:1.5;
+      box-shadow:0 6px 12px rgba(126,108,172,.06);
+      font-size:14px;
+    }
+
+    .bottom{
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:16px;
+      align-items:end;
+    }
+
+    .hand-area{
+      min-width:0;
+      background:rgba(255,255,255,.66);
+      border:1px solid rgba(255,255,255,.9);
+      border-radius:28px;
+      box-shadow:var(--shadow);
+      padding:16px;
+    }
+
+    .hand-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:12px;
+      flex-wrap:wrap;
+    }
+    .hand-title{
+      font-size:18px;
+      font-weight:900;
+      color:#6a5790;
+    }
+    .hand-sub{
+      color:#8a7ca1;
+      font-size:13px;
+      font-weight:700;
+    }
+
+    .cards{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:14px;
+    }
+
+    .card{
+      position:relative;
+      border:none;
+      padding:14px;
+      border-radius:24px;
+      text-align:left;
+      min-height:180px;
+      background:linear-gradient(180deg,#fff,#fff8fd);
+      box-shadow:0 14px 24px rgba(120,101,161,.14);
+      border:2px solid rgba(255,255,255,.92);
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      overflow:hidden;
+      transform-origin:center;
+    }
+
+    .card::before{
+      content:"";
+      position:absolute;
+      inset:auto -40px -40px auto;
+      width:110px;height:110px;border-radius:50%;
+      opacity:.18;
+    }
+
+    .card.attack::before{background:var(--red)}
+    .card.defense::before{background:var(--mint)}
+    .card.heal::before{background:var(--yellow)}
+    .card.special::before{background:var(--purple)}
+
+    .card:hover{
+      transform:translateY(-6px) rotate(-0.5deg);
+      filter:saturate(1.04);
+    }
+
+    .card:disabled{
+      cursor:not-allowed;
+      opacity:.62;
+      transform:none;
+      filter:grayscale(.08);
+    }
+
+    .card.played{
+      animation:playCard .35s ease forwards;
+    }
+    @keyframes playCard{
+      0%{transform:translateY(0) scale(1)}
+      45%{transform:translateY(-10px) scale(1.04)}
+      100%{transform:translateY(-30px) scale(.88); opacity:0}
+    }
+
+    .card-top{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+    }
+
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:7px 12px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      color:white;
+      min-width:72px;
+    }
+    .attack .tag{background:linear-gradient(135deg,var(--red),var(--red-deep))}
+    .defense .tag{background:linear-gradient(135deg,var(--mint),var(--mint-deep))}
+    .heal .tag{background:linear-gradient(135deg,var(--yellow),var(--yellow-deep)); color:#6b4b00}
+    .special .tag{background:linear-gradient(135deg,var(--purple),var(--purple-deep))}
+    .cost{
+      background:#fff;
+      color:#7d68a4;
+      width:38px;height:38px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:15px;
+      font-weight:900;
+      box-shadow:0 6px 14px rgba(107,90,140,.1);
+    }
+
+    .card-name{
+      font-size:22px;
+      font-weight:900;
+    }
+    .card-desc{
+      color:#736680;
+      line-height:1.5;
+      font-size:14px;
+      flex:1;
+    }
+    .card-foot{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:8px;
+      color:#8c7ea4;
+      font-weight:800;
+      font-size:12px;
+    }
+
+    .action-panel{
+      width:190px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    .end-turn{
+      width:100%;
+      padding:16px 18px;
+      font-size:17px;
+      color:white;
+      background:linear-gradient(135deg,#ff8ac2,#9b89ff);
+      box-shadow:0 14px 28px rgba(157,140,255,.26);
+    }
+
+    .hint{
+      background:rgba(255,255,255,.76);
+      border-radius:22px;
+      padding:14px 16px;
+      border:1px solid rgba(255,255,255,.9);
+      box-shadow:var(--shadow);
+      line-height:1.55;
+      color:#7d7091;
+      font-size:13px;
+      font-weight:700;
+    }
+
+    .floating-text{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%, -50%);
+      pointer-events:none;
+      font-weight:900;
+      font-size:30px;
+      opacity:0;
+      z-index:5;
+      text-shadow:0 4px 12px rgba(255,255,255,.85);
+      animation:popFloat .9s ease forwards;
+    }
+    .floating-text.damage{color:#ff5f7c}
+    .floating-text.heal{color:#52bb7f}
+    .floating-text.shield{color:#46b998}
+    .floating-text.energy{color:#7a67ff}
+    @keyframes popFloat{
+      0%{opacity:0; transform:translate(-50%,-10px) scale(.8)}
+      18%{opacity:1; transform:translate(-50%,-26px) scale(1.06)}
+      100%{opacity:0; transform:translate(-50%,-72px) scale(1)}
+    }
+
+    .score-pop{
+      font-weight:900;
+      color:#7b66ff;
+    }
+
+    @media (max-width: 980px){
+      .game-shell{
+        height:auto;
+        min-height:calc(100vh - 24px);
+      }
+      .battlefield{
+        grid-template-columns:1fr;
+      }
+      .center-panel{
+        order:2;
+        min-height:230px;
+      }
+      .fighter-zone{
+        order:1;
+      }
+      .bottom{
+        grid-template-columns:1fr;
+      }
+      .action-panel{
+        width:100%;
+      }
+    }
+
+    @media (max-width: 720px){
+      body{padding:8px}
+      .game{padding:12px; gap:12px}
+      .topbar{grid-template-columns:1fr; justify-items:center}
+      .pill-row{justify-content:center}
+      .cards{
+        grid-template-columns:1fr;
+      }
+      .fighter-card{
+        height:auto;
+        min-height:360px;
+      }
+      .screen-card h1,.screen-card h2{
+        font-size:32px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="game-shell">
+    <div class="sparkles" id="sparkles"></div>
+
+    <div class="screen active" id="startScreen">
+      <div class="screen-card">
+        <div class="cute-badge">🌸 Adorable Card Battle 🌸</div>
+        <h1>Defeat the monster with cards!</h1>
+        <p>
+          Gain 3 energy and draw 3 cards each turn.<br>
+          Mix attack, block, heal, and special cards to bring down the monster.
+        </p>
+        <p>
+          Block absorbs enemy attacks, but <b>resets at the start of your next turn</b>.
+        </p>
+        <button class="primary-btn" id="startBtn">Start Game</button>
+      </div>
+    </div>
+
+    <div class="screen" id="endScreen">
+      <div class="screen-card">
+        <div class="cute-badge" id="endBadge">✨ Result ✨</div>
+        <h2 id="endTitle">Victory!</h2>
+        <p id="endDesc"></p>
+        <p id="finalScoreText"></p>
+        <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:14px;">
+          <button class="primary-btn" id="restartBtn">Restart</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="game">
+      <div class="topbar">
+        <div class="pill-row">
+          <div class="pill">🏆 Score <span id="score" class="score-pop">0</span></div>
+          <div class="pill">🎴 Deck <span id="deckCount">0</span></div>
+        </div>
+
+        <div class="center-turn" id="turnText">Player Turn</div>
+
+        <div class="pill-row" style="justify-content:flex-end;">
+          <div class="pill">⚡ Energy <span id="energyText">3</span></div>
+          <div class="pill">🛡️ My Block <span id="playerShieldTop">0</span></div>
+        </div>
+      </div>
+
+      <div class="battlefield">
+        <div class="fighter-zone">
+          <div class="fighter-card player" id="playerCard">
+            <div class="fighter-header">
+              <div>
+                <div class="fighter-name">Brave Bunny Knight 🐰</div>
+                <div class="sub">Player</div>
+              </div>
+              <div class="pill" style="min-width:auto; padding:8px 12px;">Turn <span id="turnCount">1</span></div>
+            </div>
+
+            <div class="avatar-wrap" id="playerAvatarWrap">
+              <div class="aura"></div>
+              <div class="avatar">🐰</div>
+            </div>
+
+            <div class="status-grid">
+              <div class="status-box">
+                <div class="status-label">HP</div>
+                <div class="status-value"><span id="playerHp">40</span> / 40</div>
+                <div class="hp-bar-wrap"><div class="hp-bar" id="playerHpBar"></div></div>
+              </div>
+              <div class="status-box">
+                <div class="status-label">Block</div>
+                <div class="status-value" id="playerShield">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="center-panel">
+          <div class="log-panel">
+            <div class="log-title">Battle Log</div>
+            <div class="log" id="log"></div>
+          </div>
+        </div>
+
+        <div class="fighter-zone">
+          <div class="fighter-card enemy" id="enemyCard">
+            <div class="fighter-header">
+              <div>
+                <div class="fighter-name">Jelly Dragon 🐲</div>
+                <div class="sub">Monster</div>
+              </div>
+              <div class="pill" style="min-width:auto; padding:8px 12px;">Boss</div>
+            </div>
+
+            <div class="avatar-wrap" id="enemyAvatarWrap">
+              <div class="aura"></div>
+              <div class="avatar">🐲</div>
+            </div>
+
+            <div class="status-grid">
+              <div class="status-box">
+                <div class="status-label">HP</div>
+                <div class="status-value"><span id="enemyHp">44</span> / 44</div>
+                <div class="hp-bar-wrap"><div class="hp-bar" id="enemyHpBar"></div></div>
+              </div>
+              <div class="status-box">
+                <div class="status-label">Block</div>
+                <div class="status-value" id="enemyShield">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom">
+        <div class="hand-area">
+          <div class="hand-header">
+            <div>
+              <div class="hand-title">Hand</div>
+              <div class="hand-sub">Click a card to use it</div>
+            </div>
+            <div class="pill" style="min-width:auto;">Cards in Hand <span id="handCount">3</span></div>
+          </div>
+          <div class="cards" id="cards"></div>
+        </div>
+
+        <div class="action-panel">
+          <button class="end-turn" id="endTurnBtn">End Turn</button>
+          <div class="hint">
+            Tip: block cards reset to 0 at the start of your next turn.<br>
+            Mixing special cards at the right time gives you a big advantage.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 카드 정의
+    const CARD_POOL = [
+      {
+        id:"strike",
+        name:"Strawberry Punch",
+        type:"attack",
+        cost:1,
+        desc:"Deal 6 damage to the enemy.",
+        emoji:"🍓",
+        play: state => dealDamage("enemy", 6, "Strawberry Punch")
+      },
+      {
+        id:"heavy",
+        name:"Starlight Smash",
+        type:"attack",
+        cost:2,
+        desc:"Deal 10 damage to the enemy.",
+        emoji:"⭐",
+        play: state => dealDamage("enemy", 10, "Starlight Smash")
+      },
+      {
+        id:"guard",
+        name:"Cushion Shield",
+        type:"defense",
+        cost:1,
+        desc:"Gain 7 block.",
+        emoji:"🛡️",
+        play: state => addShield("player", 7, "Cushion Shield")
+      },
+      {
+        id:"bigGuard",
+        name:"Cotton Wall",
+        type:"defense",
+        cost:2,
+        desc:"Gain 12 block.",
+        emoji:"☁️",
+        play: state => addShield("player", 12, "Cotton Wall")
+      },
+      {
+        id:"heal",
+        name:"Honey Carrot",
+        type:"heal",
+        cost:1,
+        desc:"Restore 5 HP.",
+        emoji:"🥕",
+        play: state => healUnit("player", 5, "Honey Carrot")
+      },
+      {
+        id:"bigHeal",
+        name:"Rainbow Cake",
+        type:"heal",
+        cost:2,
+        desc:"Restore 9 HP.",
+        emoji:"🍰",
+        play: state => healUnit("player", 9, "Rainbow Cake")
+      },
+      {
+        id:"doubleStrike",
+        name:"Bunny Flurry",
+        type:"special",
+        cost:2,
+        desc:"Deal 4 damage twice.",
+        emoji:"🐾",
+        play: state => {
+          dealDamage("enemy", 4, "Bunny Flurry");
+          if (!state.gameOver) dealDamage("enemy", 4, "Bunny Flurry");
+        }
+      },
+      {
+        id:"shieldBash",
+        name:"Shield Bash",
+        type:"special",
+        cost:2,
+        desc:"Deal 5 damage and gain 5 block.",
+        emoji:"💥",
+        play: state => {
+          dealDamage("enemy", 5, "Shield Bash");
+          if (!state.gameOver) addShield("player", 5, "Shield Bash");
+        }
+      },
+      {
+        id:"focus",
+        name:"Focus Breath",
+        type:"special",
+        cost:0,
+        desc:"Gain 1 energy and draw 1 card.",
+        emoji:"🌿",
+        play: state => {
+          state.player.energy += 1;
+          drawCards(1);
+          addLog("🌿 Focus Breath! Gained 1 energy and drew 1 card.");
+          showFloatingText("player", "+1⚡", "energy");
+          updateUI();
+        }
+      },
+      {
+        id:"pierce",
+        name:"Spark Pierce",
+        type:"special",
+        cost:2,
+        desc:"Deal 8 damage ignoring block.",
+        emoji:"✨",
+        play: state => dealPureDamage("enemy", 8, "Spark Pierce")
+      }
+    ];
+
+    const state = {
+      player: {},
+      enemy: {},
+      hand: [],
+      deck: [],
+      discard: [],
+      turn: 1,
+      score: 0,
+      playerTurn: true,
+      gameOver: false
+    };
+
+    const el = {
+      cards: document.getElementById("cards"),
+      log: document.getElementById("log"),
+      playerHp: document.getElementById("playerHp"),
+      enemyHp: document.getElementById("enemyHp"),
+      playerShield: document.getElementById("playerShield"),
+      enemyShield: document.getElementById("enemyShield"),
+      playerShieldTop: document.getElementById("playerShieldTop"),
+      energyText: document.getElementById("energyText"),
+      deckCount: document.getElementById("deckCount"),
+      handCount: document.getElementById("handCount"),
+      score: document.getElementById("score"),
+      turnText: document.getElementById("turnText"),
+      turnCount: document.getElementById("turnCount"),
+      playerHpBar: document.getElementById("playerHpBar"),
+      enemyHpBar: document.getElementById("enemyHpBar"),
+      endTurnBtn: document.getElementById("endTurnBtn"),
+      startScreen: document.getElementById("startScreen"),
+      endScreen: document.getElementById("endScreen"),
+      endTitle: document.getElementById("endTitle"),
+      endDesc: document.getElementById("endDesc"),
+      endBadge: document.getElementById("endBadge"),
+      finalScoreText: document.getElementById("finalScoreText"),
+      playerCard: document.getElementById("playerCard"),
+      enemyCard: document.getElementById("enemyCard"),
+      playerAvatarWrap: document.getElementById("playerAvatarWrap"),
+      enemyAvatarWrap: document.getElementById("enemyAvatarWrap")
+    };
+
+    function createSparkles() {
+      const wrap = document.getElementById("sparkles");
+      wrap.innerHTML = "";
+      for (let i = 0; i < 22; i++) {
+        const s = document.createElement("span");
+        s.style.left = Math.random() * 100 + "%";
+        s.style.bottom = (-20 - Math.random() * 300) + "px";
+        s.style.animationDelay = (Math.random() * 8) + "s";
+        s.style.animationDuration = (8 + Math.random() * 8) + "s";
+        s.style.width = s.style.height = (6 + Math.random() * 8) + "px";
+        wrap.appendChild(s);
+      }
+    }
+
+    function shuffle(array) {
+      // 피셔-예이츠 셔플
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function buildDeck() {
+      // 카드풀을 여러 장씩 넣어 덱 생성
+      const deck = [];
+      const copies = {
+        strike:4, heavy:3, guard:4, bigGuard:2, heal:3,
+        bigHeal:2, doubleStrike:2, shieldBash:2, focus:2, pierce:2
+      };
+      for (const card of CARD_POOL) {
+        for (let i = 0; i < copies[card.id]; i++) {
+          deck.push({ ...card, uid: `${card.id}_${i}_${Math.random().toString(36).slice(2,8)}` });
+        }
+      }
+      return shuffle(deck);
+    }
+
+    function resetGame() {
+      // 모든 상태 완전 초기화
+      state.player = {
+        maxHp: 40,
+        hp: 40,
+        shield: 0,
+        energy: 3
+      };
+      state.enemy = {
+        maxHp: 44,
+        hp: 44,
+        shield: 0
+      };
+      state.hand = [];
+      state.discard = [];
+      state.deck = buildDeck();
+      state.turn = 1;
+      state.score = 0;
+      state.playerTurn = true;
+      state.gameOver = false;
+      el.log.innerHTML = "";
+      addLog("🎀 Battle start! The bunny knight prepares a hand.");
+      drawFreshHand();
+      updateUI();
+      renderCards();
+      el.startScreen.classList.remove("active");
+      el.endScreen.classList.remove("active");
+      clearAnimations();
+    }
+
+    function clearAnimations() {
+      el.playerCard.classList.remove("hit","heal","buff");
+      el.enemyCard.classList.remove("hit","heal","buff");
+      document.querySelectorAll(".floating-text").forEach(v => v.remove());
+    }
+
+    function drawCards(n) {
+      for (let i = 0; i < n; i++) {
+        if (state.deck.length === 0) {
+          if (state.discard.length === 0) break;
+          state.deck = shuffle([...state.discard]);
+          state.discard = [];
+          addLog("🔄 Shuffled the discard pile back into the deck.");
+        }
+        const card = state.deck.pop();
+        if (card) state.hand.push(card);
+      }
+    }
+
+    function drawFreshHand() {
+      state.hand = [];
+      drawCards(3);
+    }
+
+    function startPlayerTurn() {
+      if (state.gameOver) return;
+
+      // 내 턴 시작 시 방어 초기화
+      state.playerTurn = true;
+      state.turn += 1;
+      state.player.shield = 0;
+      state.player.energy = 3;
+      drawFreshHand();
+
+      addLog(`🌼 Player turn ${state.turn} begins! Gained 3 energy and drew 3 cards.`);
+      updateUI();
+      renderCards();
+    }
+
+    function updateUI() {
+      el.playerHp.textContent = state.player.hp;
+      el.enemyHp.textContent = state.enemy.hp;
+      el.playerShield.textContent = state.player.shield;
+      el.enemyShield.textContent = state.enemy.shield;
+      el.playerShieldTop.textContent = state.player.shield;
+      el.energyText.textContent = state.player.energy;
+      el.deckCount.textContent = state.deck.length;
+      el.handCount.textContent = state.hand.length;
+      el.score.textContent = state.score;
+      el.turnText.textContent = state.playerTurn ? "Player Turn" : "Monster Turn";
+      el.turnCount.textContent = state.turn;
+      el.playerHpBar.style.width = `${Math.max(0, state.player.hp / state.player.maxHp * 100)}%`;
+      el.enemyHpBar.style.width = `${Math.max(0, state.enemy.hp / state.enemy.maxHp * 100)}%`;
+      el.endTurnBtn.disabled = !state.playerTurn || state.gameOver;
+    }
+
+    function renderCards() {
+      el.cards.innerHTML = "";
+      state.hand.forEach((card, index) => {
+        const btn = document.createElement("button");
+        btn.className = `card ${getClassByType(card.type)}`;
+        btn.disabled = !state.playerTurn || state.gameOver || state.player.energy < card.cost;
+        btn.innerHTML = `
+          <div class="card-top">
+            <div class="tag">${getTypeLabel(card.type)}</div>
+            <div class="cost">${card.cost}⚡</div>
+          </div>
+          <div class="card-name">${card.emoji} ${card.name}</div>
+          <div class="card-desc">${card.desc}</div>
+          <div class="card-foot">
+            <span>Click to use</span>
+            <span>#${index + 1}</span>
+          </div>
+        `;
+        btn.addEventListener("click", () => useCard(index, btn));
+        el.cards.appendChild(btn);
+      });
+      updateUI();
+    }
+
+    function getTypeLabel(type) {
+      if (type === "attack") return "Attack";
+      if (type === "defense") return "Block";
+      if (type === "heal") return "Heal";
+      return "Special";
+    }
+
+    function getClassByType(type) {
+      if (type === "attack") return "attack";
+      if (type === "defense") return "defense";
+      if (type === "heal") return "heal";
+      return "special";
+    }
+
+    function useCard(index, buttonEl) {
+      if (!state.playerTurn || state.gameOver) return;
+      const card = state.hand[index];
+      if (!card) return;
+      if (state.player.energy < card.cost) {
+        addLog(`❌ Not enough energy to use ${card.name}.`);
+        return;
+      }
+
+      state.player.energy -= card.cost;
+      buttonEl.classList.add("played");
+
+      // 카드 사용 처리
+      setTimeout(() => {
+        addLog(`${card.emoji} ${card.name} used!`);
+        card.play(state);
+
+        const used = state.hand.splice(index, 1)[0];
+        state.discard.push(used);
+
+        updateUI();
+        renderCards();
+
+        if (checkEnd()) return;
+      }, 180);
+    }
+
+    function dealDamage(target, amount, sourceName) {
+      const unit = state[target];
+      const shielded = Math.min(unit.shield, amount);
+      const realDamage = amount - shielded;
+      unit.shield -= shielded;
+      unit.hp = Math.max(0, unit.hp - realDamage);
+
+      addLog(`💢 ${sourceName}: dealt ${amount} damage to the ${target === "enemy" ? "monster" : "player"}! ${shielded > 0 ? `(${shielded} blocked)` : ""}`);
+      showFloatingText(target === "enemy" ? "enemy" : "player", `-${amount}`, "damage");
+      flashCard(target === "enemy" ? "enemy" : "player", "hit");
+
+      if (target === "enemy") state.score += amount * 10;
+      updateUI();
+    }
+
+    function dealPureDamage(target, amount, sourceName) {
+      const unit = state[target];
+      unit.hp = Math.max(0, unit.hp - amount);
+
+      addLog(`✨ ${sourceName}: dealt ${amount} piercing damage to the ${target === "enemy" ? "monster" : "player"}!`);
+      showFloatingText(target === "enemy" ? "enemy" : "player", `-${amount}`, "damage");
+      flashCard(target === "enemy" ? "enemy" : "player", "hit");
+
+      if (target === "enemy") state.score += amount * 12;
+      updateUI();
+    }
+
+    function addShield(target, amount, sourceName) {
+      state[target].shield += amount;
+      addLog(`🛡️ ${sourceName}: the ${target === "enemy" ? "monster" : "player"} gained ${amount} block!`);
+      showFloatingText(target === "enemy" ? "enemy" : "player", `+${amount}🛡`, "shield");
+      flashCard(target === "enemy" ? "enemy" : "player", "buff");
+      updateUI();
+    }
+
+    function healUnit(target, amount, sourceName) {
+      const unit = state[target];
+      const before = unit.hp;
+      unit.hp = Math.min(unit.maxHp, unit.hp + amount);
+      const healed = unit.hp - before;
+      addLog(`💚 ${sourceName}: the ${target === "enemy" ? "monster" : "player"} restored ${healed} HP!`);
+      showFloatingText(target === "enemy" ? "enemy" : "player", `+${healed}`, "heal");
+      flashCard(target === "enemy" ? "enemy" : "player", "heal");
+      if (target === "player") state.score += healed * 4;
+      updateUI();
+    }
+
+    function flashCard(target, type) {
+      const card = target === "player" ? el.playerCard : el.enemyCard;
+      card.classList.remove("hit","heal","buff");
+      void card.offsetWidth;
+      card.classList.add(type);
+      setTimeout(() => card.classList.remove(type), 420);
+    }
+
+    function showFloatingText(target, text, kind) {
+      const wrap = target === "player" ? el.playerAvatarWrap : el.enemyAvatarWrap;
+      const node = document.createElement("div");
+      node.className = `floating-text ${kind}`;
+      node.textContent = text;
+      wrap.appendChild(node);
+      setTimeout(() => node.remove(), 900);
+    }
+
+    function addLog(text) {
+      const item = document.createElement("div");
+      item.className = "log-item";
+      item.textContent = text;
+      el.log.prepend(item);
+    }
+
+    function enemyTurn() {
+      if (state.gameOver) return;
+      state.playerTurn = false;
+      updateUI();
+
+      const actionRoll = Math.random();
+
+      setTimeout(() => {
+        // 몬스터 행동 AI
+        if (state.enemy.hp <= 14 && actionRoll < 0.35) {
+          healUnit("enemy", randomInt(5, 8), "Jelly Heal");
+        } else if (actionRoll < 0.2) {
+          addShield("enemy", randomInt(5, 8), "Soft Guard");
+        } else if (actionRoll < 0.5) {
+          dealDamage("player", randomInt(6, 8), "Tail Whip");
+        } else if (actionRoll < 0.8) {
+          dealDamage("player", randomInt(9, 12), "Jelly Breath");
+        } else {
+          addLog("😈 The monster prepares a combo attack!");
+          dealDamage("player", randomInt(4, 5), "Chop Chop");
+          if (!state.gameOver) dealDamage("player", randomInt(4, 5), "Chop Chop");
+        }
+
+        if (checkEnd()) return;
+
+        setTimeout(() => {
+          startPlayerTurn();
+        }, 850);
+      }, 700);
+    }
+
+    function endPlayerTurn() {
+      if (!state.playerTurn || state.gameOver) return;
+      addLog("⏭️ The player ended the turn.");
+      state.hand.forEach(card => state.discard.push(card));
+      state.hand = [];
+      renderCards();
+      enemyTurn();
+    }
+
+    function checkEnd() {
+      if (state.enemy.hp <= 0) {
+        state.enemy.hp = 0;
+        state.score += 300;
+        updateUI();
+        finishGame(true);
+        return true;
+      }
+      if (state.player.hp <= 0) {
+        state.player.hp = 0;
+        updateUI();
+        finishGame(false);
+        return true;
+      }
+      return false;
+    }
+
+    function finishGame(win) {
+      state.gameOver = true;
+      state.playerTurn = false;
+      updateUI();
+      renderCards();
+
+      if (win) {
+        el.endBadge.textContent = "🎉 Victory! 🎉";
+        el.endTitle.textContent = "You defeated the Jelly Dragon!";
+        el.endDesc.textContent = "Excellent card play. Try again and aim for an even higher score!";
+      } else {
+        el.endBadge.textContent = "💤 Defeat... 💤";
+        el.endTitle.textContent = "The bunny knight has fallen";
+        el.endDesc.textContent = "You lost this round, but a better card order and tighter block timing can win it.";
+      }
+      el.finalScoreText.textContent = `Final Score: ${state.score}`;
+      el.endScreen.classList.add("active");
+    }
+
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    document.getElementById("startBtn").addEventListener("click", () => {
+      resetGame();
+      // 첫 턴은 1턴으로 시작
+      state.turn = 1;
+      updateUI();
+      addLog("✨ First turn begins! Choose your cards.");
+    });
+
+    document.getElementById("restartBtn").addEventListener("click", () => {
+      resetGame();
+      state.turn = 1;
+      updateUI();
+      addLog("🔁 The game has been fully reset.");
+    });
+
+    el.endTurnBtn.addEventListener("click", endPlayerTurn);
+
+    createSparkles();
+    updateUI();
+    renderCards();
+  </script>
+</body>
+</html>

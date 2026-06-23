@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dungeon FPS</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            color: #0f0;
+            font-family: 'Press Start 2P', system-ui;
+            overflow: hidden;
+            touch-action: none;
+        }
+        
+        #container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            max-width: 1280px;
+            height: 100%;
+            max-height: 720px;
+            border: 8px solid #0f0;
+            box-shadow: 0 0 30px #0f0;
+            overflow: hidden;
+            background: #111;
+        }
+        
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            background: rgba(0, 0, 0, 0.92);
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        .overlay.show { pointer-events: all; }
+        
+        h1 {
+            font-size: 42px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px #0f0;
+            letter-spacing: 4px;
+        }
+        
+        button {
+            font-family: 'Press Start 2P', system-ui;
+            font-size: 18px;
+            padding: 16px 32px;
+            background: #000;
+            color: #0f0;
+            border: 4px solid #0f0;
+            cursor: pointer;
+            box-shadow: 0 0 20px #0f0;
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            background: #0f0;
+            color: #000;
+            transform: scale(1.05);
+        }
+        
+        .game-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 50;
+            pointer-events: none;
+            padding: 20px;
+            display: none;
+        }
+        
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            width: 100%;
+        }
+        
+        .status {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border: 3px solid #0f0;
+            font-size: 14px;
+            text-shadow: 0 0 10px #0f0;
+        }
+        
+        .health-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .health-label {
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        
+        .health-bar {
+            width: 220px;
+            height: 24px;
+            border: 3px solid #0f0;
+            background: #000;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .health-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: linear-gradient(90deg, #f00, #f80);
+            box-shadow: 0 0 15px #f00;
+            transition: width 0.3s;
+        }
+        
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 32px;
+            color: #0f0;
+            text-shadow: 0 0 10px #0f0;
+            pointer-events: none;
+            z-index: 60;
+            opacity: 0.8;
+            user-select: none;
+        }
+        
+        .bottom-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 24px;
+            border: 3px solid #0f0;
+            font-size: 13px;
+            display: flex;
+            gap: 40px;
+            white-space: nowrap;
+        }
+        
+        .game-over-screen, .start-screen {
+            text-align: center;
+        }
+        
+        .score-display {
+            font-size: 24px;
+            margin: 20px 0;
+            color: #ff0;
+        }
+        
+        .final-score {
+            font-size: 28px;
+            margin-top: 10px;
+        }
+        
+        .instructions {
+            margin-top: 30px;
+            font-size: 13px;
+            line-height: 1.6;
+            max-width: 420px;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <!-- Three.js canvas will be appended here by JS -->
+    </div>
+
+    <!-- START SCREEN -->
+    <div id="start-screen" class="overlay show">
+        <div class="game-over-screen">
+            <h1 id="title">Dungeon FPS</h1>
+            <div style="font-size:18px; margin-bottom:30px; color:#ff0;">1st Person Mini Survival</div>
+            <button id="start-btn">Start Game</button>
+            <div class="instructions" id="how-to">
+                WASD — Move<br>
+                Mouse - Rotate View<br>
+                Left Click - Attack<br>
+                Auto-activate Pointer Lock
+            </div>
+            <div style="margin-top:40px; font-size:12px; opacity:0.6;">
+                High Score: <span id="start-highscore">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- GAME UI -->
+    <div id="game-ui" class="game-ui">
+        <div class="top-bar">
+            <!-- Health -->
+            <div class="status health-container">
+                <div class="health-label" id="health-label">Health</div>
+                <div class="health-bar">
+                    <div class="health-fill" id="health-fill" style="width:100%"></div>
+                </div>
+                <div id="health-text" style="font-size:18px; font-weight:bold; min-width:42px;">100</div>
+            </div>
+            
+            <!-- Score & Wave -->
+            <div style="display:flex; gap:30px;">
+                <div class="status">
+                    <span id="score-label">Score</span><br>
+                    <span id="score-value" style="font-size:22px;">00000</span>
+                </div>
+                <div class="status">
+                    <span id="wave-label">Wave</span><br>
+                    <span id="wave-value" style="font-size:22px;">1</span>
+                </div>
+                <div class="status">
+                    <span id="high-label">High Score</span><br>
+                    <span id="high-value" style="font-size:22px;">00000</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Crosshair -->
+        <div class="crosshair">+</div>
+        
+        <!-- Bottom info -->
+        <div class="bottom-info">
+            <div>Next Wave auto-starts on clear</div>
+            <div>3 Enemies: Grunt(Fast) • Brute(Strong) • Hunter(Balanced)</div>
+        </div>
+    </div>
+
+    <!-- GAME OVER SCREEN -->
+    <div id="game-over-screen" class="overlay" style="display:none;">
+        <div class="game-over-screen">
+            <h1 id="game-over-title">GAME OVER</h1>
+            <div class="score-display">
+                <div id="final-score-label">Final Score</div>
+                <div id="final-score" class="final-score">00000</div>
+            </div>
+            <div style="margin:15px 0 30px; font-size:16px;">
+                High Score: <span id="final-highscore" style="color:#ff0;">00000</span>
+            </div>
+            <button id="restart-btn">Restart</button>
+            <div style="margin-top:40px; font-size:12px; opacity:0.6;">
+                Press ESC to unlock Pointer
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =============================================================================
+        // LANG_DATA - 모든 게임 내 문자열은 여기서만 관리 (나중에 번역 쉽게)
+        // =============================================================================
+        const LANG_DATA = {
+            title: "Dungeon FPS",
+            subtitle: "1st Person Mini Survival",
+            startBtn: "Start Game",
+            howToPlay: "WASD — Move\nMouse - Rotate View\nLeft Click - Attack\nAuto-activate Pointer Lock",
+            healthLabel: "Health",
+            scoreLabel: "Score",
+            waveLabel: "Wave",
+            highLabel: "High Score",
+            gameOverTitle: "GAME OVER",
+            finalScoreLabel: "Final Score",
+            restartBtn: "Restart",
+            startHighPrefix: "High Score: "
+        };
+
+        // =============================================================================
+        // 전역 변수 및 게임 상태
+        // =============================================================================
+        let scene, camera, renderer, clock;
+        let keys = {};
+        let playerHealth = 100;
+        let score = 0;
+        let wave = 1;
+        let highScore = 0;
+        let gameState = 'start'; // start | playing | over
+        let enemies = [];
+        let walls = [];
+        let spawnSpots = [];
+        let lastShotTime = 0;
+        let audioContext;
+        
+        const CELL_SIZE = 5;
+        const MAP = [
+            [1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,1,0,0,0,0,1],
+            [1,0,1,1,0,1,0,1,1,0,1],
+            [1,0,1,0,0,0,0,0,1,0,1],
+            [1,0,0,0,1,1,1,0,0,0,1],
+            [1,1,1,0,1,0,1,0,1,1,1],
+            [1,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,1,1,1,1,1,0,1],
+            [1,0,0,0,0,1,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1]
+        ];
+        
+        const PLAYER_RADIUS = 0.9;
+        const SENSITIVITY = 0.002;
+        
+        // =============================================================================
+        // Web Audio API - 효과음 (Base64나 외부 파일 없이 완전 내부 생성)
+        // =============================================================================
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        
+        function playSound(freq, duration, type = 'sawtooth', volume = 0.4, detune = 0) {
+            if (!audioContext) return;
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            
+            osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+            osc.type = type;
+            if (detune) osc.detune.setValueAtTime(detune, audioContext.currentTime);
+            
+            gain.gain.value = volume;
+            gain.gain.linearRampToValueAtTime(0.001, audioContext.currentTime + duration);
+            
+            osc.connect(gain).connect(audioContext.destination);
+            osc.start();
+            osc.stop(audioContext.currentTime + duration + 0.1);
+        }
+        
+        // =============================================================================
+        // 충돌 체크 (AABB + 원형 근사)
+        // =============================================================================
+        function checkCollision(newPos, radius) {
+            const playerMinX = newPos.x - radius;
+            const playerMaxX = newPos.x + radius;
+            const playerMinZ = newPos.z - radius;
+            const playerMaxZ = newPos.z + radius;
+            
+            for (let i = 0; i < walls.length; i++) {
+                const wall = walls[i];
+                const box = new THREE.Box3().setFromObject(wall);
+                
+                if (playerMaxX < box.min.x || playerMinX > box.max.x) continue;
+                if (playerMaxZ < box.min.z || playerMinZ > box.max.z) continue;
+                return true; // 충돌
+            }
+            return false;
+        }
+        
+        // =============================================================================
+        // Enemy 클래스 (3 Types류 특징 완전 구현)
+        // =============================================================================
+        class Enemy {
+            constructor(type, x, z) {
+                this.type = type; // 0: Grunt(빠름, 약함), 1: Brute(느림, 강함), 2: 헌터(균형+원거리)
+                this.health = [35, 95, 55][type];
+                this.maxHealth = this.health;
+                this.speed = [9.5, 3.8, 6.2][type];
+                this.radius = [0.7, 1.15, 0.85][type];
+                this.attackCooldown = [650, 1100, 1400][type];
+                this.lastAttack = 0;
+                this.lastShot = 0;
+                
+                let geometry, color, scaleY = 1;
+                if (type === 0) { // Grunt - 빨강, 작고 빠름
+                    geometry = new THREE.BoxGeometry(1.1, 1.4, 1.1);
+                    color = 0xff2222;
+                } else if (type === 1) { // Brute - 초록, 크고 단단
+                    geometry = new THREE.BoxGeometry(1.9, 2.1, 1.9);
+                    color = 0x22ff44;
+                    scaleY = 1.1;
+                } else { // 헌터 - 파랑, 원거리 attack 가능
+                    geometry = new THREE.ConeGeometry(0.7, 1.8, 6);
+                    color = 0x4488ff;
+                }
+                
+                const material = new THREE.MeshPhongMaterial({
+                    color: color,
+                    shininess: 10,
+                    specular: 0x222222
+                });
+                
+                this.mesh = new THREE.Mesh(geometry, material);
+                this.mesh.position.set(x, 1.1 * scaleY, z);
+                this.mesh.castShadow = true;
+                this.mesh.receiveShadow = true;
+                scene.add(this.mesh);
+                
+                this.projectile = null; // 헌터 전용
+            }
+            
+            update(delta, playerPos) {
+                const dir = new THREE.Vector3();
+                dir.subVectors(playerPos, this.mesh.position);
+                dir.y = 0;
+                const distance = dir.length();
+                
+                // 너무 가까우면 attack
+                if (distance < 2.8) {
+                    const now = Date.now();
+                    if (now - this.lastAttack > this.attackCooldown) {
+                        this.lastAttack = now;
+                        playerHealth = Math.max(0, playerHealth - [8, 14, 10][this.type]);
+                        playSound(180, 0.12, 'square', 0.7);
+                        // 화면 살짝 흔들림 효과 (간단)
+                        camera.position.y += 0.08;
+                        setTimeout(() => { if (gameState === 'playing') camera.position.y = 2; }, 60);
+                    }
+                    return;
+                }
+                
+                // Move
+                if (distance > 0.1) {
+                    dir.normalize();
+                    const moveVec = dir.multiplyScalar(this.speed * delta);
+                    const newPos = this.mesh.position.clone().add(moveVec);
+                    
+                    if (!checkCollision(newPos, this.radius + 0.2)) {
+                        this.mesh.position.x = newPos.x;
+                        this.mesh.position.z = newPos.z;
+                    }
+                    
+                    // 플레이어 방향 바라보기
+                    this.mesh.lookAt(playerPos.x, this.mesh.position.y, playerPos.z);
+                }
+                
+                // 헌터 전용 원거리 attack
+                if (this.type === 2 && distance > 4 && distance < 22) {
+                    const now = Date.now();
+                    if (now - this.lastShot > 1350) {
+                        this.lastShot = now;
+                        this.fireProjectile(playerPos);
+                    }
+                }
+            }
+            
+            fireProjectile(playerPos) {
+                if (this.projectile) return;
+                
+                const dir = new THREE.Vector3();
+                dir.subVectors(playerPos, this.mesh.position);
+                dir.y = 0;
+                dir.normalize();
+                
+                const geo = new THREE.SphereGeometry(0.25, 8, 8);
+                const mat = new THREE.MeshPhongMaterial({ color: 0x44ccff, emissive: 0x0088ff });
+                this.projectile = new THREE.Mesh(geo, mat);
+                this.projectile.position.copy(this.mesh.position);
+                this.projectile.position.y += 1.2;
+                this.projectile.userData = { velocity: dir.multiplyScalar(28), owner: 'enemy' };
+                scene.add(this.projectile);
+                
+                playSound(620, 0.08, 'sine', 0.3, -800);
+            }
+            
+            takeDamage(dmg) {
+                this.health -= dmg;
+                // 간단 히트 피드백
+                if (this.mesh.material) {
+                    const originalColor = this.mesh.material.color.getHex();
+                    this.mesh.material.color.setHex(0xffffff);
+                    setTimeout(() => {
+                        if (this.mesh && this.mesh.material) this.mesh.material.color.setHex(originalColor);
+                    }, 80);
+                }
+                if (this.health <= 0) {
+                    playSound(80, 0.4, 'sine', 0.6);
+                    playSound(120, 0.3, 'triangle', 0.4, 400);
+                }
+            }
+        }
+        
+        // =============================================================================
+        // Three.js 초기화
+        // =============================================================================
+        function initThree() {
+            const container = document.getElementById('container');
+            
+            clock = new THREE.Clock();
+            
+            // Scene
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x112211, 12, 55);
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(72, 1280 / 720, 0.1, 100);
+            camera.position.set(CELL_SIZE * 1.5, 2, CELL_SIZE * 1.5);
+            
+            // Renderer
+            renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: false
+            });
+            renderer.setSize(1280, 720);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+            
+            // Lights
+            const ambient = new THREE.AmbientLight(0x668866, 0.65);
+            scene.add(ambient);
+            
+            const dirLight = new THREE.DirectionalLight(0xaaffaa, 1.1);
+            dirLight.position.set(15, 28, 12);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            scene.add(dirLight);
+            
+            // Floor
+            const floorGeo = new THREE.PlaneGeometry(100, 100);
+            const floorMat = new THREE.MeshPhongMaterial({
+                color: 0x334433,
+                shininess: 2,
+                flatShading: true
+            });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+            
+            // Ceiling
+            const ceilGeo = new THREE.PlaneGeometry(100, 100);
+            const ceilMat = new THREE.MeshPhongMaterial({
+                color: 0x222222,
+                shininess: 0
+            });
+            const ceiling = new THREE.Mesh(ceilGeo, ceilMat);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.y = 4.2;
+            scene.add(ceiling);
+            
+            // 미로 벽 생성 + spawnSpots 수집
+            walls = [];
+            spawnSpots = [];
+            
+            const wallMat = new THREE.MeshPhongMaterial({
+                color: 0x557755,
+                shininess: 8,
+                flatShading: true
+            });
+            
+            for (let z = 0; z < MAP.length; z++) {
+                for (let x = 0; x < MAP[z].length; x++) {
+                    if (MAP[z][x] === 1) {
+                        const wall = new THREE.Mesh(
+                            new THREE.BoxGeometry(CELL_SIZE, 4.2, CELL_SIZE),
+                            wallMat
+                        );
+                        wall.position.set(
+                            x * CELL_SIZE + CELL_SIZE / 2,
+                            2.1,
+                            z * CELL_SIZE + CELL_SIZE / 2
+                        );
+                        wall.castShadow = true;
+                        wall.receiveShadow = true;
+                        scene.add(wall);
+                        walls.push(wall);
+                    } else {
+                        // 빈 공간 spawnSpot
+                        spawnSpots.push(new THREE.Vector3(
+                            x * CELL_SIZE + CELL_SIZE / 2,
+                            0,
+                            z * CELL_SIZE + CELL_SIZE / 2
+                        ));
+                    }
+                }
+            }
+            
+            // 플레이어 Start 위치 (맵 중앙쯤)
+            const startSpot = spawnSpots.find(s => 
+                Math.abs(s.x - CELL_SIZE * 1.5) < 3 && Math.abs(s.z - CELL_SIZE * 1.5) < 3
+            ) || spawnSpots[0];
+            camera.position.set(startSpot.x, 2, startSpot.z);
+        }
+        
+        // =============================================================================
+        // Wave 스폰
+        // =============================================================================
+        function spawnWave(currentWave) {
+            // 기존 적 완전 제거
+            enemies.forEach(e => {
+                if (e.mesh) scene.remove(e.mesh);
+                if (e.projectile) scene.remove(e.projectile);
+            });
+            enemies = [];
+            
+            const baseCount = 3 + Math.floor(currentWave * 1.8);
+            const count = Math.min(baseCount, 18); // 너무 많지 않게
+            
+            for (let i = 0; i < count; i++) {
+                // 플레이어와 충분히 멀리 있는 스폰 지pts 선택
+                let spotIndex = Math.floor(Math.random() * spawnSpots.length);
+                let spot = spawnSpots[spotIndex];
+                let tries = 0;
+                
+                while (tries < 25 && spot.distanceTo(camera.position) < 14) {
+                    spotIndex = (spotIndex + 3) % spawnSpots.length;
+                    spot = spawnSpots[spotIndex];
+                    tries++;
+                }
+                
+                const type = Math.random() < 0.4 ? 0 : (Math.random() < 0.6 ? 1 : 2);
+                const enemy = new Enemy(type, spot.x, spot.z);
+                enemies.push(enemy);
+            }
+            
+            // Wave Start 사운드
+            playSound(440, 0.1, 'triangle', 0.5);
+            setTimeout(() => playSound(660, 0.15, 'triangle', 0.5), 80);
+        }
+        
+        // =============================================================================
+        // 게임 상태 완전 초기화 (Restart 시 필수)
+        // =============================================================================
+        function fullReset() {
+            playerHealth = 100;
+            score = 0;
+            wave = 1;
+            
+            // 모든 적 제거
+            enemies.forEach(e => {
+                if (e.mesh) scene.remove(e.mesh);
+                if (e.projectile) scene.remove(e.projectile);
+            });
+            enemies = [];
+            
+            // 플레이어 위치 초기화
+            const startSpot = spawnSpots[0];
+            camera.position.set(startSpot.x, 2, startSpot.z);
+            camera.rotation.set(0, 0, 0);
+            
+            // UI 초기화
+            updateUI();
+        }
+        
+        // =============================================================================
+        // UI 업데이트
+        // =============================================================================
+        function updateUI() {
+            // Health
+            const healthFill = document.getElementById('health-fill');
+            const healthText = document.getElementById('health-text');
+            healthFill.style.width = Math.max(0, playerHealth) + '%';
+            healthText.textContent = Math.max(0, Math.floor(playerHealth));
+            
+            // Score
+            document.getElementById('score-value').textContent = String(Math.floor(score)).padStart(5, '0');
+            
+            // Wave
+            document.getElementById('wave-value').textContent = wave;
+            
+            // High score
+            document.getElementById('high-value').textContent = String(highScore).padStart(5, '0');
+        }
+        
+        // =============================================================================
+        // 메인 게임 루프
+        // =============================================================================
+        function gameLoop() {
+            requestAnimationFrame(gameLoop);
+            
+            const delta = Math.min(clock.getDelta(), 0.1);
+            
+            if (gameState !== 'playing') {
+                renderer.render(scene, camera);
+                return;
+            }
+            
+            // ======================
+            // 1. 플레이어 Move (WASD)
+            // ======================
+            const moveSpeed = 13.5 * delta;
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            forward.y = 0;
+            forward.normalize();
+            
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            right.y = 0;
+            right.normalize();
+            
+            let moveX = 0;
+            let moveZ = 0;
+            
+            if (keys['w'] || keys['W']) { moveX += forward.x * moveSpeed; moveZ += forward.z * moveSpeed; }
+            if (keys['s'] || keys['S']) { moveX -= forward.x * moveSpeed; moveZ -= forward.z * moveSpeed; }
+            if (keys['a'] || keys['A']) { moveX -= right.x * moveSpeed; moveZ -= right.z * moveSpeed; }
+            if (keys['d'] || keys['D']) { moveX += right.x * moveSpeed; moveZ += right.z * moveSpeed; }
+            
+            if (moveX !== 0 || moveZ !== 0) {
+                const newPos = camera.position.clone();
+                newPos.x += moveX;
+                newPos.z += moveZ;
+                
+                if (!checkCollision(newPos, PLAYER_RADIUS)) {
+                    camera.position.x = newPos.x;
+                    camera.position.z = newPos.z;
+                }
+            }
+            
+            // ======================
+            // 2. 적 업데이트
+            // ======================
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                enemy.update(delta, camera.position);
+                
+                // projectile 업데이트 (헌터 전용)
+                if (enemy.projectile) {
+                    const p = enemy.projectile;
+                    p.position.add(p.userData.velocity.clone().multiplyScalar(delta));
+                    
+                    // 플레이어 명중 체크
+                    const distToPlayer = p.position.distanceTo(camera.position);
+                    if (distToPlayer < 1.6) {
+                        playerHealth = Math.max(0, playerHealth - 12);
+                        playSound(240, 0.15, 'square', 0.8);
+                        scene.remove(p);
+                        enemy.projectile = null;
+                    }
+                    
+                    // 벽이나 시간 초과
+                    if (distToPlayer > 40 || checkCollision(p.position, 0.4)) {
+                        scene.remove(p);
+                        enemy.projectile = null;
+                    }
+                }
+                
+                // 죽음 체크
+                if (enemy.health <= 0) {
+                    scene.remove(enemy.mesh);
+                    if (enemy.projectile) scene.remove(enemy.projectile);
+                    score += 120 + wave * 25;
+                    enemies.splice(i, 1);
+                }
+            }
+            
+            // ======================
+            // 3. Wave 클리어 체크
+            // ======================
+            if (enemies.length === 0) {
+                wave++;
+                spawnWave(wave);
+                playSound(880, 0.2, 'triangle', 0.6);
+            }
+            
+            // ======================
+            // 4. Game Over 체크
+            // ======================
+            if (playerHealth <= 0) {
+                gameState = 'over';
+                document.getElementById('game-ui').style.display = 'none';
+                const overScreen = document.getElementById('game-over-screen');
+                overScreen.style.display = 'flex';
+                
+                const finalScoreEl = document.getElementById('final-score');
+                finalScoreEl.textContent = String(Math.floor(score)).padStart(5, '0');
+                
+                // New High Score
+                if (score > highScore) {
+                    highScore = Math.floor(score);
+                    localStorage.setItem('dungeonFPS_high', highScore);
+                }
+                document.getElementById('final-highscore').textContent = String(highScore).padStart(5, '0');
+                
+                // Pointer Lock 해제
+                if (document.pointerLockElement) document.exitPointerLock();
+            }
+            
+            updateUI();
+            renderer.render(scene, camera);
+        }
+        
+        // =============================================================================
+        // 입력 처리
+        // =============================================================================
+        function setupInput() {
+            window.addEventListener('keydown', e => {
+                keys[e.key] = true;
+                
+                if (e.key === 'Escape' && gameState === 'playing') {
+                    if (document.pointerLockElement) document.exitPointerLock();
+                }
+            });
+            
+            window.addEventListener('keyup', e => {
+                keys[e.key] = false;
+            });
+            
+            // Mouse Click attack
+            const canvas = renderer.domElement;
+            canvas.addEventListener('mousedown', e => {
+                if (gameState !== 'playing' || !document.pointerLockElement) return;
+                if (e.button !== 0) return;
+                
+                const now = Date.now();
+                if (now - lastShotTime < 220) return; // 연사 제한
+                lastShotTime = now;
+                
+                // 사격음
+                playSound(920, 0.07, 'sawtooth', 0.45);
+                playSound(680, 0.04, 'sawtooth', 0.3, 300);
+                
+                // Raycast attack
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                
+                const enemyMeshes = enemies.map(en => en.mesh);
+                const intersects = raycaster.intersectObjects(enemyMeshes);
+                
+                if (intersects.length > 0) {
+                    const hitMesh = intersects[0].object;
+                    for (let i = 0; i < enemies.length; i++) {
+                        if (enemies[i].mesh === hitMesh) {
+                            enemies[i].takeDamage(32);
+                            // 명중 효과음
+                            playSound(420, 0.09, 'square', 0.6);
+                            break;
+                        }
+                    }
+                }
+            });
+            
+            // Pointer Lock
+            const canvasEl = renderer.domElement;
+            canvasEl.addEventListener('click', () => {
+                if (gameState === 'playing' && !document.pointerLockElement) {
+                    canvasEl.requestPointerLock();
+                }
+            });
+            
+            document.addEventListener('pointerlockchange', () => {
+                // Pointer Lock 상태 변화 처리 (게임 중에는 강제 유지)
+            });
+            
+            // Mouse 움직임 (Pointer Lock 시에만)
+            document.addEventListener('mousemove', e => {
+                if (document.pointerLockElement && gameState === 'playing') {
+                    camera.rotation.y -= e.movementX * SENSITIVITY;
+                    camera.rotation.x -= e.movementY * SENSITIVITY;
+                    camera.rotation.x = Math.max(-1.4, Math.min(1.4, camera.rotation.x));
+                }
+            });
+        }
+        
+        // =============================================================================
+        // Start & Restart 처리
+        // =============================================================================
+        function startGame() {
+            fullReset();
+            gameState = 'playing';
+            document.getElementById('start-screen').classList.remove('show');
+            document.getElementById('game-over-screen').style.display = 'none';
+            document.getElementById('game-ui').style.display = 'block';
+            
+            // 첫 Wave 스폰
+            spawnWave(1);
+            
+            // Pointer Lock 즉시 요청
+            setTimeout(() => {
+                if (renderer && renderer.domElement) {
+                    renderer.domElement.requestPointerLock();
+                }
+            }, 120);
+        }
+        
+        // =============================================================================
+        // 메인 실행
+        // =============================================================================
+        function main() {
+            // High Score 불러오기
+            const saved = localStorage.getItem('dungeonFPS_high');
+            if (saved) highScore = parseInt(saved, 10);
+            document.getElementById('start-highscore').textContent = String(highScore).padStart(5, '0');
+            
+            // 언어 데이터 적용
+            document.getElementById('title').textContent = LANG_DATA.title;
+            document.getElementById('start-btn').textContent = LANG_DATA.startBtn;
+            document.getElementById('how-to').innerHTML = LANG_DATA.howToPlay.replace(/\n/g, '<br>');
+            document.getElementById('health-label').textContent = LANG_DATA.healthLabel;
+            document.getElementById('score-label').textContent = LANG_DATA.scoreLabel + ' ';
+            document.getElementById('wave-label').textContent = LANG_DATA.waveLabel;
+            document.getElementById('high-label').textContent = LANG_DATA.highLabel;
+            document.getElementById('game-over-title').textContent = LANG_DATA.gameOverTitle;
+            document.getElementById('final-score-label').textContent = LANG_DATA.finalScoreLabel;
+            document.getElementById('restart-btn').textContent = LANG_DATA.restartBtn;
+            
+            initAudio();
+            initThree();
+            setupInput();
+            
+            // 버튼 이벤트
+            document.getElementById('start-btn').addEventListener('click', startGame);
+            document.getElementById('restart-btn').addEventListener('click', startGame);
+            
+            // 게임 루프 Start
+            gameLoop();
+            
+            console.log('%c✅ Dungeon FPS 완전 실행 가능 버전 로드 완료 (단일 HTML)', 'color:#0f0; font-size:13px');
+        }
+        
+        // 페이지 로드 후 실행
+        window.onload = main;
+    </script>
+</body>
+</html>

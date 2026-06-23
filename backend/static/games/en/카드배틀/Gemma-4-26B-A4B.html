@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cutie Card Battle</title>
+    <style>
+        /* 기본 디자인 및 레이아웃 */
+        :root {
+            --bg-color: #fdfcf0;
+            --player-color: #a2d2ff;
+            --monster-color: #ffafcc;
+            --accent-color: #ffda77;
+            --card-bg: #ffffff;
+            --text-color: #444;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: 'Arial Rounded MT Bold', 'Apple SD Gothic Neo', sans-serif;
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        #game-container {
+            width: 500px;
+            height: 750px;
+            background-color: var(--bg-color);
+            border-radius: 30px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* UI 요소 */
+        .status-area {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .entity-box {
+            width: 45%;
+            text-align: center;
+        }
+
+        .hp-container {
+            width: 100%;
+            height: 20px;
+            background: #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 5px 0;
+        }
+
+        .hp-bar {
+            height: 100%;
+            width: 100%;
+            transition: width 0.3s ease;
+        }
+
+        #player-hp-bar { background-color: #4caf50; }
+        #monster-hp-bar { background-color: #f44336; }
+
+        .stat-text { font-size: 14px; font-weight: bold; }
+
+        /* 전투 화면 */
+        #battle-floor {
+            flex-grow: 1;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .sprite {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 50px;
+            transition: transform 0.2s;
+            position: relative;
+        }
+
+        #monster-sprite { background-color: var(--monster-color); }
+        #player-sprite { background-color: var(--player-color); }
+
+        .defense-badge {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background: #4db8ff;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+        }
+
+        /* 카드 영역 */
+        #card-hand {
+            display: flex;
+            gap: 10px;
+            height: 160px;
+            align-items: flex-end;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            width: 100px;
+            height: 140px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 3px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 10px;
+            box-sizing: border-box;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            user-select: none;
+            text-align: center;
+        }
+
+        .card:hover {
+            transform: translateY(-15px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+        }
+
+        .card.disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .card-title { font-size: 14px; font-weight: bold; }
+        .card-cost { color: #e67e22; font-size: 14px; }
+        .card-desc { font-size: 12px; color: #777; }
+
+        /* 컨트롤 버튼 */
+        #controls {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 20px;
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        #end-turn-btn { background-color: var(--accent-color); color: #555; }
+        #end-turn-btn:hover { background-color: #ffcc00; }
+
+        #restart-btn { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; background: #fff; border: 4px solid var(--accent-color); padding: 20px 40px; font-size: 20px; border-radius: 50px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+
+        /* 애니메이션 */
+        .shake { animation: shake 0.5s; }
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            50% { transform: translateX(10px); }
+            75% { transform: translateX(-10px); }
+            100% { transform: translateX(0); }
+        }
+
+        .attack-anim { animation: attack 0.4s; }
+        @keyframes attack {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+
+        /* 메시지 로그 */
+        #msg-log {
+            font-size: 14px;
+            color: #888;
+            height: 20px;
+            margin-top: 5px;
+        }
+
+        .energy-display {
+            font-size: 18px;
+            font-weight: bold;
+            color: #e67e22;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- 상태창 -->
+    <div class="status-area">
+        <div class="entity-box">
+            <div class="stat-text">Player</div>
+            <div class="hp-container"><div id="player-hp-bar" class="hp-bar"></div></div>
+            <div id="player-hp-text" class="stat-text">100 / 100</div>
+        </div>
+        <div class="entity-box">
+            <div class="stat-text">Monster</div>
+            <div class="hp-container"><div id="monster-hp-bar" class="hp-bar"></div></div>
+            <div id="monster-hp-text" class="stat-text">100 / 100</div>
+        </div>
+    </div>
+
+    <!-- 전투 필드 -->
+    <div id="battle-floor">
+        <div id="monster-sprite" class="sprite">👾</div>
+        <div id="msg-log">Starting the game!</div>
+        <div id="player-sprite" class="sprite">
+            <span id="player-def-ui" class="defense-badge" style="display:none;">🛡️ 0</span>
+        </div>
+    </div>
+
+    <!-- 에너지 표시 -->
+    <div id="energy-text" class="energy-display">Energy: 3 / 3</div>
+
+    <!-- 카드 손패 -->
+    <div id="card-hand"></div>
+
+    <!-- 컨트롤 -->
+    <div id="controls">
+        <button id="end-turn-btn" onclick="endTurn()">End Turn</button>
+    </div>
+
+    <!-- 재시작 버튼 -->
+    <button id="restart-btn" onclick="initGame()">Restart</button>
+</div>
+
+<script>
+    // --- 게임 데이터 설정 ---
+    const CARD_TYPES = [
+        { id: 1, name: 'Attack!', type: 'attack', value: 15, cost: 1, emoji: '⚔️', desc: 'Deal 15 damage' },
+        { id: 2, name: 'Heavy Blow', type: 'attack', value: 30, cost: 2, emoji: '🔨', desc: 'Deal 30 damage' },
+        { id: 3, name: 'Guard', type: 'defend', value: 12, cost: 1, emoji: '🛡️', desc: 'Block +12' },
+        { id: 4, name: 'Heal', type: 'heal', value: 20, cost: 1, emoji: '💖', desc: 'HP +20' },
+        { id: 5, name: 'Iron Wall', type: 'defend', value: 25, cost: 2, emoji: '🧱', desc: 'Block +25' }
+    ];
+
+    // --- 게임 상태 ---
+    let gameState = {
+        playerHP: 100,
+        playerMaxHP: 100,
+        playerEnergy: 3,
+        playerDef: 0,
+        monsterHP: 100,
+        monsterMaxHP: 100,
+        isPlayerTurn: true,
+        isGameOver: false
+    };
+
+    // --- DOM 요소 ---
+    const el = {
+        pHPBar: document.getElementById('player-hp-bar'),
+        pHPText: document.getElementById('player-hp-text'),
+        mHPBar: document.getElementById('monster-hp-bar'),
+        mHPText: document.getElementById('monster-hp-text'),
+        pDefUI: document.getElementById('player-def-ui'),
+        energyText: document.getElementById('energy-text'),
+        cardHand: document.getElementById('card-hand'),
+        msgLog: document.getElementById('msg-log'),
+        pSprite: document.getElementById('player-sprite'),
+        mSprite: document.getElementById('monster-sprite'),
+        endTurnBtn: document.getElementById('end-turn-btn'),
+        restartBtn: document.getElementById('restart-btn')
+    };
+
+    // --- 핵심 로직 ---
+
+    // 게임 초기화
+    function initGame() {
+        gameState = {
+            playerHP: 100,
+            playerMaxHP: 100,
+            playerEnergy: 3,
+            playerDef: 0,
+            monsterHP: 100,
+            monsterMaxHP: 100,
+            isPlayerTurn: true,
+            isGameOver: false
+        };
+        el.restartBtn.style.display = 'none';
+        el.endTurnBtn.disabled = false;
+        updateUI();
+        startPlayerTurn();
+        log("A new battle has begun!");
+    }
+
+    // 플레이어 턴 시작
+    function startPlayerTurn() {
+        gameState.isPlayerTurn = true;
+        gameState.playerEnergy = 3; // 에너지 3 충전
+        gameState.playerDef = 0;    // 방어 수치 초기화
+        
+        drawCards();
+        updateUI();
+        log("It is your turn.");
+    }
+
+    // 카드 뽑기
+    function drawCards() {
+        el.cardHand.innerHTML = '';
+        for (let i = 0; i < 3; i++) {
+            const randomCard = CARD_TYPES[Math.floor(Math.random() * CARD_TYPES.length)];
+            createCardUI(randomCard);
+        }
+    }
+
+    // 카드 UI 생성
+    function createCardUI(card) {
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'card';
+        if (card.cost > gameState.playerEnergy) cardDiv.classList.add('disabled');
+
+        cardDiv.innerHTML = `
+            <div class="card-title">${card.name}</div>
+            <div style="font-size: 30px;">${card.emoji}</div>
+            <div class="card-desc">${card.desc}</div>
+            <div class="card-cost">⚡ ${card.cost}</div>
+        `;
+
+        cardDiv.onclick = () => playCard(card, cardDiv);
+        el.cardHand.appendChild(cardDiv);
+    }
+
+    // 카드 사용
+    function playCard(card, cardElement) {
+        if (!gameState.isPlayerTurn || gameState.isGameOver) return;
+        if (gameState.playerEnergy < card.cost) {
+            log("Not enough energy!");
+            return;
+        }
+
+        // 에너지 소모
+        gameState.playerEnergy -= card.cost;
+        
+        // 효과 적용
+        if (card.type === 'attack') {
+            gameState.monsterHP -= card.value;
+            animate(el.mSprite, 'attack-anim');
+            animate(el.pSprite, 'shake');
+            log(`Dealt ${card.value} damage to the monster!`);
+        } else if (card.type === 'defend') {
+            gameState.playerDef += card.value;
+            log(`Block increased by ${card.value}!`);
+        } else if (card.type === 'heal') {
+            gameState.playerHP = Math.min(gameState.playerMaxHP, gameState.playerHP + card.value);
+            log(`Recovered ${card.value} HP!`);
+            animate(el.pSprite, 'attack-anim');
+        }
+
+        // 카드 사용 애니메이션 (살짝 사라짐)
+        cardElement.style.transform = 'translateY(-100px)';
+        cardElement.style.opacity = '0';
+        setTimeout(() => cardElement.remove(), 200);
+
+        checkGameOver();
+        updateUI();
+    }
+
+    // 턴 종료 (몬스터의 차례)
+    function endTurn() {
+        if (!gameState.isPlayerTurn || gameState.isGameOver) return;
+        
+        gameState.isPlayerTurn = false;
+        el.endTurnBtn.disabled = true;
+        el.cardHand.innerHTML = ''; // 손패 비우기
+        
+        log("The monster attacks!");
+        
+        // 몬스터 행동 지연 (애니메이션 효과를 위해)
+        setTimeout(() => {
+            const damage = Math.floor(Math.random() * 15) + 10; // 10~25 데미지
+            let finalDamage = Math.max(0, damage - gameState.playerDef);
+            
+            gameState.playerHP -= finalDamage;
+            
+            animate(el.pSprite, 'shake');
+            log(`Monster attacks for ${damage}! (Block:${gameState.playerDef} applied)`);
+            
+            checkGameOver();
+            updateUI();
+
+            if (!gameState.isGameOver) {
+                setTimeout(startPlayerTurn, 1000);
+            }
+        }, 800);
+    }
+
+    // 승리/패배 체크
+    function checkGameOver() {
+        if (gameState.monsterHP <= 0) {
+            gameState.monsterHP = 0;
+            log("🎉 Victory!");
+            endGame();
+        } else if (gameState.playerHP <= 0) {
+            gameState.playerHP = 0;
+            log("💀 Defeat...");
+            endGame();
+        }
+    }
+
+    function endGame() {
+        gameState.isGameOver = true;
+        el.restartBtn.style.display = 'block';
+    }
+
+    // UI 업데이트
+    function updateUI() {
+        // HP 바 & 텍스트
+        el.pHPBar.style.width = `${(gameState.playerHP / gameState.playerMaxHP) * 100}%`;
+        el.pHPText.innerText = `${gameState.playerHP} / ${gameState.playerMaxHP}`;
+        
+        el.mHPBar.style.width = `${(gameState.monsterHP / gameState.monsterMaxHP) * 100}%`;
+        el.mHPText.innerText = `${gameState.monsterHP} / ${gameState.monsterMaxHP}`;
+
+        // 에너지
+        el.energyText.innerText = `Energy: ${gameState.playerEnergy} / 3`;
+
+        // 방어력 표시
+        if (gameState.playerDef > 0) {
+            el.pDefUI.style.display = 'block';
+            el.pDefUI.innerText = `🛡️ ${gameState.playerDef}`;
+        } else {
+            el.pDefUI.style.display = 'none';
+        }
+
+        // 카드 사용 가능 여부 색상 업데이트 (비활성 카드 처리)
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(c => {
+            // 실제 카드 데이터와 매칭하여 에너지가 부족하면 클래스 추가
+            // (편의상 drawCards에서 처리하지만 실시간성을 위해 로직 유지 가능)
+        });
+    }
+
+    // 유틸리티: 애니메이션 실행
+    function animate(element, className) {
+        element.classList.remove(className);
+        void element.offsetWidth; // 리플로우 강제 발생
+        element.classList.add(className);
+    }
+
+    // 유틸리티: 로그 출력
+    function log(msg) {
+        el.msgLog.innerText = msg;
+    }
+
+    // 게임 시작
+    initGame();
+
+</script>
+</body>
+</html>

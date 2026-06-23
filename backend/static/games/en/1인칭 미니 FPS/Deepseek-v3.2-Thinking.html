@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dungeon Survivor - 1st Person FPS Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: #0a0a14;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            max-width: 1200px;
+            height: 80vh;
+            max-height: 800px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 40px rgba(0, 100, 255, 0.3);
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 30, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 0.5s ease;
+            padding: 20px;
+        }
+
+        .screen.hidden {
+            display: none;
+        }
+
+        .screen h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            background: linear-gradient(90deg, #00a8ff, #00ffcc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 0 0 15px rgba(0, 168, 255, 0.5);
+            text-align: center;
+        }
+
+        .screen h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            color: #ff3366;
+            text-shadow: 0 0 10px rgba(255, 51, 102, 0.5);
+        }
+
+        .screen p {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            text-align: center;
+            max-width: 600px;
+            line-height: 1.6;
+            color: #aaccff;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #0066ff, #00ccff);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.3rem;
+            font-family: 'Orbitron', sans-serif;
+            border-radius: 50px;
+            cursor: pointer;
+            margin-top: 30px;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 102, 255, 0.4);
+            letter-spacing: 1px;
+        }
+
+        .button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 102, 255, 0.6);
+            background: linear-gradient(135deg, #0055ee, #00bbee);
+        }
+
+        .button:active {
+            transform: translateY(1px);
+        }
+
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        #stats {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 20, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 150, 255, 0.5);
+            box-shadow: 0 0 15px rgba(0, 100, 255, 0.3);
+            min-width: 220px;
+        }
+
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        .stat:last-child {
+            margin-bottom: 0;
+        }
+
+        .stat-label {
+            color: #aaccff;
+        }
+
+        .stat-value {
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            pointer-events: none;
+        }
+
+        .crosshair-dot {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
+        }
+
+        .crosshair-line {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.7);
+        }
+
+        .crosshair-horizontal {
+            width: 12px;
+            height: 2px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .crosshair-vertical {
+            width: 2px;
+            height: 12px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #healthBarContainer {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 250px;
+            height: 20px;
+            background: rgba(30, 30, 40, 0.7);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        #healthBar {
+            height: 100%;
+            background: linear-gradient(90deg, #ff3366, #ff9966);
+            border-radius: 10px;
+            width: 100%;
+            transition: width 0.3s ease;
+        }
+
+        #ammo {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(0, 0, 20, 0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 150, 255, 0.5);
+            font-size: 1.5rem;
+            text-align: center;
+            color: #ffffff;
+            box-shadow: 0 0 15px rgba(0, 100, 255, 0.3);
+        }
+
+        #waveAlert {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 30, 0.9);
+            padding: 20px 40px;
+            border-radius: 10px;
+            border: 2px solid #00ccff;
+            font-size: 2rem;
+            color: #00ccff;
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+            box-shadow: 0 0 30px rgba(0, 204, 255, 0.5);
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        #controlsInfo {
+            position: absolute;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 20, 0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 150, 255, 0.5);
+            text-align: center;
+            color: #aaccff;
+            font-size: 0.9rem;
+            max-width: 500px;
+            line-height: 1.5;
+        }
+
+        #hitEffect {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 0, 0, 0);
+            pointer-events: none;
+            z-index: 5;
+            transition: background-color 0.2s ease;
+        }
+
+        #weapon {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 150px;
+            pointer-events: none;
+            z-index: 8;
+        }
+
+        .muzzle-flash {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background: radial-gradient(circle, #ffaa00 0%, #ff5500 70%, transparent 100%);
+            border-radius: 50%;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9;
+        }
+
+        .key {
+            display: inline-block;
+            background: rgba(0, 50, 100, 0.8);
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin: 0 3px;
+            border: 1px solid rgba(0, 150, 255, 0.5);
+            font-family: monospace;
+        }
+
+        #instructions {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 20, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 150, 255, 0.5);
+            max-width: 300px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: #aaccff;
+        }
+
+        .instruction-title {
+            color: #00ccff;
+            margin-bottom: 8px;
+            font-weight: bold;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .enemy-type {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+
+        .enemy-type.zombie {
+            background-color: #ff3366;
+        }
+
+        .enemy-type.skeleton {
+            background-color: #00cc66;
+        }
+
+        .enemy-type.demon {
+            background-color: #cc00ff;
+        }
+
+        @media (max-width: 768px) {
+            #gameContainer {
+                height: 100vh;
+                max-height: none;
+                border-radius: 0;
+            }
+            
+            .screen h1 {
+                font-size: 2.5rem;
+            }
+            
+            .screen h2 {
+                font-size: 2rem;
+            }
+            
+            #stats {
+                top: 10px;
+                left: 10px;
+                padding: 10px;
+                min-width: 180px;
+            }
+            
+            #controlsInfo {
+                font-size: 0.8rem;
+                padding: 8px 15px;
+                bottom: 60px;
+            }
+            
+            #instructions {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui">
+            <div id="stats">
+                <div class="stat">
+                    <span class="stat-label" id="healthLabel">Health</span>
+                    <span class="stat-value" id="healthValue">100</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label" id="scoreLabel">Score</span>
+                    <span class="stat-value" id="scoreValue">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label" id="waveLabel">Wave</span>
+                    <span class="stat-value" id="waveValue">1</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label" id="highScoreLabel">High Score</span>
+                    <span class="stat-value" id="highScoreValue">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label" id="enemiesLabel">Enemies Left</span>
+                    <span class="stat-value" id="enemiesValue">0</span>
+                </div>
+            </div>
+            
+            <div id="crosshair">
+                <div class="crosshair-dot"></div>
+                <div class="crosshair-line crosshair-horizontal"></div>
+                <div class="crosshair-line crosshair-vertical"></div>
+            </div>
+            
+            <div id="healthBarContainer">
+                <div id="healthBar"></div>
+            </div>
+            
+            <div id="ammo">
+                <span id="ammoValue">∞</span>
+            </div>
+            
+            <div id="waveAlert"></div>
+            
+            <div id="controlsInfo">
+                <span id="moveLabel">Move:</span> <span class="key">W</span> <span class="key">A</span> <span class="key">S</span> <span class="key">D</span> | 
+                <span id="lookLabel">View:</span> <span id="mouseLabel">Mouse</span> | 
+                <span id="shootLabel">Attack:</span> <span id="clickLabel">Mouse Click</span>
+            </div>
+            
+            <div id="instructions">
+                <div class="instruction-title" id="enemiesTitle">Enemy Types</div>
+                <div><span class="enemy-type zombie"></span> <span id="zombieDesc">Zombie: Slow but Strong</span></div>
+                <div><span class="enemy-type skeleton"></span> <span id="skeletonDesc">Skeleton: Normal Speed</span></div>
+                <div><span class="enemy-type demon"></span> <span id="demonDesc">Demon: Fast but Weak</span></div>
+                <div style="margin-top: 10px;"><span id="itemDesc">Health Item: Blue Sphere</span></div>
+            </div>
+            
+            <div id="hitEffect"></div>
+            
+            <div id="weapon">
+                <div id="muzzleFlash" class="muzzle-flash"></div>
+            </div>
+        </div>
+        
+        <!-- Start 화면 -->
+        <div id="startScreen" class="screen">
+            <h1 id="gameTitle">Dungeon Survivor</h1>
+            <p id="gameDescription">Survive the dungeon by defeating terrifying enemies! Stronger enemies appear as waves progress.</p>
+            <p id="gameInstructions">Move with WASD, rotate view with Mouse, click to attack. Collect Health items to increase survival time!</p>
+            <button id="startButton" class="button">Start Game</button>
+        </div>
+        
+        <!-- Game Over 화면 -->
+        <div id="gameOverScreen" class="screen hidden">
+            <h2 id="gameOverTitle">Game Over</h2>
+            <p id="finalScoreLabel">Final Score: <span id="finalScoreValue">0</span></p>
+            <p id="waveReachedLabel">Wave Reached: <span id="waveReachedValue">1</span></p>
+            <p id="highScoreLabel2">High Score: <span id="highScoreValue2">0</span></p>
+            <button id="restartButton" class="button">Restart</button>
+        </div>
+    </div>
+
+    <script>
+        // 언어 데이터 객체 - 모든 게임 문자열을 여기서 관리
+        const LANG_DATA = {
+            // UI 텍스트
+            gameTitle: "Dungeon Survivor",
+            gameDescription: "Survive the dungeon by defeating terrifying enemies! Stronger enemies appear as waves progress.",
+            gameInstructions: "Move with WASD, rotate view with Mouse, click to attack. Collect Health items to increase survival time!",
+            startButton: "Start Game",
+            gameOverTitle: "Game Over",
+            finalScoreLabel: "Final Score:",
+            waveReachedLabel: "Wave Reached:",
+            highScoreLabel: "High Score:",
+            restartButton: "Restart",
+            
+            // 통계 라벨
+            healthLabel: "Health",
+            scoreLabel: "Score",
+            waveLabel: "Wave",
+            highScoreLabel2: "High Score",
+            enemiesLabel: "Enemies Left",
+            
+            // 컨트롤 정보
+            moveLabel: "Move:",
+            lookLabel: "View:",
+            shootLabel: "Attack:",
+            mouseLabel: "Mouse",
+            clickLabel: "Mouse Click",
+            
+            // 적 설명
+            enemiesTitle: "Enemy Types",
+            zombieDesc: "Zombie: Slow but Strong",
+            skeletonDesc: "Skeleton: Normal Speed",
+            demonDesc: "Demon: Fast but Weak",
+            itemDesc: "Health Item: Blue Sphere",
+            
+            // Wave 알림
+            waveStart: "Wave",
+            
+            // 게임 메시지
+            gameStartMsg: "Game Start! Defeat the enemies!",
+            waveCompleteMsg: "Wave Complete!",
+            newWaveMsg: "New Wave Started!"
+        };
+
+        // DOM 요소를 위한 변수
+        let canvas, renderer, scene, camera, controls;
+        let startScreen, gameOverScreen, startButton, restartButton;
+        let healthValue, scoreValue, waveValue, highScoreValue, enemiesValue;
+        let healthBar, waveAlert, hitEffect, muzzleFlash;
+        let finalScoreValue, waveReachedValue, highScoreValue2;
+
+        // 게임 상태 변수
+        let gameState = {
+            isPlaying: false,
+            isGameOver: false,
+            score: 0,
+            highScore: 0,
+            health: 100,
+            maxHealth: 100,
+            wave: 1,
+            enemiesRemaining: 0,
+            enemies: [],
+            healthItems: [],
+            bullets: [],
+            lastShotTime: 0,
+            shotDelay: 300, // 밀리초
+            mouseLocked: false,
+            keys: {},
+            playerVelocity: new THREE.Vector3(0, 0, 0),
+            playerDirection: new THREE.Vector3(),
+            playerOnFloor: false
+        };
+
+        // Three.js 객체
+        let player, world;
+        let walls = [];
+        let floor, ceiling;
+
+        // 게임 초기화
+        function init() {
+            // DOM 요소 참조
+            canvas = document.getElementById('gameCanvas');
+            startScreen = document.getElementById('startScreen');
+            gameOverScreen = document.getElementById('gameOverScreen');
+            startButton = document.getElementById('startButton');
+            restartButton = document.getElementById('restartButton');
+            
+            // UI 요소 참조
+            healthValue = document.getElementById('healthValue');
+            scoreValue = document.getElementById('scoreValue');
+            waveValue = document.getElementById('waveValue');
+            highScoreValue = document.getElementById('highScoreValue');
+            highScoreValue2 = document.getElementById('highScoreValue2');
+            enemiesValue = document.getElementById('enemiesValue');
+            healthBar = document.getElementById('healthBar');
+            waveAlert = document.getElementById('waveAlert');
+            hitEffect = document.getElementById('hitEffect');
+            muzzleFlash = document.getElementById('muzzleFlash');
+            finalScoreValue = document.getElementById('finalScoreValue');
+            waveReachedValue = document.getElementById('waveReachedValue');
+            
+            // 언어 데이터 적용
+            applyLanguageData();
+            
+            // High Score 로드
+            loadHighScore();
+            
+            // 이벤트 리스너 설정
+            startButton.addEventListener('click', startGame);
+            restartButton.addEventListener('click', restartGame);
+            
+            // 키보드 이벤트 리스너
+            document.addEventListener('keydown', (e) => {
+                gameState.keys[e.code] = true;
+            });
+            
+            document.addEventListener('keyup', (e) => {
+                gameState.keys[e.code] = false;
+            });
+            
+            // Mouse 이벤트 리스너
+            canvas.addEventListener('click', () => {
+                if (gameState.isPlaying && !gameState.isGameOver) {
+                    canvas.requestPointerLock();
+                }
+            });
+            
+            // Pointer Lock 변경 이벤트
+            document.addEventListener('pointerlockchange', pointerLockChange);
+            
+            // Mouse Move 이벤트
+            document.addEventListener('mousemove', mouseMove);
+            
+            // Mouse Click 이벤트
+            document.addEventListener('mousedown', mouseDown);
+            
+            // Three.js 초기화
+            initThreeJS();
+            
+            // 게임 월드 생성
+            createWorld();
+            
+            // 플레이어 생성
+            createPlayer();
+            
+            // 초기 Wave 생성
+            spawnWave();
+            
+            // 게임 루프 Start
+            animate();
+        }
+
+        // 언어 데이터 적용
+        function applyLanguageData() {
+            document.getElementById('gameTitle').textContent = LANG_DATA.gameTitle;
+            document.getElementById('gameDescription').textContent = LANG_DATA.gameDescription;
+            document.getElementById('gameInstructions').textContent = LANG_DATA.gameInstructions;
+            document.getElementById('startButton').textContent = LANG_DATA.startButton;
+            document.getElementById('gameOverTitle').textContent = LANG_DATA.gameOverTitle;
+            document.getElementById('finalScoreLabel').textContent = LANG_DATA.finalScoreLabel;
+            document.getElementById('waveReachedLabel').textContent = LANG_DATA.waveReachedLabel;
+            document.getElementById('highScoreLabel2').textContent = LANG_DATA.highScoreLabel;
+            document.getElementById('restartButton').textContent = LANG_DATA.restartButton;
+            
+            document.getElementById('healthLabel').textContent = LANG_DATA.healthLabel;
+            document.getElementById('scoreLabel').textContent = LANG_DATA.scoreLabel;
+            document.getElementById('waveLabel').textContent = LANG_DATA.waveLabel;
+            document.getElementById('highScoreLabel').textContent = LANG_DATA.highScoreLabel2;
+            document.getElementById('enemiesLabel').textContent = LANG_DATA.enemiesLabel;
+            
+            document.getElementById('moveLabel').textContent = LANG_DATA.moveLabel;
+            document.getElementById('lookLabel').textContent = LANG_DATA.lookLabel;
+            document.getElementById('shootLabel').textContent = LANG_DATA.shootLabel;
+            document.getElementById('mouseLabel').textContent = LANG_DATA.mouseLabel;
+            document.getElementById('clickLabel').textContent = LANG_DATA.clickLabel;
+            
+            document.getElementById('enemiesTitle').textContent = LANG_DATA.enemiesTitle;
+            document.getElementById('zombieDesc').textContent = LANG_DATA.zombieDesc;
+            document.getElementById('skeletonDesc').textContent = LANG_DATA.skeletonDesc;
+            document.getElementById('demonDesc').textContent = LANG_DATA.demonDesc;
+            document.getElementById('itemDesc').textContent = LANG_DATA.itemDesc;
+        }
+
+        // High Score 로드
+        function loadHighScore() {
+            const savedHighScore = localStorage.getItem('dungeonSurvivorHighScore');
+            if (savedHighScore) {
+                gameState.highScore = parseInt(savedHighScore);
+                highScoreValue.textContent = gameState.highScore;
+                highScoreValue2.textContent = gameState.highScore;
+            }
+        }
+
+        // High Score 저장
+        function saveHighScore() {
+            if (gameState.score > gameState.highScore) {
+                gameState.highScore = gameState.score;
+                localStorage.setItem('dungeonSurvivorHighScore', gameState.highScore.toString());
+                highScoreValue.textContent = gameState.highScore;
+                highScoreValue2.textContent = gameState.highScore;
+            }
+        }
+
+        // Three.js 초기화
+        function initThreeJS() {
+            // 렌더러 생성
+            renderer = new THREE.WebGLRenderer({
+                canvas: canvas,
+                antialias: true
+            });
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            // 장면 생성
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x050510, 10, 50);
+            
+            // 카메라 생성 (1인칭 viewpoint)
+            camera = new THREE.PerspectiveCamera(75, canvas.clientWidth / canvas.clientHeight, 0.1, 1000);
+            camera.position.set(0, 1.6, 0);
+            
+            // 조명 추가
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+            
+            // 창 크기 변경 이벤트
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // 창 크기 변경 처리
+        function onWindowResize() {
+            camera.aspect = canvas.clientWidth / canvas.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+        }
+
+        // 게임 월드 생성 (던전 맵)
+        function createWorld() {
+            // 바닥 생성
+            const floorGeometry = new THREE.PlaneGeometry(50, 50);
+            const floorMaterial = new THREE.MeshStandardMaterial({
+                color: 0x333344,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+            floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+            
+            // 천장 생성
+            const ceilingGeometry = new THREE.PlaneGeometry(50, 50);
+            const ceilingMaterial = new THREE.MeshStandardMaterial({
+                color: 0x222233,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.y = 5;
+            ceiling.receiveShadow = true;
+            scene.add(ceiling);
+            
+            // 벽 생성 (간단한 미로 구조)
+            const wallGeometry = new THREE.BoxGeometry(1, 4, 1);
+            const wallMaterial = new THREE.MeshStandardMaterial({
+                color: 0x555566,
+                roughness: 0.7,
+                metalness: 0.3
+            });
+            
+            // 벽 배치 패턴 (미로 형태)
+            const wallPositions = [
+                // 외벽
+                [-10, 2, -10], [10, 2, -10], [-10, 2, 10], [10, 2, 10],
+                // 가로 벽들
+                [-8, 2, -8], [-6, 2, -8], [-4, 2, -8], [-2, 2, -8], [0, 2, -8], [2, 2, -8], [4, 2, -8], [6, 2, -8], [8, 2, -8],
+                [-8, 2, 8], [-6, 2, 8], [-4, 2, 8], [-2, 2, 8], [0, 2, 8], [2, 2, 8], [4, 2, 8], [6, 2, 8], [8, 2, 8],
+                // 세로 벽들
+                [-10, 2, -6], [-10, 2, -4], [-10, 2, -2], [-10, 2, 0], [-10, 2, 2], [-10, 2, 4], [-10, 2, 6],
+                [10, 2, -6], [10, 2, -4], [10, 2, -2], [10, 2, 0], [10, 2, 2], [10, 2, 4], [10, 2, 6],
+                // 내부 벽들
+                [-5, 2, -5], [-3, 2, -3], [-1, 2, -1], [1, 2, 1], [3, 2, 3], [5, 2, 5],
+                [-5, 2, 5], [-3, 2, 3], [-1, 2, 1], [1, 2, -1], [3, 2, -3], [5, 2, -5]
+            ];
+            
+            walls = [];
+            wallPositions.forEach(pos => {
+                const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+                wall.position.set(pos[0], pos[1], pos[2]);
+                wall.castShadow = true;
+                wall.receiveShadow = true;
+                scene.add(wall);
+                walls.push(wall);
+            });
+        }
+
+        // 플레이어 생성
+        function createPlayer() {
+            // 플레이어는 카메라로 대표됨 (1인칭 viewpoint)
+            player = camera;
+            player.position.set(0, 1.6, 0);
+        }
+
+        // 적 생성
+        function createEnemy(type, x, z) {
+            let geometry, material, color, health, speed, size;
+            
+            // 적 유형에 따른 속성 설정
+            switch(type) {
+                case 'zombie':
+                    geometry = new THREE.BoxGeometry(0.8, 1.8, 0.8);
+                    color = 0xff3366; // 빨간색
+                    health = 30;
+                    speed = 0.02;
+                    break;
+                case 'skeleton':
+                    geometry = new THREE.BoxGeometry(0.7, 1.7, 0.7);
+                    color = 0x00cc66; // 녹색
+                    health = 20;
+                    speed = 0.03;
+                    break;
+                case 'demon':
+                    geometry = new THREE.SphereGeometry(0.6, 8, 8);
+                    color = 0xcc00ff; // 보라색
+                    health = 15;
+                    speed = 0.04;
+                    break;
+                default:
+                    geometry = new THREE.BoxGeometry(0.8, 1.8, 0.8);
+                    color = 0xff3366;
+                    health = 25;
+                    speed = 0.025;
+            }
+            
+            material = new THREE.MeshStandardMaterial({ color: color });
+            const enemy = new THREE.Mesh(geometry, material);
+            enemy.position.set(x, 0.9, z);
+            enemy.castShadow = true;
+            enemy.receiveShadow = true;
+            
+            // 적 객체에 게임 속성 추가
+            enemy.userData = {
+                type: type,
+                health: health,
+                maxHealth: health,
+                speed: speed,
+                attackDamage: type === 'zombie' ? 15 : type === 'skeleton' ? 10 : 8,
+                attackCooldown: 0,
+                attackRange: 1.5
+            };
+            
+            scene.add(enemy);
+            gameState.enemies.push(enemy);
+            
+            return enemy;
+        }
+
+        // Health 아이템 생성
+        function createHealthItem(x, z) {
+            const geometry = new THREE.SphereGeometry(0.3, 8, 8);
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0x00aaff,
+                emissive: 0x0044aa,
+                emissiveIntensity: 0.5
+            });
+            const healthItem = new THREE.Mesh(geometry, material);
+            healthItem.position.set(x, 0.3, z);
+            
+            // 아이템에 깜빡임 효과 추가
+            healthItem.userData = {
+                pulseSpeed: 0.05,
+                pulseAmount: 0.1,
+                originalScale: 1
+            };
+            
+            scene.add(healthItem);
+            gameState.healthItems.push(healthItem);
+            
+            return healthItem;
+        }
+
+        // Wave 생성
+        function spawnWave() {
+            // 현재 Wave에 따른 적 수 계산
+            const baseEnemies = 5;
+            const waveMultiplier = Math.floor(gameState.wave / 3) + 1;
+            const enemyCount = baseEnemies + waveMultiplier * 2;
+            
+            // 적 생성
+            for (let i = 0; i < enemyCount; i++) {
+                // 플레이어에서 일정 거리 떨어진 위치에 적 생성
+                let x, z;
+                let validPosition = false;
+                let attempts = 0;
+                
+                while (!validPosition && attempts < 20) {
+                    // 맵 내 랜덤 위치 생성
+                    x = (Math.random() - 0.5) * 18;
+                    z = (Math.random() - 0.5) * 18;
+                    
+                    // 플레이어와 너무 가깝지 않은지 확인
+                    const distanceToPlayer = Math.sqrt(
+                        Math.pow(x - player.position.x, 2) + 
+                        Math.pow(z - player.position.z, 2)
+                    );
+                    
+                    if (distanceToPlayer > 5) {
+                        // 벽과 충돌하지 않는지 확인
+                        let collision = false;
+                        for (const wall of walls) {
+                            const distanceToWall = Math.sqrt(
+                                Math.pow(x - wall.position.x, 2) + 
+                                Math.pow(z - wall.position.z, 2)
+                            );
+                            if (distanceToWall < 1.5) {
+                                collision = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!collision) {
+                            validPosition = true;
+                        }
+                    }
+                    
+                    attempts++;
+                }
+                
+                if (validPosition) {
+                    // 적 유형 랜덤 선택 (Wave가 높아질수록 강한 적 등장 확률 증가)
+                    let enemyType;
+                    const rand = Math.random();
+                    
+                    if (gameState.wave >= 5 && rand < 0.3) {
+                        enemyType = 'zombie'; // 강한 적
+                    } else if (gameState.wave >= 3 && rand < 0.5) {
+                        enemyType = 'skeleton'; // 중간 적
+                    } else {
+                        enemyType = 'demon'; // 약한 적
+                    }
+                    
+                    createEnemy(enemyType, x, z);
+                }
+            }
+            
+            // Wave마다 Health 아이템 생성
+            if (gameState.wave % 2 === 1) {
+                for (let i = 0; i < 2; i++) {
+                    let x, z;
+                    let validPosition = false;
+                    let attempts = 0;
+                    
+                    while (!validPosition && attempts < 20) {
+                        x = (Math.random() - 0.5) * 18;
+                        z = (Math.random() - 0.5) * 18;
+                        
+                        // 플레이어와 너무 가깝지 않은지 확인
+                        const distanceToPlayer = Math.sqrt(
+                            Math.pow(x - player.position.x, 2) + 
+                            Math.pow(z - player.position.z, 2)
+                        );
+                        
+                        if (distanceToPlayer > 3) {
+                            validPosition = true;
+                        }
+                        
+                        attempts++;
+                    }
+                    
+                    if (validPosition) {
+                        createHealthItem(x, z);
+                    }
+                }
+            }
+            
+            // Enemies Left 수 업데이트
+            gameState.enemiesRemaining = gameState.enemies.length;
+            enemiesValue.textContent = gameState.enemiesRemaining;
+            
+            // Wave 알림 표시
+            showWaveAlert(`${LANG_DATA.waveStart} ${gameState.wave}`);
+        }
+
+        // Wave 알림 표시
+        function showWaveAlert(text) {
+            waveAlert.textContent = text;
+            waveAlert.style.opacity = 1;
+            
+            setTimeout(() => {
+                waveAlert.style.opacity = 0;
+            }, 2000);
+        }
+
+        // 포인터 잠금 상태 변경 처리
+        function pointerLockChange() {
+            if (document.pointerLockElement === canvas) {
+                gameState.mouseLocked = true;
+            } else {
+                gameState.mouseLocked = false;
+            }
+        }
+
+        // Mouse Move 처리 (viewpoint 조절)
+        function mouseMove(e) {
+            if (!gameState.mouseLocked || !gameState.isPlaying || gameState.isGameOver) return;
+            
+            const sensitivity = 0.002;
+            
+            // 카메라 회전 (viewpoint 변경)
+            camera.rotation.y -= e.movementX * sensitivity;
+            camera.rotation.x -= e.movementY * sensitivity;
+            
+            // 수직 viewpoint 제한
+            camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
+        }
+
+        // Mouse Click 처리 (attack)
+        function mouseDown(e) {
+            if (!gameState.isPlaying || gameState.isGameOver || e.button !== 0) return;
+            
+            // 연사 속도 제한
+            const now = Date.now();
+            if (now - gameState.lastShotTime < gameState.shotDelay) return;
+            
+            gameState.lastShotTime = now;
+            
+            // 총구 섬광 효과
+            showMuzzleFlash();
+            
+            // Fire 사운드 효과
+            playShootSound();
+            
+            // 레이캐스터를 사용해 총알 Fire 및 적 히트 검사
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            
+            // 적과의 충돌 검사
+            const intersects = raycaster.intersectObjects(gameState.enemies);
+            
+            if (intersects.length > 0) {
+                const enemy = intersects[0].object;
+                
+                // 적에게 데미지 적용
+                enemy.userData.health -= 10;
+                
+                // 적이 죽었는지 확인
+                if (enemy.userData.health <= 0) {
+                    // Score 추가 (적 유형에 따라 다른 Score)
+                    let points = 0;
+                    switch(enemy.userData.type) {
+                        case 'zombie': points = 30; break;
+                        case 'skeleton': points = 20; break;
+                        case 'demon': points = 15; break;
+                    }
+                    
+                    gameState.score += points;
+                    scoreValue.textContent = gameState.score;
+                    
+                    // 적 제거
+                    scene.remove(enemy);
+                    const index = gameState.enemies.indexOf(enemy);
+                    if (index > -1) {
+                        gameState.enemies.splice(index, 1);
+                    }
+                    
+                    // Enemies Left 수 업데이트
+                    gameState.enemiesRemaining = gameState.enemies.length;
+                    enemiesValue.textContent = gameState.enemiesRemaining;
+                    
+                    // 처치 사운드 효과
+                    playEnemyDeathSound();
+                    
+                    // 모든 적을 처치했으면 다음 Wave로
+                    if (gameState.enemiesRemaining === 0) {
+                        setTimeout(() => {
+                            gameState.wave++;
+                            waveValue.textContent = gameState.wave;
+                            spawnWave();
+                        }, 1500);
+                    }
+                } else {
+                    // 적 피격 사운드
+                    playHitSound();
+                }
+            }
+        }
+
+        // 총구 섬광 효과 표시
+        function showMuzzleFlash() {
+            muzzleFlash.style.opacity = 1;
+            muzzleFlash.style.left = '50%';
+            muzzleFlash.style.bottom = '30px';
+            muzzleFlash.style.transform = 'translateX(-50%)';
+            
+            setTimeout(() => {
+                muzzleFlash.style.opacity = 0;
+            }, 50);
+        }
+
+        // Fire 사운드 재생
+        function playShootSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(200, audioContext.currentTime + 0.1);
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.1);
+            } catch (e) {
+                console.log("Cannot create audio context.");
+            }
+        }
+
+        // 적 피격 사운드 재생
+        function playHitSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(300, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 0.1);
+                
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.1);
+            } catch (e) {
+                console.log("Cannot create audio context.");
+            }
+        }
+
+        // 적 처치 사운드 재생
+        function playEnemyDeathSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(50, audioContext.currentTime + 0.3);
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
+            } catch (e) {
+                console.log("Cannot create audio context.");
+            }
+        }
+
+        // 플레이어 피격 효과 표시
+        function showHitEffect() {
+            hitEffect.style.backgroundColor = 'rgba(255, 0, 0, 0.3)';
+            
+            setTimeout(() => {
+                hitEffect.style.backgroundColor = 'rgba(255, 0, 0, 0)';
+            }, 200);
+        }
+
+        // 플레이어 Move 처리
+        function updatePlayerMovement(deltaTime) {
+            if (!gameState.isPlaying || gameState.isGameOver) return;
+            
+            const moveSpeed = 5 * deltaTime;
+            const playerPosition = player.position.clone();
+            
+            // Move 방향 벡터 계산
+            const direction = new THREE.Vector3();
+            
+            // 전후 Move
+            if (gameState.keys['KeyW']) {
+                direction.z -= 1;
+            }
+            if (gameState.keys['KeyS']) {
+                direction.z += 1;
+            }
+            
+            // 좌우 Move
+            if (gameState.keys['KeyA']) {
+                direction.x -= 1;
+            }
+            if (gameState.keys['KeyD']) {
+                direction.x += 1;
+            }
+            
+            // 방향 정규화 및 카메라 방향 적용
+            if (direction.length() > 0) {
+                direction.normalize();
+                direction.applyEuler(new THREE.Euler(0, camera.rotation.y, 0));
+                
+                // 벽 충돌 검사
+                const newX = playerPosition.x + direction.x * moveSpeed;
+                const newZ = playerPosition.z + direction.z * moveSpeed;
+                
+                let canMove = true;
+                
+                // 모든 벽과의 충돌 검사
+                for (const wall of walls) {
+                    const distance = Math.sqrt(
+                        Math.pow(newX - wall.position.x, 2) + 
+                        Math.pow(newZ - wall.position.z, 2)
+                    );
+                    
+                    // 벽과의 충돌 거리 (플레이어 반경 0.5 + 벽 반경 0.5 = 1.0)
+                    if (distance < 1.0) {
+                        canMove = false;
+                        break;
+                    }
+                }
+                
+                // 맵 경계 검사
+                if (newX < -9.5 || newX > 9.5 || newZ < -9.5 || newZ > 9.5) {
+                    canMove = false;
+                }
+                
+                if (canMove) {
+                    player.position.x = newX;
+                    player.position.z = newZ;
+                }
+            }
+        }
+
+        // 적 AI 업데이트
+        function updateEnemies(deltaTime) {
+            for (let i = gameState.enemies.length - 1; i >= 0; i--) {
+                const enemy = gameState.enemies[i];
+                
+                // 플레이어 방향 계산
+                const directionToPlayer = new THREE.Vector3();
+                directionToPlayer.subVectors(player.position, enemy.position);
+                directionToPlayer.y = 0; // 수평 Move만
+                
+                const distanceToPlayer = directionToPlayer.length();
+                
+                // attack 범위 내에 있으면 attack
+                if (distanceToPlayer < enemy.userData.attackRange) {
+                    // attack 쿨다운 업데이트
+                    enemy.userData.attackCooldown -= deltaTime * 1000;
+                    
+                    if (enemy.userData.attackCooldown <= 0) {
+                        // 플레이어에게 데미지 적용
+                        gameState.health -= enemy.userData.attackDamage;
+                        healthValue.textContent = gameState.health;
+                        healthBar.style.width = `${(gameState.health / gameState.maxHealth) * 100}%`;
+                        
+                        // 피격 효과 표시
+                        showHitEffect();
+                        
+                        // attack 쿨다운 재설정
+                        enemy.userData.attackCooldown = 1000; // 1초
+                        
+                        // Health이 0 이하이면 Game Over
+                        if (gameState.health <= 0) {
+                            gameState.health = 0;
+                            gameOver();
+                        }
+                    }
+                } else {
+                    // 플레이어를 향해 Move
+                    if (distanceToPlayer > 0) {
+                        directionToPlayer.normalize();
+                        
+                        // 벽 충돌 검사
+                        const newX = enemy.position.x + directionToPlayer.x * enemy.userData.speed * deltaTime * 60;
+                        const newZ = enemy.position.z + directionToPlayer.z * enemy.userData.speed * deltaTime * 60;
+                        
+                        let canMove = true;
+                        
+                        // 벽과의 충돌 검사
+                        for (const wall of walls) {
+                            const distance = Math.sqrt(
+                                Math.pow(newX - wall.position.x, 2) + 
+                                Math.pow(newZ - wall.position.z, 2)
+                            );
+                            
+                            if (distance < 1.0) {
+                                canMove = false;
+                                break;
+                            }
+                        }
+                        
+                        // 다른 적과의 충돌 검사
+                        for (const otherEnemy of gameState.enemies) {
+                            if (otherEnemy === enemy) continue;
+                            
+                            const distance = Math.sqrt(
+                                Math.pow(newX - otherEnemy.position.x, 2) + 
+                                Math.pow(newZ - otherEnemy.position.z, 2)
+                            );
+                            
+                            if (distance < 0.8) {
+                                canMove = false;
+                                break;
+                            }
+                        }
+                        
+                        if (canMove) {
+                            enemy.position.x = newX;
+                            enemy.position.z = newZ;
+                        }
+                    }
+                }
+                
+                // 적이 플레이어를 바라보도록 회전
+                enemy.lookAt(player.position);
+                enemy.rotation.x = 0;
+                enemy.rotation.z = 0;
+            }
+        }
+
+        // Health 아이템 업데이트
+        function updateHealthItems(deltaTime) {
+            for (let i = gameState.healthItems.length - 1; i >= 0; i--) {
+                const item = gameState.healthItems[i];
+                
+                // 깜빡임 효과
+                item.scale.setScalar(
+                    item.userData.originalScale + 
+                    Math.sin(Date.now() * item.userData.pulseSpeed) * item.userData.pulseAmount
+                );
+                
+                // 플레이어와의 충돌 검사
+                const distanceToPlayer = Math.sqrt(
+                    Math.pow(item.position.x - player.position.x, 2) + 
+                    Math.pow(item.position.z - player.position.z, 2)
+                );
+                
+                if (distanceToPlayer < 1.0) {
+                    // Health Recovered
+                    gameState.health = Math.min(gameState.maxHealth, gameState.health + 20);
+                    healthValue.textContent = gameState.health;
+                    healthBar.style.width = `${(gameState.health / gameState.maxHealth) * 100}%`;
+                    
+                    // 아이템 제거
+                    scene.remove(item);
+                    gameState.healthItems.splice(i, 1);
+                    
+                    // 아이템 획득 사운드
+                    playHealthPickupSound();
+                }
+            }
+        }
+
+        // Health 아이템 획득 사운드
+        function playHealthPickupSound() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
+                oscillator.frequency.exponentialRampToValueAtTime(659.25, audioContext.currentTime + 0.2); // E5
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
+            } catch (e) {
+                console.log("Cannot create audio context.");
+            }
+        }
+
+        // Start Game
+        function startGame() {
+            // 게임 상태 초기화
+            resetGameState();
+            
+            // Start 화면 숨기기
+            startScreen.classList.add('hidden');
+            
+            // Start Game
+            gameState.isPlaying = true;
+            
+            // 포인터 잠금 요청
+            canvas.requestPointerLock();
+            
+            // Wave 알림 표시
+            showWaveAlert(LANG_DATA.gameStartMsg);
+        }
+
+        // 게임 Restart
+        function restartGame() {
+            // Game Over 화면 숨기기
+            gameOverScreen.classList.add('hidden');
+            
+            // 게임 상태 초기화
+            resetGameState();
+            
+            // Start Game
+            gameState.isPlaying = true;
+            
+            // 포인터 잠금 요청
+            canvas.requestPointerLock();
+            
+            // Wave 알림 표시
+            showWaveAlert(LANG_DATA.gameStartMsg);
+        }
+
+        // 게임 상태 초기화
+        function resetGameState() {
+            // 기존 게임 객체 제거
+            for (const enemy of gameState.enemies) {
+                scene.remove(enemy);
+            }
+            
+            for (const item of gameState.healthItems) {
+                scene.remove(item);
+            }
+            
+            for (const bullet of gameState.bullets) {
+                scene.remove(bullet.mesh);
+            }
+            
+            // 상태 변수 초기화
+            gameState.isPlaying = false;
+            gameState.isGameOver = false;
+            gameState.score = 0;
+            gameState.health = 100;
+            gameState.wave = 1;
+            gameState.enemiesRemaining = 0;
+            gameState.enemies = [];
+            gameState.healthItems = [];
+            gameState.bullets = [];
+            gameState.lastShotTime = 0;
+            gameState.keys = {};
+            
+            // 플레이어 위치 재설정
+            player.position.set(0, 1.6, 0);
+            player.rotation.set(0, 0, 0);
+            
+            // UI 업데이트
+            healthValue.textContent = gameState.health;
+            scoreValue.textContent = gameState.score;
+            waveValue.textContent = gameState.wave;
+            enemiesValue.textContent = gameState.enemiesRemaining;
+            healthBar.style.width = '100%';
+            
+            // 새 Wave 생성
+            spawnWave();
+        }
+
+        // Game Over 처리
+        function gameOver() {
+            gameState.isPlaying = false;
+            gameState.isGameOver = true;
+            
+            // High Score 저장
+            saveHighScore();
+            
+            // Game Over 화면 업데이트
+            finalScoreValue.textContent = gameState.score;
+            waveReachedValue.textContent = gameState.wave;
+            highScoreValue2.textContent = gameState.highScore;
+            
+            // Game Over 화면 표시
+            gameOverScreen.classList.remove('hidden');
+            
+            // 포인터 잠금 해제
+            document.exitPointerLock();
+        }
+
+        // 게임 루프
+        let lastTime = 0;
+        function animate(currentTime = 0) {
+            requestAnimationFrame(animate);
+            
+            // 델타 타임 계산 (초 단위)
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+            
+            // 게임이 진행 중일 때만 업데이트
+            if (gameState.isPlaying && !gameState.isGameOver) {
+                // 플레이어 Move 업데이트
+                updatePlayerMovement(deltaTime);
+                
+                // 적 AI 업데이트
+                updateEnemies(deltaTime);
+                
+                // Health 아이템 업데이트
+                updateHealthItems(deltaTime);
+            }
+            
+            // 장면 렌더링
+            renderer.render(scene, camera);
+        }
+
+        // 초기화 실행
+        window.onload = init;
+    </script>
+</body>
+</html>

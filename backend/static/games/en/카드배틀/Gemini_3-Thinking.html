@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Game Blind Arena - Card Battle</title>
+    <style>
+        :root {
+            --bg-color: #f0f4f8;
+            --card-bg: #ffffff;
+            --primary: #ff7e67;
+            --secondary: #6ea8fe;
+            --accent: #ffd166;
+            --text: #2d3436;
+            --monster: #a29bfe;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            font-family: 'Pretendard', sans-serif;
+            color: var(--text);
+            overflow: hidden;
+        }
+
+        #game-container {
+            width: 800px;
+            height: 600px;
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            border: 8px solid #dfe6e9;
+        }
+
+        /* 배틀 필드 구역 */
+        .battle-field {
+            flex: 1;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            position: relative;
+        }
+
+        .entity {
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .avatar {
+            font-size: 80px;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 5px 15px rgba(0,0,0,0.1));
+        }
+
+        /* 체력 및 방어구 UI */
+        .stats {
+            width: 150px;
+        }
+
+        .hp-bar-bg {
+            height: 20px;
+            background: #eee;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 5px;
+            border: 2px solid #ddd;
+        }
+
+        .hp-bar-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .block-badge {
+            background: var(--secondary);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.9em;
+            display: inline-block;
+            margin-top: 5px;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .block-badge.active { opacity: 1; }
+
+        /* 에너지 및 턴 관리 */
+        .turn-info {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+        }
+
+        .energy-display {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #ff9f43;
+            background: #fff4e6;
+            padding: 5px 20px;
+            border-radius: 20px;
+            border: 2px solid #ff9f43;
+        }
+
+        /* 카드 핸드 구역 */
+        .hand-container {
+            height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        .card {
+            width: 120px;
+            height: 170px;
+            background: var(--card-bg);
+            border: 3px solid #dfe6e9;
+            border-radius: 15px;
+            padding: 10px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .card:hover {
+            transform: translateY(-20px) scale(1.05);
+            border-color: var(--secondary);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .card.disabled {
+            filter: grayscale(1);
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .card-name { font-weight: bold; text-align: center; }
+        .card-cost { 
+            background: #6ea8fe; color: white; width: 24px; height: 24px; 
+            border-radius: 50%; display: flex; justify-content: center; 
+            align-items: center; font-size: 0.8em; margin: 0 auto;
+        }
+        .card-desc { font-size: 0.85em; color: #636e72; text-align: center; }
+
+        /* 버튼 및 오버레이 */
+        .btn-end-turn {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            padding: 15px 30px;
+            background: var(--text);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .btn-end-turn:active { transform: scale(0.95); }
+
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.9);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            border-radius: 16px;
+        }
+
+        .overlay h1 { font-size: 3em; margin-bottom: 20px; }
+
+        .btn-restart {
+            padding: 15px 40px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.2em;
+            cursor: pointer;
+        }
+
+        /* 애니메이션 */
+        @keyframes damage {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+        .shake { animation: damage 0.2s linear; }
+
+        @keyframes heal {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-20px); opacity: 0; }
+        }
+        .heal-effect { color: #2ecc71; position: absolute; font-weight: bold; animation: heal 0.8s ease-out forwards; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="turn-info">
+        <div id="turn-label" style="margin-bottom: 5px; font-weight: bold;">Your Turn</div>
+        <div class="energy-display">Energy: <span id="p-energy">3</span> / 3</div>
+    </div>
+
+    <div class="battle-field">
+        <div class="entity" id="player-unit">
+            <div class="avatar">🐥</div>
+            <div class="stats">
+                <div class="hp-bar-bg"><div id="p-hp-bar" class="hp-bar-fill"></div></div>
+                <div id="p-hp-text">50 / 50</div>
+                <div id="p-block" class="block-badge">🛡️ 0</div>
+            </div>
+        </div>
+
+        <div class="entity" id="monster-unit">
+            <div class="avatar">😈</div>
+            <div class="stats">
+                <div class="hp-bar-bg"><div id="m-hp-bar" class="hp-bar-fill"></div></div>
+                <div id="m-hp-text">50 / 50</div>
+                <div id="m-block" class="block-badge">🛡️ 0</div>
+            </div>
+            <div id="m-intent" style="margin-top:10px; font-size: 0.9em; color: #d63031;">Intent: Preparing to attack...</div>
+        </div>
+    </div>
+
+    <div class="hand-container" id="hand"></div>
+
+    <button class="btn-end-turn" onclick="endPlayerTurn()">End Turn</button>
+
+    <div id="overlay" class="overlay">
+        <h1 id="overlay-msg">Victory!</h1>
+        <button class="btn-restart" onclick="initGame()">Restart</button>
+    </div>
+</div>
+
+<script>
+    // 게임 데이터 정의
+    const CARD_POOL = [
+        { name: "Strike", cost: 1, type: "attack", value: 6, desc: "Deal 6 damage" },
+        { name: "Iron Guard", cost: 1, type: "block", value: 7, desc: "Gain 7 block" },
+        { name: "Healing Light", cost: 1, type: "heal", value: 5, desc: "Restore 5 HP" },
+        { name: "Power Blow", cost: 2, type: "attack", value: 14, desc: "Deal 14 damage" },
+        { name: "Precise Shot", cost: 1, type: "attack", value: 8, desc: "Deal 8 damage" }
+    ];
+
+    let gameState = {
+        playerHP: 50,
+        playerMaxHP: 50,
+        playerEnergy: 3,
+        playerBlock: 0,
+        monsterHP: 50,
+        monsterMaxHP: 50,
+        monsterBlock: 0,
+        isPlayerTurn: true,
+        monsterIntent: 'attack' // attack or block
+    };
+
+    // 초기화 함수
+    function initGame() {
+        gameState = {
+            playerHP: 50, playerMaxHP: 50,
+            playerEnergy: 3, playerBlock: 0,
+            monsterHP: 50, monsterMaxHP: 50,
+            monsterBlock: 0, isPlayerTurn: true,
+            monsterIntent: 'attack'
+        };
+        document.getElementById('overlay').style.display = 'none';
+        updateUI();
+        drawCards(3);
+    }
+
+    // 카드 뽑기
+    function drawCards(count) {
+        const handEl = document.getElementById('hand');
+        handEl.innerHTML = '';
+        for(let i=0; i<count; i++) {
+            const cardData = CARD_POOL[Math.floor(Math.random() * CARD_POOL.length)];
+            const cardEl = document.createElement('div');
+            cardEl.className = `card ${gameState.playerEnergy < cardData.cost ? 'disabled' : ''}`;
+            cardEl.innerHTML = `
+                <div class="card-cost">${cardData.cost}</div>
+                <div class="card-name">${cardData.name}</div>
+                <div class="card-desc">${cardData.desc}</div>
+            `;
+            cardEl.onclick = () => playCard(cardData, cardEl);
+            handEl.appendChild(cardEl);
+        }
+    }
+
+    // 카드 사용 로직
+    function playCard(card, element) {
+        if (!gameState.isPlayerTurn || gameState.playerEnergy < card.cost) return;
+
+        gameState.playerEnergy -= card.cost;
+        
+        // 카드 효과 적용
+        if (card.type === 'attack') {
+            applyDamage('monster', card.value);
+        } else if (card.type === 'block') {
+            gameState.playerBlock += card.value;
+        } else if (card.type === 'heal') {
+            gameState.playerHP = Math.min(gameState.playerMaxHP, gameState.playerHP + card.value);
+            showEffect(document.getElementById('player-unit'), `+${card.value}`, 'heal-effect');
+        }
+
+        element.style.transform = 'translateY(-100px) scale(0.5)';
+        element.style.opacity = '0';
+        setTimeout(() => element.remove(), 200);
+
+        updateUI();
+        checkGameOver();
+    }
+
+    // 데미지 계산 및 방어구 적용
+    function applyDamage(target, amount) {
+        if (target === 'monster') {
+            if (gameState.monsterBlock >= amount) {
+                gameState.monsterBlock -= amount;
+            } else {
+                let remain = amount - gameState.monsterBlock;
+                gameState.monsterBlock = 0;
+                gameState.monsterHP = Math.max(0, gameState.monsterHP - remain);
+            }
+            shakeEffect('monster-unit');
+        } else {
+            if (gameState.playerBlock >= amount) {
+                gameState.playerBlock -= amount;
+            } else {
+                let remain = amount - gameState.playerBlock;
+                gameState.playerBlock = 0;
+                gameState.playerHP = Math.max(0, gameState.playerHP - remain);
+            }
+            shakeEffect('player-unit');
+        }
+    }
+
+    // 턴 종료
+    function endPlayerTurn() {
+        if (!gameState.isPlayerTurn) return;
+        gameState.isPlayerTurn = false;
+        document.getElementById('turn-label').innerText = "Enemy Turn...";
+        
+        setTimeout(monsterTurn, 800);
+    }
+
+    // 몬스터 AI 행동
+    function monsterTurn() {
+        if (gameState.monsterIntent === 'attack') {
+            applyDamage('player', 8 + Math.floor(Math.random() * 5));
+        } else {
+            gameState.monsterBlock += 10;
+        }
+
+        // 다음 몬스터 의도 결정
+        gameState.monsterIntent = Math.random() > 0.4 ? 'attack' : 'block';
+        
+        setTimeout(() => {
+            startPlayerTurn();
+        }, 800);
+    }
+
+    // 플레이어 턴 시작 (초기화 단계)
+    function startPlayerTurn() {
+        gameState.isPlayerTurn = true;
+        gameState.playerEnergy = 3;
+        gameState.playerBlock = 0; // 방어구 초기화
+        document.getElementById('turn-label').innerText = "Your Turn";
+        updateUI();
+        drawCards(3);
+        checkGameOver();
+    }
+
+    // UI 일괄 업데이트
+    function updateUI() {
+        // 플레이어 UI
+        document.getElementById('p-energy').innerText = gameState.playerEnergy;
+        document.getElementById('p-hp-bar').style.width = (gameState.playerHP / gameState.playerMaxHP * 100) + '%';
+        document.getElementById('p-hp-text').innerText = `${gameState.playerHP} / ${gameState.playerMaxHP}`;
+        const pBlockEl = document.getElementById('p-block');
+        pBlockEl.innerText = `🛡️ ${gameState.playerBlock}`;
+        pBlockEl.className = `block-badge ${gameState.playerBlock > 0 ? 'active' : ''}`;
+
+        // 몬스터 UI
+        document.getElementById('m-hp-bar').style.width = (gameState.monsterHP / gameState.monsterMaxHP * 100) + '%';
+        document.getElementById('m-hp-text').innerText = `${gameState.monsterHP} / ${gameState.monsterMaxHP}`;
+        const mBlockEl = document.getElementById('m-block');
+        mBlockEl.innerText = `🛡️ ${gameState.monsterBlock}`;
+        mBlockEl.className = `block-badge ${gameState.monsterBlock > 0 ? 'active' : ''}`;
+        document.getElementById('m-intent').innerText = `Intent: ${gameState.monsterIntent === 'attack' ? '⚔️ Attacking' : '🛡️ Defending'}`;
+
+        // 카드 비활성화 체크
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(c => {
+            const cost = parseInt(c.querySelector('.card-cost').innerText);
+            if(gameState.playerEnergy < cost) c.classList.add('disabled');
+            else c.classList.remove('disabled');
+        });
+    }
+
+    // 게임 종료 확인
+    function checkGameOver() {
+        const overlay = document.getElementById('overlay');
+        const msg = document.getElementById('overlay-msg');
+
+        if (gameState.monsterHP <= 0) {
+            msg.innerText = "Victory! 🎉";
+            overlay.style.display = 'flex';
+        } else if (gameState.playerHP <= 0) {
+            msg.innerText = "Defeat... 💀";
+            overlay.style.display = 'flex';
+        }
+    }
+
+    // 시각 효과 함수들
+    function shakeEffect(id) {
+        const el = document.getElementById(id);
+        el.classList.add('shake');
+        setTimeout(() => el.classList.remove('shake'), 200);
+    }
+
+    function showEffect(parent, text, className) {
+        const span = document.createElement('span');
+        span.className = className;
+        span.innerText = text;
+        span.style.left = '50%';
+        parent.appendChild(span);
+        setTimeout(() => span.remove(), 800);
+    }
+
+    // 게임 시작
+    initGame();
+</script>
+
+</body>
+</html>

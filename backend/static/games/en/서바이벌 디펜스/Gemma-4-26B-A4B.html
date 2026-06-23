@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SURVIVAL DEFENSE: NEON RECKONING</title>
+    <style>
+        :root {
+            --primary: #00f2ff;
+            --secondary: #ff00ea;
+            --bg: #050505;
+            --panel: rgba(20, 20, 25, 0.85);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg);
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 1200px;
+            aspect-ratio: 16 / 9;
+            box-shadow: 0 0 50px rgba(0, 242, 255, 0.2);
+            background: #000;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* UI Overlays */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            z-index: 10;
+        }
+
+        .overlay.active { display: flex; }
+
+        .menu-card {
+            background: var(--panel);
+            padding: 2rem 4rem;
+            border: 2px solid var(--primary);
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 0 20px var(--primary);
+        }
+
+        h1 { font-size: 3.5rem; margin: 0 0 1rem 0; color: var(--primary); text-shadow: 0 0 10px var(--primary); }
+        p { font-size: 1.2rem; margin-bottom: 2rem; }
+
+        .btn {
+            padding: 1rem 2.5rem;
+            font-size: 1.5rem;
+            background: transparent;
+            color: white;
+            border: 2px solid var(--secondary);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .btn:hover {
+            background: var(--secondary);
+            box-shadow: 0 0 20px var(--secondary);
+            transform: scale(1.05);
+        }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+            z-index: 5;
+        }
+
+        .hud-group { display: flex; flex-direction: column; gap: 5px; }
+        .hud-label { font-size: 0.8rem; color: var(--primary); text-transform: uppercase; }
+        .hud-value { font-size: 1.4rem; font-weight: bold; }
+
+        /* Upgrade Selection */
+        #upgrade-menu {
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 20;
+        }
+
+        .upgrade-container {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .upgrade-card {
+            background: var(--panel);
+            border: 1px solid var(--primary);
+            padding: 1.5rem;
+            width: 200px;
+            cursor: pointer;
+            transition: 0.2s;
+            border-radius: 10px;
+        }
+
+        .upgrade-card:hover {
+            background: var(--primary);
+            color: black;
+            transform: translateY(-10px);
+        }
+
+        .upgrade-card h3 { margin: 0 0 10px 0; font-size: 1.2rem; }
+        .upgrade-card p { font-size: 0.9rem; margin: 0; }
+
+        /* HP Bar */
+        #hp-bar-container {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 12px;
+            background: #333;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #555;
+        }
+        #hp-bar-fill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #ff004c, #ff5e00);
+            transition: width 0.3s ease-out;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- HUD -->
+    <div id="hud">
+        <div class="hud-group">
+            <span class="hud-label" id="L_WAVE">WAVE</span>
+            <span class="hud-value" id="VAL_WAVE">1</span>
+            <span class="hud-label" id="L_SCORE">SCORE</span>
+            <span class="hud-value" id="VAL_SCORE">0</span>
+        </div>
+        <div class="hud-group" style="align-items: flex-end;">
+            <span class="hud-label" id="L_LEVEL">LEVEL</span>
+            <span class="hud-value" id="VAL_LEVEL">1</span>
+            <span class="hud-label" id="L_BEST">BEST</span>
+            <span class="hud-value" id="VAL_BEST">0</span>
+        </div>
+    </div>
+
+    <div id="hp-bar-container">
+        <div id="hp-bar-fill"></div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="overlay active">
+        <div class="menu-card">
+            <h1 id="L_TITLE">NEON SURVIVAL</h1>
+            <p id="L_SUBTITLE">WASD to Move | Auto-Shoot Enabled</p>
+            <button class="btn" id="BTN_START" onclick="game.start()">START MISSION</button>
+        </div>
+    </div>
+
+    <!-- Upgrade Screen -->
+    <div id="upgrade-screen" class="overlay">
+        <h1 id="L_UPGRADE_TITLE">LEVEL UP!</h1>
+        <p id="L_UPGRADE_DESC">Choose an enhancement</p>
+        <div class="upgrade-container" id="upgrade-options">
+            <!-- Dynamic injection -->
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen" class="overlay">
+        <div class="menu-card">
+            <h1 id="L_GAME_OVER">MISSION FAILED</h1>
+            <p><span id="L_FINAL_SCORE">FINAL SCORE</span>: <span id="VAL_FINAL_SCORE">0</span></p>
+            <button class="btn" id="BTN_RESTART" onclick="game.reset()">RETRY</button>
+        </div>
+    </div>
+
+    <!-- Victory Screen -->
+    <div id="victory-screen" class="overlay">
+        <div class="menu-card" style="border-color: var(--secondary);">
+            <h1 id="L_VICTORY" style="color: var(--secondary);">MISSION CLEAR!</h1>
+            <p id="L_VICTORY_DESC">You survived the onslaught.</p>
+            <button class="btn" onclick="game.reset()">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<script>
+/**
+ * LOCALIZATION DATA
+ *  Strings  Management.
+ */
+const LANG_DATA = {
+    en: {
+        L_TITLE: "NEON SURVIVAL",
+        L_SUBTITLE: "WASD to Move | Auto-Shoot Enabled",
+        L_START: "START MISSION",
+        L_WAVE: "WAVE",
+        L_SCORE: "SCORE",
+        L_LEVEL: "LEVEL",
+        L_BEST: "BEST",
+        L_UPGRADE_TITLE: "LEVEL UP!",
+        L_UPGRADE_DESC: "Choose an enhancement",
+        L_GAME_OVER: "MISSION FAILED",
+        L_FINAL_SCORE: "FINAL SCORE",
+        L_VICTORY: "MISSION CLEAR!",
+        L_VICTORY_DESC: "You survived the onslaught.",
+        L_BTN_START: "START MISSION",
+        L_BTN_RESTART: "RETRY",
+        // Upgrade names
+        U_DAMAGE: "Damage Up",
+        U_FIRE_RATE: "Fire Rate Up",
+        U_MOVE_SPEED: "Move Speed Up",
+        U_MAX_HP: "Max HP Up",
+        U_RANGE: "Range Up",
+        U_BULLET_SPEED: "Bullet Speed Up",
+        U_PIERCE: "Pierce Up",
+        U_MULTISHOT: "Multi-shot"
+    }
+};
+
+// Current Language
+const CURRENT_LANG = 'en';
+const L = LANG_DATA[CURRENT_LANG];
+
+/**
+ * AUDIO ENGINE (Web Audio API)
+ *    Sound .
+ */
+const AudioEngine = {
+    ctx: null,
+    init() {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    },
+    play(type) {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        const now = this.ctx.currentTime;
+
+        switch(type) {
+            case 'shoot':
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(110, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start();
+                osc.stop(now + 0.1);
+                break;
+            case 'hit':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(100, now);
+                osc.frequency.linearRampToValueAtTime(40, now + 0.2);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                osc.start();
+                osc.stop(now + 0.2);
+                break;
+            case 'levelup':
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
+                osc.frequency.exponentialRampToValueAtTime(1320, now + 0.2);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start();
+                osc.stop(now + 0.3);
+                break;
+            case 'death':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(20, now + 0.5);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.5);
+                osc.start();
+                osc.stop(now + 0.5);
+                break;
+        }
+    }
+};
+
+/**
+ * GAME ENGINE
+ */
+const game = {
+    canvas: null,
+    ctx: null,
+    width: 0,
+    height: 0,
+    running: false,
+    lastTime: 0,
+    
+    // Game State
+    player: null,
+    enemies: [],
+    projectiles: [],
+    particles: [],
+    gems: [],
+    wave: 1,
+    score: 0,
+    highScore: localStorage.getItem('neon_survivor_highscore') || 0,
+    waveTimer: 0,
+    isLevelingUp: false,
+    victoryWave: 15, // Win at wave 15
+
+    // Input
+    keys: {},
+
+    init() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        
+        window.addEventListener('keydown', e => this.keys[e.code] = true);
+        window.addEventListener('keyup', e => this.keys[e.code] = false);
+
+        // Apply translations
+        this.applyTranslations();
+        this.updateHUD();
+
+        // Start loop
+        requestAnimationFrame((t) => this.loop(t));
+    },
+
+    resize() {
+        const container = document.getElementById('game-container');
+        this.width = this.canvas.width = container.clientWidth;
+        this.height = this.canvas.height = container.clientHeight;
+    },
+
+    applyTranslations() {
+        document.getElementById('L_TITLE').textContent = L.L_TITLE;
+        document.getElementById('L_SUBTITLE').textContent = L.L_SUBTITLE;
+        document.getElementById('BTN_START').textContent = L.L_BTN_START;
+        document.getElementById('L_WAVE').textContent = L.L_WAVE;
+        document.getElementById('L_SCORE').textContent = L.L_SCORE;
+        document.getElementById('L_LEVEL').textContent = L.L_LEVEL;
+        document.getElementById('L_BEST').textContent = L.L_BEST;
+        document.getElementById('L_UPGRADE_TITLE').textContent = L.L_UPGRADE_TITLE;
+        document.getElementById('L_UPGRADE_DESC').textContent = L.L_UPGRADE_DESC;
+        document.getElementById('L_GAME_OVER').textContent = L.L_GAME_OVER;
+        document.getElementById('L_FINAL_SCORE').textContent = L.L_FINAL_SCORE;
+        document.getElementById('L_BTN_RESTART').textContent = L.L_BTN_RESTART;
+        document.getElementById('L_VICTORY').textContent = L.L_VICTORY;
+        document.getElementById('L_VICTORY_DESC').textContent = L.L_VICTORY_DESC;
+        document.getElementById('VAL_BEST').textContent = this.highScore;
+    },
+
+    start() {
+        AudioEngine.init();
+        document.getElementById('start-screen').classList.remove('active');
+        this.reset();
+        this.running = true;
+    },
+
+    reset() {
+        this.player = new Player(this.width / 2, this.height / 2);
+        this.enemies = [];
+        this.projectiles = [];
+        this.particles = [];
+        this.gems = [];
+        this.wave = 1;
+        this.score = 0;
+        this.waveTimer = 0;
+        this.isLevelingUp = false;
+        this.running = true;
+
+        // Hide all overlays
+        document.querySelectorAll('.overlay').forEach(el => el.classList.remove('active'));
+        this.updateHUD();
+    },
+
+    gameOver() {
+        this.running = false;
+        AudioEngine.play('death');
+        if (this.score > this.highScore) {
+            this.highScore = this.score;
+            localStorage.setItem('neon_survivor_highscore', this.highScore);
+        }
+        document.getElementById('VAL_FINAL_SCORE').textContent = this.score;
+        document.getElementById('VAL_BEST').textContent = this.highScore;
+        document.getElementById('game-over-screen').classList.add('active');
+    },
+
+    victory() {
+        this.running = false;
+        document.getElementById('victory-screen').classList.add('active');
+    },
+
+    updateHUD() {
+        document.getElementById('VAL_WAVE').textContent = this.wave;
+        document.getElementById('VAL_SCORE').textContent = this.score;
+        document.getElementById('VAL_LEVEL').textContent = this.player.level;
+        document.getElementById('VAL_BEST').textContent = this.highScore;
+        
+        const hpPercent = (this.player.hp / this.player.maxHp) * 100;
+        document.getElementById('hp-bar-fill').style.width = `${hpPercent}%`;
+    },
+
+    spawnWave() {
+        const enemyCount = 5 + (this.wave * 3);
+        for (let i = 0; i < enemyCount; i++) {
+            const side = Math.floor(Math.random() * 4);
+            let x, y;
+            if (side === 0) { x = Math.random() * this.width; y = -50; }
+            else if (side === 1) { x = this.width + 50; y = Math.random() * this.height; }
+            else if (side === 2) { x = Math.random() * this.width; y = this.height + 50; }
+            else { x = -50; y = Math.random() * this.height; }
+            
+            // Enemy types
+            const typeRoll = Math.random();
+            let type = 'normal';
+            if (this.wave >= 3 && typeRoll > 0.8) type = 'fast';
+            if (this.wave >= 5 && typeRoll > 0.9) type = 'tank';
+
+            this.enemies.push(new Enemy(x, y, type, this.wave));
+        }
+    },
+
+    showUpgradeMenu() {
+        this.isLevelingUp = true;
+        this.running = false;
+        const container = document.getElementById('upgrade-options');
+        container.innerHTML = '';
+        
+        const upgrades = this.getUpgradeOptions();
+        upgrades.forEach(upg => {
+            const card = document.createElement('div');
+            card.className = 'upgrade-card';
+            card.innerHTML = `<h3>${upg.name}</h3><p>${upg.desc}</p>`;
+            card.onclick = () => this.applyUpgrade(upg);
+            container.appendChild(card);
+        });
+
+        document.getElementById('upgrade-screen').classList.add('active');
+    },
+
+    getUpgradeOptions() {
+        // 7 types of upgrades
+        const pool = [
+            { id: 'damage', name: L.U_DAMAGE, desc: '+20% Damage', effect: () => this.player.damage *= 1.2 },
+            { id: 'firerate', name: L.U_FIRE_RATE, desc: '+15% Fire Rate', effect: () => this.player.fireRate *= 0.85 },
+            { id: 'speed', name: L.U_MOVE_SPEED, desc: '+10% Speed', effect: () => this.player.speed *= 1.1 },
+            { id: 'maxhp', name: L.U_MAX_HP, desc: '+25 Max HP', effect: () => { this.player.maxHp += 25; this.player.hp += 25; } },
+            { id: 'range', name: L.U_RANGE, desc: '+20% Range', effect: () => this.player.range *= 1.2 },
+            { id: 'bulletspeed', name: L.U_BULLET_SPEED, desc: '+25% Bullet Speed', effect: () => this.player.bulletSpeed *= 1.25 },
+            { id: 'pierce', name: L.U_PIERCE, desc: '+1 Pierce', effect: () => this.player.pierce += 1 },
+            { id: 'multishot', name: L.U_MULTISHOT, desc: '+1 Bullet', effect: () => this.player.multishot += 1 }
+        ];
+        // Shuffle and pick 3
+        return pool.sort(() => 0.5 - Math.random()).slice(0, 3);
+    },
+
+    applyUpgrade(upg) {
+        upg.effect();
+        this.isLevelingUp = false;
+        this.running = true;
+        document.getElementById('upgrade-screen').classList.remove('active');
+        this.updateHUD();
+    },
+
+    loop(timestamp) {
+        const deltaTime = (timestamp - this.lastTime) / 1000;
+        this.lastTime = timestamp;
+
+        if (this.running) {
+            this.update(deltaTime);
+        }
+        this.draw();
+        requestAnimationFrame((t) => this.loop(t));
+    },
+
+    update(dt) {
+        // Player movement
+        this.player.update(this.keys, this.width, this.height, dt);
+
+        // Wave management
+        this.waveTimer -= dt;
+        if (this.waveTimer <= 0) {
+            if (this.enemies.length === 0) {
+                this.wave++;
+                this.waveTimer = 15; // 15 sec between waves
+                this.spawnWave();
+                this.updateHUD();
+                if (this.wave >= this.victoryWave) this.victory();
+            }
+        }
+
+        // Projectiles
+        for (let i = this.projectiles.length - 1; i >= 0; i--) {
+            this.projectiles[i].update(dt);
+            if (this.projectiles[i].life <= 0) {
+                this.projectiles.splice(i, 1);
+            }
+        }
+
+        // Enemies
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+            const e = this.enemies[i];
+            e.update(this.player, dt);
+
+            // Collision with player
+            if (this.dist(e.x, e.y, this.player.x, this.player.y) < e.radius + this.player.radius) {
+                this.player.hp -= e.damage * dt * 10;
+                if (this.player.hp <= 0) this.gameOver();
+                this.updateHUD();
+            }
+
+            // Collision with projectiles
+            for (let j = this.projectiles.length - 1; j >= 0; j--) {
+                const p = this.projectiles[j];
+                if (this.dist(e.x, e.y, p.x, p.y) < e.radius + p.radius) {
+                    e.hp -= p.damage;
+                    p.pierce--;
+                    if (p.pierce <= 0) this.projectiles.splice(j, 1);
+                    
+                    if (e.hp <= 0) {
+                        this.score += e.points;
+                        this.createParticles(e.x, e.y, e.color, 10);
+                        this.gems.push(new Gem(e.x, e.y, e.points));
+                        this.enemies.splice(i, 1);
+                        AudioEngine.play('hit');
+                        this.updateHUD();
+                        break; 
+                    }
+                }
+            }
+        }
+
+        // Gems (XP)
+        for (let i = this.gems.length - 1; i >= 0; i--) {
+            const g = this.gems[i];
+            const d = this.dist(g.x, g.y, this.player.x, this.player.y);
+            if (d < 100) { // Magnet effect
+                const angle = Math.atan2(this.player.y - g.y, this.player.x - g.x);
+                g.x += Math.cos(angle) * 4;
+                g.y += Math.sin(angle) * 4;
+            }
+            if (d < this.player.radius + 5) {
+                this.player.xp += g.value;
+                this.gems.splice(i, 1);
+                if (this.player.xp >= this.player.nextLevelXp) {
+                    this.levelUp();
+                }
+                this.updateHUD();
+            }
+        }
+
+        // Particles
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            this.particles[i].update(dt);
+            if (this.particles[i].life <= 0) this.particles.splice(i, 1);
+        }
+
+        this.player.update(this.keys, this.width, this.height, dt);
+    },
+
+    levelUp() {
+        this.player.level++;
+        this.player.xp = 0;
+        this.player.nextLevelXp *= 1.3;
+        AudioEngine.play('levelup');
+        this.showUpgradeMenu();
+    },
+
+    createParticles(x, y, color, count) {
+        for (let i = 0; i < count; i++) {
+            this.particles.push(new Particle(x, y, color));
+        }
+    },
+
+    dist(x1, y1, x2, y2) {
+        return Math.hypot(x2 - x1, y2 - y1);
+    },
+
+    draw() {
+        this.ctx.fillStyle = '#050505';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        // Draw Grid
+        this.ctx.strokeStyle = '#111';
+        this.ctx.lineWidth = 1;
+        const gridSize = 50;
+        for(let x=0; x<this.width; x+=gridSize) {
+            this.ctx.beginPath(); this.ctx.moveTo(x,0); this.ctx.lineTo(x,this.height); this.ctx.stroke();
+        }
+        for(let y=0; y<this.height; y+=gridSize) {
+            this.ctx.beginPath(); this.ctx.moveTo(0,y); this.ctx.lineTo(this.width,y); this.ctx.stroke();
+        }
+
+        this.gems.forEach(g => g.draw(this.ctx));
+        this.projectiles.forEach(p => p.draw(this.ctx));
+        this.enemies.forEach(e => e.draw(this.ctx));
+        this.particles.forEach(p => p.draw(this.ctx));
+        this.player.draw(this.ctx);
+    }
+};
+
+/**
+ * ENTITY CLASSES
+ */
+class Player {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.radius = 15;
+        this.speed = 200;
+        this.hp = 100;
+        this.maxHp = 100;
+        this.level = 1;
+        this.xp = 0;
+        this.nextLevelXp = 100;
+        this.damage = 25;
+        this.fireRate = 0.5; // seconds per shot
+        this.lastShot = 0;
+        this.range = 300;
+        this.bulletSpeed = 400;
+        this.pierce = 1;
+        this.multishot = 1;
+    }
+
+    update(keys, w, h, dt) {
+        let dx = 0, dy = 0;
+        if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
+        if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
+        if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+        if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+
+        if (dx !== 0 || dy !== 0) {
+            const mag = Math.hypot(dx, dy);
+            this.x += (dx / mag) * this.speed * dt;
+            this.y += (dy / mag) * this.speed * dt;
+        }
+
+        // Boundary
+        this.x = Math.max(this.radius, Math.min(w - this.radius, this.x));
+        this.y = Math.max(this.radius, Math.min(h - this.radius, this.y));
+
+        // Auto Shooting
+        const now = performance.now() / 1000;
+        if (now - this.lastShot > this.fireRate) {
+            this.shoot();
+            this.lastShot = now;
+        }
+    }
+
+    shoot() {
+        // Find closest enemy
+        let closest = null;
+        let minDist = this.range;
+
+        game.enemies.forEach(e => {
+            const d = game.dist(this.x, this.y, e.x, e.y);
+            if (d < minDist) {
+                minDist = d;
+                closest = e;
+            }
+        });
+
+        if (closest) {
+            const angle = Math.atan2(closest.y - this.y, closest.x - this.x);
+            // Multi-shot logic
+            for (let i = 0; i < this.multishot; i++) {
+                const offset = (i - (this.multishot - 1) / 2) * 0.2;
+                game.projectiles.push(new Projectile(this.x, this.y, angle + offset, this.damage, this.bulletSpeed, this.pierce));
+            }
+            AudioEngine.play('shoot');
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        // Player Body
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#00f2ff';
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#00f2ff';
+        ctx.fill();
+        ctx.closePath();
+        
+        // Player Core
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius * 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = 'white';
+        ctx.fill();
+        ctx.closePath();
+        ctx.restore();
+    }
+}
+
+class Enemy {
+    constructor(x, y, type, wave) {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.radius = 15;
+        this.color = '#ff004c';
+        this.damage = 10 * (1 + wave * 0.1);
+        this.speed = 80 + (wave * 2);
+        this.hp = 40 * (1 + wave * 0.2);
+        this.points = 10;
+
+        if (type === 'fast') {
+            this.radius = 10;
+            this.speed *= 1.8;
+            this.hp *= 0.6;
+            this.color = '#ffea00';
+            this.points = 20;
+        } else if (type === 'tank') {
+            this.radius = 25;
+            this.speed *= 0.6;
+            this.hp *= 3;
+            this.color = '#9d00ff';
+            this.points = 50;
+        }
+    }
+
+    update(player, dt) {
+        const angle = Math.atan2(player.y - this.y, player.x - this.x);
+        this.x += Math.cos(angle) * this.speed * dt;
+        this.y += Math.sin(angle) * this.speed * dt;
+    }
+
+    draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = this.color;
+        ctx.fill();
+        ctx.closePath();
+    }
+}
+
+class Projectile {
+    constructor(x, y, angle, damage, speed, pierce) {
+        this.x = x;
+        this.y = y;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.radius = 4;
+        this.damage = damage;
+        this.speed = speed;
+        this.pierce = pierce;
+        this.life = 2.0; // seconds
+    }
+
+    update(dt) {
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.life -= dt;
+    }
+
+    draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#fff';
+        ctx.fill();
+        ctx.closePath();
+    }
+}
+
+class Gem {
+    constructor(x, y, value) {
+        this.x = x;
+        this.y = y;
+        this.value = value;
+        this.radius = 4;
+    }
+
+    draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = '#00ff88';
+        ctx.shadowBlur = 5;
+        ctx.shadowColor = '#00ff88';
+        ctx.fill();
+        ctx.closePath();
+    }
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.vx = (Math.random() - 0.5) * 200;
+        this.vy = (Math.random() - 0.5) * 200;
+        this.life = 0.5;
+        this.radius = Math.random() * 3;
+    }
+
+    update(dt) {
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        this.life -= dt;
+    }
+
+    draw(ctx) {
+        ctx.globalAlpha = this.life * 2;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+    }
+}
+
+// Initialize Game
+game.init();
+
+</script>
+</body>
+</html>

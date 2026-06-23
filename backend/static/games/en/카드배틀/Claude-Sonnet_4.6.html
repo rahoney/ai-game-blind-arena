@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>✨ Card Battle</title>
+<style>
+/* ===== 리셋 & 변수 ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #fce4ec 0%, #ede7f6 50%, #e3f2fd 100%);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+/* ===== 게임 래퍼 ===== */
+#game {
+  width: 490px; max-width: 98vw;
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+.turn-badge {
+  text-align: center; font-size: 13px; font-weight: 700;
+  color: #8c7ae6; letter-spacing: 1px;
+}
+
+/* ===== 몬스터 패널 ===== */
+.mon-panel {
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(12px);
+  border-radius: 22px; padding: 16px 20px;
+  text-align: center;
+  box-shadow: 0 6px 30px rgba(162,155,254,0.2);
+  border: 2px solid rgba(255,255,255,0.85);
+  position: relative; overflow: hidden;
+}
+.mon-panel::before { /* 광택 */
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.35) 0%, transparent 60%);
+  pointer-events: none;
+}
+.mon-name { font-size: 17px; font-weight: 800; color: #6c5ce7; margin-bottom: 4px; }
+#mon-sprite {
+  font-size: 68px; line-height: 1.15; display: inline-block;
+  margin: 4px 0;
+  filter: drop-shadow(0 6px 8px rgba(0,0,0,0.18));
+}
+#mon-sprite.shake { animation: shake 0.45s ease; }
+.mon-buffs { font-size: 13px; min-height: 20px; margin-top: 4px; display: flex; justify-content: center; gap: 10px; }
+.intent-badge {
+  display: inline-block; margin-top: 7px;
+  padding: 5px 15px;
+  background: rgba(255,234,167,0.65);
+  border-radius: 20px; font-size: 13px; font-weight: 700; color: #6c5ce7;
+}
+
+/* ===== HP 바 ===== */
+.hp-wrap { margin: 8px 0 3px; }
+.hp-bg {
+  height: 11px; background: #ebebeb; border-radius: 20px;
+  overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.08);
+}
+.hp-fill {
+  height: 100%; border-radius: 20px;
+  transition: width 0.5s cubic-bezier(.4,0,.2,1);
+}
+.hp-fill.mon { background: linear-gradient(90deg, #ff7675, #fd79a8); }
+.hp-fill.ply { background: linear-gradient(90deg, #0984e3, #74b9ff); }
+.hp-lbl { font-size: 12px; color: #636e72; font-weight: 600; margin-top: 3px; }
+
+/* ===== 전투 로그 ===== */
+.log-panel {
+  background: rgba(255,255,255,0.55); border-radius: 14px;
+  padding: 8px 14px; font-size: 12.5px; color: #555;
+  height: 58px; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 1px;
+}
+.log-line { animation: fadeUp .3s ease; }
+
+/* ===== 플레이어 패널 ===== */
+.ply-panel {
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(12px);
+  border-radius: 20px; padding: 14px 18px;
+  box-shadow: 0 6px 28px rgba(116,185,255,0.18);
+  border: 2px solid rgba(255,255,255,0.85);
+}
+.ply-panel.hit { animation: plyHit 0.45s ease; }
+.ply-title { font-size: 15px; font-weight: 800; color: #0984e3; margin-bottom: 9px; }
+.stats-row { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+
+/* 스탯 칩 */
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 11px; border-radius: 20px;
+  font-size: 13px; font-weight: 700;
+  background: rgba(255,255,255,0.85);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+}
+.c-hp     { color: #e17055; border: 1.5px solid #fab1a0; }
+.c-def    { color: #0984e3; border: 1.5px solid #74b9ff; }
+.c-nrg    { color: #6c5ce7; border: 1.5px solid #a29bfe; }
+.c-psn    { color: #00b894; border: 1.5px solid #55efc4; }
+.c-buf    { color: #e67e22; border: 1.5px solid #fdcb6e; }
+
+.e-pips   { display: flex; gap: 3px; }
+.e-pip    { width: 12px; height: 12px; border-radius: 50%; background: #a29bfe; transition: background .2s; }
+.e-pip.off{ background: #dfe6e9; }
+
+/* ===== 손패 ===== */
+.hand {
+  min-height: 128px;
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 8px; align-items: flex-end; padding: 2px 0;
+}
+
+/* ===== 카드 ===== */
+.card {
+  width: 86px; background: #fff;
+  border-radius: 16px; padding: 9px 7px 13px;
+  cursor: pointer; text-align: center;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+  border: 2.5px solid #eee;
+  position: relative; overflow: hidden;
+  user-select: none;
+  transition: transform .2s, box-shadow .2s, border-color .2s;
+  animation: cardIn .28s ease backwards;
+}
+.card:not(.disabled):hover {
+  transform: translateY(-13px) scale(1.07);
+  box-shadow: 0 16px 32px rgba(0,0,0,0.16);
+  border-color: #a29bfe; z-index: 5;
+}
+.card.disabled { opacity: .5; cursor: not-allowed; filter: grayscale(30%); }
+.card.playing  { animation: cardPlay .38s ease forwards !important; pointer-events: none; }
+
+/* 카드 타입별 하단 바 */
+.card-bar {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 5px; border-radius: 0 0 13px 13px;
+}
+.t-attack  .card-bar { background: linear-gradient(90deg,#ff7675,#e84393); }
+.t-defend  .card-bar { background: linear-gradient(90deg,#74b9ff,#0984e3); }
+.t-heal    .card-bar { background: linear-gradient(90deg,#55efc4,#00b894); }
+.t-poison  .card-bar { background: linear-gradient(90deg,#00cec9,#006266); }
+.t-buff    .card-bar { background: linear-gradient(90deg,#fdcb6e,#e17055); }
+.t-draw    .card-bar { background: linear-gradient(90deg,#a29bfe,#6c5ce7); }
+.t-magic   .card-bar { background: linear-gradient(90deg,#a29bfe,#fd79a8); }
+.t-counter .card-bar { background: linear-gradient(90deg,#00cec9,#0984e3); }
+
+.card-cost {
+  position: absolute; top: 5px; right: 5px;
+  width: 21px; height: 21px; border-radius: 50%;
+  background: #6c5ce7; color: #fff;
+  font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+.card-cost.free { background: #00b894; }
+.card-icon { font-size: 25px; line-height: 1; margin: 2px 0; }
+.card-name { font-size: 11px; font-weight: 800; color: #2d3436; margin: 3px 0 2px; }
+.card-desc { font-size: 10px; color: #636e72; line-height: 1.35; }
+
+/* ===== 버튼 ===== */
+.controls { display: flex; justify-content: center; }
+.btn-end {
+  padding: 11px 38px; border: none; border-radius: 30px;
+  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
+  color: #fff; font-size: 15px; font-weight: 800; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(108,92,231,0.4);
+  transition: transform .2s, box-shadow .2s, opacity .2s;
+}
+.btn-end:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 7px 22px rgba(108,92,231,0.5); }
+.btn-end:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ===== 오버레이 ===== */
+#overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45); backdrop-filter: blur(5px);
+  display: flex; align-items: center; justify-content: center; z-index: 999;
+}
+#overlay.hidden { display: none; }
+.result-card {
+  background: #fff; border-radius: 30px; padding: 44px 38px;
+  text-align: center;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.2);
+  animation: popIn .4s cubic-bezier(.34,1.56,.64,1);
+  max-width: 300px; width: 90%;
+}
+.r-emoji { font-size: 68px; margin-bottom: 8px; }
+.r-title  { font-size: 30px; font-weight: 900; color: #2d3436; margin-bottom: 6px; }
+.r-sub    { font-size: 14px; color: #636e72; margin-bottom: 24px; line-height: 1.55; }
+.btn-restart {
+  padding: 12px 38px; border: none; border-radius: 30px;
+  background: linear-gradient(135deg, #fd79a8, #e84393);
+  color: #fff; font-size: 16px; font-weight: 800; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(232,67,147,0.4);
+  transition: transform .2s, box-shadow .2s;
+}
+.btn-restart:hover { transform: translateY(-2px); box-shadow: 0 7px 22px rgba(232,67,147,0.5); }
+
+/* ===== 플로팅 텍스트 ===== */
+.float-dmg {
+  position: fixed; font-size: 21px; font-weight: 900;
+  pointer-events: none; z-index: 8000;
+  animation: floatUp .9s ease forwards;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.14);
+}
+
+/* ===== 키프레임 ===== */
+@keyframes shake {
+  0%,100%{ transform:translateX(0) rotate(0); }
+  18%    { transform:translateX(-10px) rotate(-4deg); }
+  36%    { transform:translateX(10px)  rotate( 4deg); }
+  54%    { transform:translateX(-6px)  rotate(-2deg); }
+  72%    { transform:translateX(6px)   rotate( 2deg); }
+}
+@keyframes plyHit {
+  0%,100%{ box-shadow:0 6px 28px rgba(116,185,255,0.18); }
+  50%    { box-shadow:0 0 30px rgba(255,80,80,0.65); }
+}
+@keyframes cardIn {
+  from { opacity:0; transform:translateY(30px) scale(.8); }
+  to   { opacity:1; transform:translateY(0) scale(1); }
+}
+@keyframes cardPlay {
+  0%  { transform:translateY(0)    scale(1);    opacity:1; }
+  55% { transform:translateY(-75px) scale(1.28); opacity:.7; }
+  100%{ transform:translateY(-150px) scale(.4);  opacity:0; }
+}
+@keyframes floatUp {
+  0%  { opacity:1; transform:translateY(0)   scale(1);   }
+  45% { opacity:1; transform:translateY(-30px) scale(1.2); }
+  100%{ opacity:0; transform:translateY(-70px) scale(.8); }
+}
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:translateY(0);   }
+}
+@keyframes popIn {
+  from { transform:scale(.6); opacity:0; }
+  to   { transform:scale(1);  opacity:1; }
+}
+
+@media (max-width:500px) {
+  .card { width:72px; } .card-icon { font-size:21px; } #mon-sprite { font-size:54px; }
+}
+</style>
+</head>
+<body>
+
+<div id="game">
+  <div class="turn-badge" id="turn-badge">🌸 Turn 1</div>
+
+  <!-- 몬스터 -->
+  <div class="mon-panel">
+    <div class="mon-name" id="mon-name">-</div>
+    <div id="mon-sprite">❓</div>
+    <div class="hp-wrap">
+      <div class="hp-bg"><div class="hp-fill mon" id="mhp" style="width:100%"></div></div>
+      <div class="hp-lbl" id="mhp-lbl">HP 0/0</div>
+    </div>
+    <div class="mon-buffs" id="mon-buffs"></div>
+    <div class="intent-badge" id="intent">Checking...</div>
+  </div>
+
+  <!-- 전투 로그 -->
+  <div class="log-panel" id="log-panel"></div>
+
+  <!-- 플레이어 -->
+  <div class="ply-panel" id="ply-panel">
+    <div class="ply-title">🧙 My Hero</div>
+    <div class="stats-row" id="stats-row"></div>
+    <div class="hp-wrap">
+      <div class="hp-bg"><div class="hp-fill ply" id="php" style="width:100%"></div></div>
+      <div class="hp-lbl" id="php-lbl">HP 0/0</div>
+    </div>
+  </div>
+
+  <!-- 손패 -->
+  <div class="hand" id="hand"></div>
+
+  <!-- 턴 종료 -->
+  <div class="controls">
+    <button class="btn-end" id="btn-end" onclick="endTurn()">End Turn ⏭️</button>
+  </div>
+</div>
+
+<!-- 결과 오버레이 -->
+<div id="overlay" class="hidden">
+  <div class="result-card">
+    <div class="r-emoji" id="r-emoji">🎉</div>
+    <div class="r-title"  id="r-title">Victory!</div>
+    <div class="r-sub"    id="r-sub">Well done!</div>
+    <button class="btn-restart" onclick="restartGame()">🔄 Restart</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ================================================================
+   카드 풀 (12종)
+   ================================================================ */
+const CARDS = [
+  {id:'strike', name:'Strike',   icon:'⚔️', cost:1, type:'attack',  val:6,             desc:'Deal 6 damage'},
+  {id:'heavy',  name:'Heavy Blow',   icon:'🔥', cost:2, type:'attack',  val:14,            desc:'Deal 14 damage'},
+  {id:'guard',  name:'Guard',   icon:'🛡️', cost:1, type:'defend',  val:5,             desc:'Gain 5 block'},
+  {id:'iron',   name:'Iron Wall',   icon:'🏰', cost:2, type:'defend',  val:12,            desc:'Gain 12 block'},
+  {id:'heal',   name:'Heal',   icon:'💚', cost:2, type:'heal',    val:8,             desc:'Restore 8 HP'},
+  {id:'double', name:'Double Hit', icon:'⚡', cost:2, type:'attack',  val:4, hits:2,     desc:'4 damage × 2 hits'},
+  {id:'poison', name:'Poison Dart',   icon:'🌿', cost:1, type:'poison',  val:3,             desc:'Apply 3 poison to the monster'},
+  {id:'empower',name:'Empower',   icon:'💪', cost:1, type:'buff',    val:6,             desc:'Next attack gains +6'},
+  {id:'draw',   name:'Quick Draw',   icon:'🃏', cost:0, type:'draw',    val:2,             desc:'Draw 2 extra cards'},
+  {id:'magic',  name:'Magic Circle',  icon:'✨', cost:2, type:'magic',   val:8,  def:4,     desc:'8 damage + 4 block'},
+  {id:'counter',name:'Counter',   icon:'🌀', cost:1, type:'counter', val:3,  def:3,     desc:'3 block + 3 damage'},
+  {id:'bigheal',name:'Greater Heal', icon:'🌸', cost:3, type:'heal',    val:20,            desc:'Restore 20 HP'},
+];
+
+/* ================================================================
+   몬스터 정의 (3종 랜덤)
+   ================================================================ */
+const MONSTERS = [
+  { name:'🐲 Baby Dragon', sprite:'🐲', maxHp:60,
+    patterns:[
+      {type:'attack',val:8,  label:'⚔️ Attack 8'},
+      {type:'attack',val:10, label:'⚔️ Attack 10'},
+      {type:'defend',val:6,  label:'🛡️ Block 6'},
+      {type:'attack',val:12, label:'🔥 Heavy 12'},
+      {type:'heal',  val:8,  label:'💚 Heal 8'},
+    ]},
+  { name:'👹 Goblin King', sprite:'👹', maxHp:80,
+    patterns:[
+      {type:'attack',val:10, label:'⚔️ Attack 10'},
+      {type:'attack',val:7,  label:'⚔️ Attack 7'},
+      {type:'attack',val:14, label:'💥 Heavy 14'},
+      {type:'defend',val:8,  label:'🛡️ Block 8'},
+      {type:'poison',val:4,  label:'🌿 Apply Poison 4'},
+    ]},
+  { name:'🦇 Vampire', sprite:'🦇', maxHp:72,
+    patterns:[
+      {type:'attack',val:9,   label:'⚔️ Attack 9'},
+      {type:'drain', val:8,   label:'🩸 Drain 8'},
+      {type:'attack',val:12,  label:'⚔️ Attack 12'},
+      {type:'attack',val:7,   label:'⚔️ Attack 7'},
+      {type:'drain', val:11,  label:'🩸 Drain 11'},
+    ]},
+];
+
+/* ================================================================
+   게임 상태 (G)
+   ================================================================ */
+let G;
+let busy = false; // 적 행동 중 입력 잠금
+
+function newGame() {
+  const base = MONSTERS[Math.floor(Math.random() * MONSTERS.length)];
+  G = {
+    turn: 1,
+    phase: 'player', // 'player' | 'enemy' | 'over'
+    logs: [],
+    player: {
+      hp:70, maxHp:70, def:0,
+      energy:3, maxEnergy:3,
+      poison:0, empower:0, // empower: 다음 attack 추가 피해
+      hand:[],
+    },
+    monster: {
+      name:base.name, sprite:base.sprite,
+      hp:base.maxHp, maxHp:base.maxHp,
+      def:0, poison:0, pidx:0,
+      patterns:base.patterns,
+    },
+  };
+  busy = false;
+  addLog('⚔️ Battle start! Use your cards to defeat the enemy!');
+  drawCards(3); // 첫 드로우
+  renderAll();
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('btn-end').disabled = false;
+}
+
+/* ================================================================
+   카드 드로우: 풀에서 n장 무작위 추가
+   ================================================================ */
+function drawCards(n) {
+  for (let i = 0; i < n; i++) {
+    const c = CARDS[Math.floor(Math.random() * CARDS.length)];
+    G.player.hand.push({...c, uid: Math.random().toString(36).slice(2)});
+  }
+}
+
+/* ================================================================
+   카드 사용
+   ================================================================ */
+function playCard(uid) {
+  const idx = G.player.hand.findIndex(c => c.uid === uid);
+  if (idx < 0 || G.phase !== 'player' || busy) return;
+
+  const card = G.player.hand[idx];
+  if (G.player.energy < card.cost) return;
+
+  G.player.energy -= card.cost;  // 에너지 차감
+  G.player.hand.splice(idx, 1);  // 손패 제거
+  applyCard(card);
+  renderAll();
+}
+
+function applyCard(card) {
+  const p = G.player, m = G.monster;
+  switch (card.type) {
+    case 'attack': {
+      const bonus = p.empower; p.empower = 0; // 강화 소모
+      const hits = card.hits || 1;
+      let total = 0;
+      for (let i = 0; i < hits; i++) total += dmgMon(card.val + bonus);
+      addLog(`⚔️ ${card.name}! Deal ${total} damage to the monster.`);
+      shakeMonster(); break;
+    }
+    case 'defend':
+      p.def += card.val;
+      addLog(`🛡️ ${card.name}! Block +${card.val}`); break;
+    case 'heal': {
+      const got = Math.min(card.val, p.maxHp - p.hp);
+      p.hp = Math.min(p.maxHp, p.hp + card.val);
+      addLog(`💚 ${card.name}! HP +${got}`);
+      floatTxt(`+${got} HP`, '#00b894', 'player'); break;
+    }
+    case 'poison':
+      m.poison += card.val;
+      addLog(`🌿 ${card.name}! Applied ${card.val} poison to the monster.`); break;
+    case 'buff':
+      p.empower += card.val;
+      addLog(`💪 ${card.name}! Next attack gains +${card.val}.`); break;
+    case 'draw':
+      drawCards(card.val);
+      addLog(`🃏 ${card.name}! Drew ${card.val} extra cards.`); break;
+    case 'magic': {
+      const d = dmgMon(card.val); p.def += card.def;
+      addLog(`✨ ${card.name}! ${d} damage + ${card.def} block.`);
+      shakeMonster(); break;
+    }
+    case 'counter': {
+      p.def += card.def;
+      const d2 = dmgMon(card.val);
+      addLog(`🌀 ${card.name}! ${card.def} block & ${d2} damage.`);
+      shakeMonster(); break;
+    }
+  }
+  checkWin();
+}
+
+/* ================================================================
+   피해 계산 (방어도 우선 소진)
+   ================================================================ */
+function dmgMon(raw) {
+  const m = G.monster;
+  const act = Math.max(0, raw - m.def);
+  m.def = Math.max(0, m.def - raw);
+  m.hp  = Math.max(0, m.hp  - act);
+  floatTxt(`-${act}`, '#ff7675', 'monster');
+  return act;
+}
+
+function dmgPly(raw) {
+  const p = G.player;
+  const act = Math.max(0, raw - p.def);
+  p.def = Math.max(0, p.def - raw);
+  p.hp  = Math.max(0, p.hp  - act);
+  floatTxt(`-${act}`, '#e17055', 'player');
+  return act;
+}
+
+/* ================================================================
+   턴 종료 → 적 행동 → 다음 플레이어 턴
+   ================================================================ */
+function endTurn() {
+  if (G.phase !== 'player' || busy) return;
+  G.phase = 'enemy'; busy = true;
+  G.player.hand = []; // 손패 버림
+  document.getElementById('btn-end').disabled = true;
+  renderAll();
+  setTimeout(doEnemyTurn, 700);
+}
+
+function doEnemyTurn() {
+  const m = G.monster;
+  m.def = 0; // 몬스터 방어도는 적 턴 시작 시 초기화
+
+  const pat = m.patterns[m.pidx % m.patterns.length];
+  m.pidx++;
+
+  switch (pat.type) {
+    case 'attack': {
+      const d = dmgPly(pat.val);
+      addLog(`${m.sprite} attacks! Deals ${d} damage to the player.`);
+      hitPlayer(); break;
+    }
+    case 'defend':
+      m.def += pat.val;
+      addLog(`🛡️ The monster defends! Block +${pat.val}`); break;
+    case 'heal': {
+      const got = Math.min(pat.val, m.maxHp - m.hp);
+      m.hp = Math.min(m.maxHp, m.hp + pat.val);
+      addLog(`💚 The monster heals! HP +${got}`);
+      floatTxt(`+${got}`, '#00b894', 'monster'); break;
+    }
+    case 'drain': {
+      const d2 = dmgPly(pat.val);
+      const steal = Math.floor(d2 / 2);
+      m.hp = Math.min(m.maxHp, m.hp + steal);
+      addLog(`🩸 Drain! ${d2} damage & monster heals ${steal} HP.`);
+      hitPlayer(); break;
+    }
+    case 'poison':
+      G.player.poison += pat.val;
+      addLog(`🌿 Poison cloud! Player poison +${pat.val}`); break;
+  }
+
+  renderAll();
+  if (G.player.hp <= 0) { gameOver(false); return; }
+  setTimeout(startPlayerTurn, 900);
+}
+
+function startPlayerTurn() {
+  G.turn++;
+  G.phase = 'player';
+  const p = G.player, m = G.monster;
+
+  p.def    = 0;          // 플레이어 방어도 초기화 (턴 시작)
+  p.energy = p.maxEnergy; // 에너지 충전
+
+  // 독 피해 처리
+  if (p.poison > 0) {
+    p.hp = Math.max(0, p.hp - p.poison);
+    floatTxt(`☠️ -${p.poison}`, '#00b894', 'player');
+    addLog(`☠️ Poison damage ${p.poison}!`);
+    p.poison = Math.max(0, p.poison - 1); // 독 스택 감소
+    if (p.hp <= 0) { gameOver(false); return; }
+  }
+  if (m.poison > 0) {
+    m.hp = Math.max(0, m.hp - m.poison);
+    floatTxt(`☠️ -${m.poison}`, '#00b894', 'monster');
+    addLog(`☠️ Monster takes ${m.poison} poison damage!`);
+    m.poison = Math.max(0, m.poison - 1);
+    if (m.hp <= 0) { gameOver(true); return; }
+  }
+
+  drawCards(3); // 매 턴 카드 3장 드로우
+  addLog(`✨ Turn ${G.turn} begins! Energy restored, draw 3 cards.`);
+
+  busy = false;
+  document.getElementById('btn-end').disabled = false;
+  renderAll();
+}
+
+/* ================================================================
+   승패
+   ================================================================ */
+function checkWin() {
+  if (G.monster.hp <= 0) setTimeout(() => gameOver(true), 250);
+}
+
+function gameOver(win) {
+  G.phase = 'over'; busy = true;
+  document.getElementById('r-emoji').textContent = win ? '🎉' : '💀';
+  document.getElementById('r-title').textContent = win ? 'Victory!!' : 'Defeat...';
+  document.getElementById('r-sub').textContent = win
+    ? `You defeated the monster in ${G.turn} turns! Great job! 🌟`
+    : `You fell on turn ${G.turn}... Try again! 💪`;
+  document.getElementById('overlay').classList.remove('hidden');
+  renderAll();
+}
+
+function restartGame() { newGame(); }
+
+/* ================================================================
+   몬스터 다음 행동 예고
+   ================================================================ */
+function getIntent() {
+  const m = G.monster;
+  if (m.hp <= 0) return '💀 Defeated';
+  return 'Next: ' + m.patterns[m.pidx % m.patterns.length].label;
+}
+
+/* ================================================================
+   애니메이션
+   ================================================================ */
+function shakeMonster() {
+  const el = document.getElementById('mon-sprite');
+  el.classList.remove('shake');
+  void el.offsetWidth; // reflow로 재시작
+  el.classList.add('shake');
+}
+
+function hitPlayer() {
+  const el = document.getElementById('ply-panel');
+  el.classList.remove('hit');
+  void el.offsetWidth;
+  el.classList.add('hit');
+}
+
+function floatTxt(txt, color, target) {
+  const ref = document.getElementById(target === 'monster' ? 'mon-sprite' : 'php');
+  const r = ref.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'float-dmg';
+  el.textContent = txt; el.style.color = color;
+  el.style.left = (r.left + r.width/2 - 18 + (Math.random()-.5)*32) + 'px';
+  el.style.top  = (r.top - 4) + 'px';
+  document.body.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+/* ================================================================
+   로그
+   ================================================================ */
+function addLog(msg) {
+  G.logs.push(msg);
+  if (G.logs.length > 3) G.logs.shift();
+}
+
+/* ================================================================
+   렌더링
+   ================================================================ */
+function renderAll() {
+  renderMonster();
+  renderPlayer();
+  renderHand();
+  document.getElementById('log-panel').innerHTML =
+    G.logs.map(l => `<div class="log-line">${l}</div>`).join('');
+  document.getElementById('turn-badge').textContent = `🌸 Turn ${G.turn}`;
+}
+
+function renderMonster() {
+  const m = G.monster;
+  document.getElementById('mon-name').textContent = m.name;
+  document.getElementById('mon-sprite').textContent = m.sprite;
+  document.getElementById('mhp').style.width = Math.max(0, m.hp/m.maxHp*100) + '%';
+  document.getElementById('mhp-lbl').textContent = `HP ${m.hp} / ${m.maxHp}`;
+  // 버프/상태이상 표시
+  const parts = [];
+  if (m.def    > 0) parts.push(`🛡️ ${m.def}`);
+  if (m.poison > 0) parts.push(`☠️ Poison ${m.poison}`);
+  document.getElementById('mon-buffs').innerHTML =
+    parts.map(p => `<span class="chip c-def" style="padding:2px 9px;font-size:12px">${p}</span>`).join('');
+  document.getElementById('intent').textContent = G.phase !== 'over' ? getIntent() : '';
+}
+
+function renderPlayer() {
+  const p = G.player;
+  document.getElementById('php').style.width = Math.max(0, p.hp/p.maxHp*100) + '%';
+  document.getElementById('php-lbl').textContent = `HP ${p.hp} / ${p.maxHp}`;
+
+  // 스탯 칩 동적 렌더
+  const row = document.getElementById('stats-row');
+  row.innerHTML = '';
+  chip(row, 'c-hp',  `❤️ ${p.hp}/${p.maxHp}`);
+  chip(row, 'c-def', `🛡️ ${p.def}`);
+  // 에너지 (● 점)
+  const pips = Array.from({length:p.maxEnergy}, (_,i) =>
+    `<span class="e-pip${i < p.energy ? '' : ' off'}"></span>`).join('');
+  chip(row, 'c-nrg', `✨ <span class="e-pips">${pips}</span> ${p.energy}/${p.maxEnergy}`);
+  if (p.poison  > 0) chip(row, 'c-psn', `🌿 Poison ${p.poison}`);
+  if (p.empower > 0) chip(row, 'c-buf', `💪 +${p.empower}`);
+}
+
+function chip(parent, cls, html) {
+  const el = document.createElement('div');
+  el.className = `chip ${cls}`; el.innerHTML = html;
+  parent.appendChild(el);
+}
+
+function renderHand() {
+  const handEl = document.getElementById('hand');
+  handEl.innerHTML = '';
+
+  G.player.hand.forEach((card, i) => {
+    const canPlay = G.player.energy >= card.cost && G.phase === 'player' && !busy;
+    const div = document.createElement('div');
+    div.className = `card t-${card.type}${canPlay ? '' : ' disabled'}`;
+    div.style.animationDelay = (i * 0.07) + 's'; // 스태거 등장
+    div.innerHTML = `
+      <div class="card-cost${card.cost===0?' free':''}">${card.cost}</div>
+      <div class="card-icon">${card.icon}</div>
+      <div class="card-name">${card.name}</div>
+      <div class="card-desc">${card.desc}</div>
+      <div class="card-bar"></div>`;
+
+    if (canPlay) {
+      div.addEventListener('click', () => {
+        if (busy) return;
+        // 카드 사용 애니메이션 후 효과 적용
+        div.classList.add('playing');
+        document.querySelectorAll('.card').forEach(c => c.style.pointerEvents = 'none');
+        setTimeout(() => playCard(card.uid), 360);
+      });
+    }
+    handEl.appendChild(div);
+  });
+}
+
+/* ================================================================
+   시작
+   ================================================================ */
+newGame();
+</script>
+</body>
+</html>

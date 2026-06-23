@@ -1,0 +1,11 @@
+fastapi==0.115.6
+uvicorn==0.34.0
+supabase==2.30.0
+gotrue==2.12.4
+postgrest==2.30.0
+realtime==2.30.0
+storage3==2.30.0
+python-dotenv==1.0.1
+firebase-admin==7.4.0
+pydantic==2.13.4
+pydantic-core==2.46.4

@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CYBER DUNGEON - Mini FPS</title>
+    <!-- Tailwind CSS for rapid UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #0f0f12; font-family: 'Orbitron', sans-serif; }
+        canvas { display: block; outline: none; }
+        
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 20px; height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            mix-blend-mode: difference;
+            z-index: 10;
+        }
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 4px; height: 4px;
+            background: red;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+        }
+
+        /* Hit Marker Effect */
+        .hit-marker {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 30px; height: 30px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.1s;
+            z-index: 11;
+        }
+        .hit-marker svg { transform: rotate(45deg); stroke: #ff0000; stroke-width: 2; fill: none; }
+        
+        /* Damage Flash */
+        #damage-flash {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle, transparent 50%, rgba(255,0,0,0.6) 100%);
+            opacity: 0; pointer-events: none; z-index: 9;
+            transition: opacity 0.1s;
+        }
+
+        /* Loading Overlay */
+        #loader {
+            position: fixed; inset: 0; background: #000; z-index: 999;
+            display: flex; align-items: center; justify-content: center;
+            color: #0f0; font-size: 2rem; animation: blink 1s infinite;
+        }
+        @keyframes blink { 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+
+<!-- Game Container -->
+<div id="game-container" class="w-full h-screen relative cursor-none">
+    
+    <!-- Visual Effects -->
+    <div id="crosshair"></div>
+    <div id="damage-flash"></div>
+    <div id="hit-marker" class="hit-marker"><svg viewBox="0 0 100 100"><path d="M0,0 L100,100 M100,0 L0,100" /></svg></div>
+
+    <!-- HUD Layer -->
+    <div id="hud" class="absolute inset-0 p-6 pointer-events-none hidden">
+        <div class="flex justify-between items-start text-white text-shadow">
+            <div class="text-left">
+                <h1 class="text-4xl font-bold text-red-500 mb-2">HP: <span id="hp-display">100</span></h1>
+                <div class="text-xl text-blue-400">WEAPON: PLASMA RIFLE</div>
+            </div>
+            <div class="text-right">
+                <h2 class="text-3xl font-bold text-yellow-400">SCORE: <span id="score-display">0</span></h2>
+                <div class="text-xl text-gray-300">WAVE: <span id="wave-display">1</span></div>
+                <div class="text-sm text-gray-500 mt-1">HI: <span id="highscore-display">0</span></div>
+            </div>
+        </div>
+        
+        <!-- Health Bar Visual -->
+        <div class="absolute bottom-0 left-6 w-64 h-4 bg-gray-800 border-2 border-gray-600 rounded overflow-hidden">
+            <div id="hp-bar" class="h-full bg-gradient-to-r from-green-600 to-green-400 transition-all duration-200" style="width: 100%"></div>
+        </div>
+        
+        <!-- Ammo / Weapon Info -->
+        <div class="absolute bottom-0 right-6 text-center">
+            <div class="text-2xl font-bold text-cyan-400">∞ AMMO</div>
+            <div class="text-xs text-cyan-200 opacity-70">AUTO RECHARGE</div>
+        </div>
+    </div>
+
+    <!-- UI Screens -->
+    <div id="start-screen" class="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-50 pointer-events-auto">
+        <h1 class="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-cyan-400 to-blue-600 mb-8 tracking-tighter drop-shadow-[0_0_15px_rgba(0,255,255,0.5)]">
+            CYBER<br>DUNGEON
+        </h1>
+        <button id="btn-start" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-12 rounded-lg text-xl shadow-[0_0_20px_rgba(37,99,235,0.6)] transition-all transform hover:scale-105 uppercase tracking-widest">
+            START MISSION
+        </button>
+        <p class="mt-8 text-gray-400 text-sm max-w-md text-center leading-relaxed">
+            [ WASD ] Move | [ MOUSE ] Aim | [ CLICK ] Shoot<br>
+            Eliminate all enemies in each wave.<br>
+            Survive as long as possible.
+        </p>
+    </div>
+
+    <div id="game-over-screen" class="hidden absolute inset-0 bg-red-900/80 backdrop-blur-md flex flex-col items-center justify-center z-50 pointer-events-auto">
+        <h2 class="text-6xl font-black text-white mb-2 drop-shadow-lg">MISSION FAILED</h2>
+        <p class="text-2xl text-red-200 mb-8">FINAL SCORE: <span id="final-score">0</span></p>
+        <button id="btn-restart" class="bg-white text-red-700 hover:bg-gray-200 font-bold py-3 px-10 rounded text-xl shadow-lg transition-transform hover:scale-105">
+            RETRY MISSION
+        </button>
+    </div>
+
+    <div id="level-transition" class="hidden absolute inset-0 bg-blue-900/80 flex flex-col items-center justify-center z-50 pointer-events-none">
+        <h2 class="text-4xl text-white animate-pulse" id="transition-msg">NEUTRALIZING TARGETS...</h2>
+    </div>
+</div>
+
+<script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+
+    /**
+     * CONFIGURATION & LANGUAGE DATA
+     * 모든 게임 내 텍스트는 여기서 관리하여 다국어 대응이 가능합니다.
+     */
+    const LANG = {
+        title: "CYBER DUNGEON",
+        startBtn: "START MISSION",
+        instructions: "[ WASD ] Move | [ MOUSE ] Aim | [ CLICK ] Shoot\nEliminate all enemies. Survive.",
+        gameOverTitle: "MISSION FAILED",
+        finalScore: "Final Score:",
+        restartBtn: "RETRY MISSION",
+        hudHp: "HP",
+        hudScore: "SCORE",
+        hudWave: "WAVE",
+        hudWeapon: "PLASMA RIFLE",
+        ammo: "∞ AMMO"
+    };
+
+    // 게임 상수
+    const GAME_CONFIG = {
+        fpsSpeed: 0.15,
+        rotSpeed: 0.002,
+        enemyBaseSpeed: 0.05,
+        colors: {
+            fog: 0x0a0a0c,
+            ground: 0x1a1a1d,
+            wall: 0x2a2a30,
+            wallDetail: 0x333344,
+            enemyType1: 0xff4444, // Fast / Weak
+            enemyType2: 0x44ff44, // Tank / Slow
+            enemyType3: 0xffff44, // Sniperish / Medium
+            bulletTrail: 0xffffff
+        },
+        mapSize: 32 // 격자 크기
+    };
+
+    /**
+     * AUDIO SYSTEM (Web Audio API)
+     * 외부 파일 없이 코드로 사운드 합성
+     */
+    class SoundSynth {
+        constructor() {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.connect(this.ctx.destination);
+            this.masterGain.gain.value = 0.3; // 전체 볼륨 조절
+        }
+
+        playTone(freq, type, duration, vol = 1) {
+            if(this.ctx.state === 'suspended') this.ctx.resume();
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(freq * (type === 'sawtooth' ? 0.5 : 0.1), this.ctx.currentTime + duration);
+            
+            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+            
+            osc.connect(gain);
+            gain.connect(this.masterGain);
+            
+            osc.start();
+            osc.stop(this.ctx.currentTime + duration);
+        }
+
+        shoot() { this.playTone(800, 'square', 0.15, 0.5); setTimeout(() => this.playTone(400, 'sawtooth', 0.2, 0.3), 50); }
+        hit() { this.playTone(200, 'sawtooth', 0.1, 0.3); }
+        explosion() { 
+             // 노이즈 효과를 모방하기 위해 여러 진동수를 겹침
+             for(let i=0; i<5; i++) this.playTone(100 + Math.random()*200, 'triangle', 0.4, 0.2);
+        }
+        damage() { this.playTone(150, 'sawtooth', 0.3, 0.5); }
+        powerup() { this.playTone(600, 'sine', 0.3, 0.4); this.playTone(1200, 'sine', 0.3, 0.4); }
+    }
+
+    /**
+     * GAME ENGINE CORE
+     */
+    class Game {
+        constructor() {
+            this.container = document.getElementById('game-container');
+            this.screens = {
+                start: document.getElementById('start-screen'),
+                gameOver: document.getElementById('game-over-screen'),
+                hud: document.getElementById('hud'),
+                transition: document.getElementById('level-transition')
+            };
+            this.sound = null;
+
+            // State
+            this.isPlaying = false;
+            this.score = 0;
+            this.highScore = localStorage.getItem('cyber_fps_highscore') || 0;
+            this.hp = 100;
+            this.wave = 1;
+            this.enemiesKilledThisWave = 0;
+            this.totalEnemiesThisWave = 0;
+
+            // Three.js Globals
+            this.scene = null;
+            this.camera = null;
+            this.renderer = null;
+            this.clock = new THREE.Clock();
+            this.raycaster = new THREE.Raycaster();
+            
+            // Entity Arrays
+            this.bullets = [];
+            this.particles = [];
+            this.enemies = [];
+            this.mapGrid = []; // 2D array for collision
+
+            this.initThree();
+            this.bindEvents();
+            this.updateUI();
+        }
+
+        initThree() {
+            // Scene Setup
+            this.scene = new THREE.Scene();
+            this.scene.background = new THREE.Color(GAME_CONFIG.colors.fog);
+            this.scene.fog = new THREE.FogExp2(GAME_CONFIG.colors.fog, 0.03);
+
+            // Camera
+            this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
+            this.camera.position.set(0, 1.6, 0); // Player height
+
+            // Renderer
+            this.renderer = new THREE.WebGLRenderer({ antialias: true });
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            this.renderer.shadowMap.enabled = true;
+            this.container.appendChild(this.renderer.domElement);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0x404040, 2); // Soft white light
+            this.scene.add(ambientLight);
+            
+            // Player flashlight effect attached to camera
+            const flashLight = new THREE.SpotLight(0xffffff, 10);
+            flashLight.angle = Math.PI / 4;
+            flashLight.penumbra = 0.5;
+            flashLight.decay = 2;
+            flashLight.distance = 20;
+            flashLight.target.position.set(0, 0, -1);
+            this.camera.add(flashLight);
+            this.camera.add(flashLight.target);
+            this.scene.add(this.camera);
+
+            // Floor
+            const floorGeo = new THREE.PlaneGeometry(200, 200, 64, 64);
+            // Vertex coloring for tech-grid look
+            const count = floorGeo.attributes.position.count;
+            const colors = [];
+            const color = new THREE.Color();
+            for (let i = 0; i < count; i++) {
+                const v = floorGeo.attributes.position.getX(i);
+                const uv = floorGeo.attributes.position.getY(i);
+                if ((Math.abs(v) + Math.abs(uv)) % 2 < 0.5) {
+                     colors.push(0.1, 0.1, 0.15); // Darker grid lines
+                } else {
+                     colors.push(0.15, 0.15, 0.2); // Lighter blocks
+                }
+            }
+            floorGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            const floorMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            this.scene.add(floor);
+            
+            // Initialize Map
+            this.generateLevel();
+            
+            // Handle Window Resize
+            window.addEventListener('resize', () => {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        bindEvents() {
+            // Controls
+            document.addEventListener('keydown', (e) => this.keyDown[e.code] = true);
+            document.addEventListener('keyup', (e) => this.keyDown[e.code] = false);
+            document.body.requestPointerLock = document.body.requestPointerLock || document.body.mozRequestPointerLock;
+            
+            document.addEventListener('pointerlockchange', () => {
+                if (document.pointerLockElement !== document.body && this.isPlaying) {
+                   // Optional: Pause game on escape
+                }
+            });
+
+            document.addEventListener('mousedown', (e) => {
+                if (!this.isPlaying) return;
+                if (e.button === 0) this.shoot();
+            });
+
+            // UI Buttons
+            document.getElementById('btn-start').addEventListener('click', () => this.startGame());
+            document.getElementById('btn-restart').addEventListener('click', () => this.resetAndStart());
+
+            // Initial Render (for static background)
+            this.renderScene();
+        }
+
+        startGame() {
+            if(!this.sound) this.sound = new SoundSynth();
+            this.sound.ctx.resume().then(() => {
+                this.screens.start.classList.add('hidden');
+                this.screens.hud.classList.remove('hidden');
+                document.body.requestPointerLock();
+                this.isPlaying = true;
+                this.animate();
+            });
+        }
+
+        resetAndStart() {
+            this.screens.gameOver.classList.add('hidden');
+            this.startGame();
+        }
+
+        generateLevel() {
+            // Clear old map
+            this.mapGrid.forEach(row => row.forEach(mesh => this.scene.remove(mesh)));
+            this.enemies.forEach(e => this.scene.remove(e.mesh));
+            this.enemies = [];
+            this.bullets.forEach(b => this.scene.remove(b.mesh));
+            this.bullets = [];
+            this.particles = []; // Also clear particles
+
+            // Generate Maze Grid
+            const rows = GAME_CONFIG.mapSize;
+            const cols = GAME_CONFIG.mapSize;
+            const blockSize = 4;
+            const offset = (rows * blockSize) / 2;
+
+            this.mapGrid = new Array(rows).fill(null).map(() => new Array(cols).fill(null));
+            
+            // Simple Cellular Automata / Random Noise for dungeon feel
+            for(let y=0; y<rows; y++) {
+                for(let x=0; x<cols; x++) {
+                    // Border walls
+                    if(x===0 || y===0 || x===cols-1 || y===rows-1) {
+                        this.buildWall(x, y, blockSize, offset);
+                    } 
+                    // Random internal walls (Probability increases with wave?)
+                    else if(Math.random() > 0.85) {
+                        this.buildWall(x, y, blockSize, offset);
+                    }
+                    else {
+                        // Keep player spawn area clear (Center-ish)
+                        const dx = x - rows/2;
+                        const dy = y - cols/2;
+                        if(Math.sqrt(dx*dx + dy*dy) > 2) {
+                            // Nothing (floor)
+                        }
+                    }
+                }
+            }
+            
+            // Set player pos safely
+            this.playerPos = new THREE.Vector3(0, 1.6, 0);
+            this.camera.position.copy(this.playerPos);
+
+            // Spawn Enemies for Wave
+            this.spawnEnemiesForWave();
+        }
+
+        buildWall(x, y, blockSize, offset) {
+            const geo = new THREE.BoxGeometry(blockSize, 4, blockSize);
+            // Procedural Texture-like material (simple grid pattern on side)
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: GAME_CONFIG.colors.wall,
+                roughness: 0.5,
+                metalness: 0.2
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set((x * blockSize) - offset, 2, (y * blockSize) - offset);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            this.scene.add(mesh);
+            this.mapGrid[y][x] = mesh;
+        }
+
+        spawnEnemiesForWave() {
+            // Wave Logic: More enemies, more variety
+            this.totalEnemiesThisWave = 5 + (this.wave * 3);
+            let spawned = 0;
+
+            while(spawned < this.totalEnemiesThisWave) {
+                // Find random valid spot
+                const rX = Math.floor(Math.random() * GAME_CONFIG.mapSize);
+                const rY = Math.floor(Math.random() * GAME_CONFIG.mapSize);
+                
+                // Ensure not inside wall and far from player
+                const wallOffset = (GAME_CONFIG.mapSize * 4) / 2;
+                const distFromCenter = Math.sqrt(Math.pow(rX - GAME_CONFIG.mapSize/2, 2) + Math.pow(rY - GAME_CONFIG.mapSize/2, 2));
+
+                if(!this.mapGrid[rY][rX] && distFromCenter > 10) {
+                    // Determine Type
+                    const rand = Math.random();
+                    let type = 'drone';
+                    let hp = 1;
+                    
+                    if(this.wave > 1 && rand > 0.7) type = 'tank';
+                    if(this.wave > 3 && rand > 0.85) type = 'ninja';
+
+                    const xPos = (rX * 4) - wallOffset;
+                    const zPos = (rY * 4) - wallOffset;
+                    
+                    this.createEnemy(xPos, zPos, type);
+                    spawned++;
+                }
+            }
+            this.enemiesKilledThisWave = 0;
+        }
+
+        createEnemy(x, z, type) {
+            let color = GAME_CONFIG.colors.enemyType1;
+            let hp = 1;
+            let speed = 0.08;
+            let radius = 0.8;
+
+            if(type === 'tank') { color = GAME_CONFIG.colors.enemyType2; hp = 5; speed = 0.03; radius = 1.2; }
+            if(type === 'ninja') { color = GAME_CONFIG.colors.enemyType3; hp = 2; speed = 0.15; radius = 0.6; }
+
+            const geo = new THREE.SphereGeometry(radius, 16, 16);
+            const mat = new THREE.MeshBasicMaterial({ color: color });
+            // Add glowing rim effect manually via emissive? No, basic material is better for neon look.
+            
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, radius, z);
+            this.scene.add(mesh);
+            
+            // Floating bobbing animation offset
+            this.enemies.push({
+                mesh, type, hp, maxHp: hp, speed, radius, floatPhase: Math.random() * Math.PI * 2
+            });
+        }
+
+        updatePhysics(delta) {
+            if(!this.isPlaying) return;
+
+            // Movement
+            const moveDir = new THREE.Vector3(0, 0, 0);
+            if(this.keyDown['KeyW']) moveDir.z -= 1;
+            if(this.keyDown['KeyS']) moveDir.z += 1;
+            if(this.keyDown['KeyA']) moveDir.x -= 1;
+            if(this.keyDown['KeyD']) moveDir.x += 1;
+
+            if(moveDir.lengthSq() > 0) {
+                moveDir.normalize().multiplyScalar(GAME_CONFIG.fpsSpeed);
+                // Apply rotation to movement vector (relative to camera looking direction)
+                moveDir.applyQuaternion(this.camera.quaternion);
+                moveDir.y = 0; // Prevent flying
+
+                // Proposed Position
+                const nextPos = this.camera.position.clone().add(moveDir);
+                
+                // Collision Check (Wall)
+                const blockSize = 4;
+                const gridX = Math.floor((nextPos.x + (GAME_CONFIG.mapSize*blockSize)/2) / blockSize);
+                const gridY = Math.floor((nextPos.z + (GAME_CONFIG.mapSize*blockSize)/2) / blockSize);
+
+                if(!this.mapGrid[gridY] || !this.mapGrid[gridY][gridX]) {
+                    this.camera.position.x = nextPos.x;
+                    this.camera.position.z = nextPos.z;
+                } else {
+                    // Wall slide / push
+                    // Very simple sliding
+                    const tryX = this.camera.position.clone(); tryX.x = nextPos.x;
+                    const gx = Math.floor((tryX.x + (GAME_CONFIG.mapSize*blockSize)/2) / blockSize);
+                    const gy = Math.floor((tryX.z + (GAME_CONFIG.mapSize*blockSize)/2) / blockSize);
+                    if(!this.mapGrid[gy]?.[gx]) this.camera.position.x = nextPos.x;
+
+                    const tryZ = this.camera.position.clone(); tryZ.z = nextPos.z;
+                    const gx2 = Math.floor((tryZ.x + (GAME_CONFIG.mapSize*blockSize)/2) / blockSize);
+                    const gy2 = Math.floor((tryZ.z + (GAME_CONFIG.mapSize*blockSize)/2) / blockSize);
+                    if(!this.mapGrid[gy2]?.[gx2]) this.camera.position.z = nextPos.z;
+                }
+            }
+
+            // Update Bullets
+            for (let i = this.bullets.length - 1; i >= 0; i--) {
+                const b = this.bullets[i];
+                b.life -= delta;
+                b.mesh.position.addScaledVector(b.dir, 2); // Bullet Speed
+                
+                // Collision check for bullets
+                const bx = Math.floor((b.mesh.position.x + (GAME_CONFIG.mapSize*4)/2) / 4);
+                const bz = Math.floor((b.mesh.position.z + (GAME_CONFIG.mapSize*4)/2) / 4);
+                
+                // Hit Wall
+                if(this.mapGrid[bz] && this.mapGrid[bz][bx]) {
+                    this.createParticles(b.mesh.position.clone(), GAME_CONFIG.colors.wallDetail);
+                    this.scene.remove(b.mesh);
+                    this.bullets.splice(i, 1);
+                    continue;
+                }
+
+                // Hit Enemy
+                let hitEnemy = false;
+                for (let j = this.enemies.length - 1; j >= 0; j--) {
+                    const e = this.enemies[j];
+                    const dist = b.mesh.position.distanceTo(e.mesh.position);
+                    if(dist < e.radius + 0.5) {
+                        this.hitEnemy(j);
+                        this.createParticles(e.mesh.position.clone(), e.mesh.material.color);
+                        this.sound.hit();
+                        hitEnemy = true;
+                        this.scene.remove(b.mesh);
+                        this.bullets.splice(i, 1);
+                        break; 
+                    }
+                }
+                if(hitEnemy) continue;
+
+                // Out of bounds
+                if(b.life <= 0 || b.mesh.position.length() > 80) {
+                    this.scene.remove(b.mesh);
+                    this.bullets.splice(i, 1);
+                }
+            }
+
+            // Update Enemies
+            const time = performance.now() * 0.001;
+            for (let i = this.enemies.length - 1; i >= 0; i--) {
+                const e = this.enemies[i];
+                
+                // Bobbing Animation
+                e.mesh.position.y = e.radius + Math.sin(time * 2 + e.floatPhase) * 0.2;
+
+                // AI Movement (Move to player)
+                const dirToPlayer = new THREE.Vector3().subVectors(this.camera.position, e.mesh.position).normalize();
+                dirToPlayer.y = 0; // Stay on ground
+                
+                // Check path blocking for enemy (simple distance check against walls is hard, just check bounds/walls approx)
+                const ex = Math.floor((e.mesh.position.x + (GAME_CONFIG.mapSize*4)/2) / 4);
+                const ez = Math.floor((e.mesh.position.z + (GAME_CONFIG.mapSize*4)/2) / 4);
+                
+                // Simple avoidance: If next cell is wall, don't move there
+                const nextEx = Math.floor(((e.mesh.position.x + dirToPlayer.x) + (GAME_CONFIG.mapSize*4)/2) / 4);
+                const nextEz = Math.floor(((e.mesh.position.z + dirToPlayer.z) + (GAME_CONFIG.mapSize*4)/2) / 4);
+                
+                if(!this.mapGrid[nextEz]?.[nextEx]) {
+                     e.mesh.position.addScaledVector(dirToPlayer, e.speed);
+                }
+
+                // Attack Player
+                const distToPlayer = e.mesh.position.distanceTo(this.camera.position);
+                if(distToPlayer < 1.5) {
+                    this.takeDamage(10);
+                }
+            }
+
+            // Update Particles
+            for(let i=this.particles.length-1; i>=0; i--) {
+                const p = this.particles[i];
+                p.life -= delta;
+                p.vel.multiplyScalar(0.9); // Friction
+                p.mesh.position.add(p.vel);
+                p.mesh.material.opacity = p.life;
+                p.mesh.rotation.x += 0.1;
+                p.mesh.scale.setScalar(p.life);
+                if(p.life <= 0) {
+                    this.scene.remove(p.mesh);
+                    this.particles.splice(i, 1);
+                }
+            }
+        }
+
+        shoot() {
+            // Fire visual
+            const geo = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8);
+            geo.rotateX(-Math.PI/2);
+            const mat = new THREE.MeshBasicMaterial({ color: GAME_CONFIG.colors.bulletTrail });
+            const mesh = new THREE.Mesh(geo, mat);
+            
+            // Offset slightly to match crosshair center
+            mesh.position.copy(this.camera.position);
+            
+            // Ray direction
+            const dir = new THREE.Vector3();
+            this.raycaster.setFromCamera(new THREE.Vector2(0,0), this.camera);
+            dir.copy(this.raycaster.ray.direction);
+            
+            this.scene.add(mesh);
+            this.bullets.push({ mesh, dir, life: 1.5 });
+            this.sound.shoot();
+        }
+
+        hitEnemy(index) {
+            const e = this.enemies[index];
+            e.hp--;
+            
+            // Pushback
+            const pushBack = new THREE.Vector3().subVectors(e.mesh.position, this.camera.position).normalize().multiplyScalar(1);
+            e.mesh.position.add(pushBack);
+
+            if(e.hp <= 0) {
+                this.createParticles(e.mesh.position.clone(), e.mesh.material.color, 20);
+                this.scene.remove(e.mesh);
+                this.enemies.splice(index, 1);
+                this.score += 100 * e.maxHp;
+                this.enemiesKilledThisWave++;
+                this.sound.explosion();
+                
+                // Check Wave Clear
+                if(this.enemiesKilledThisWave >= this.totalEnemiesThisWave && this.enemies.length === 0) {
+                    this.nextWave();
+                }
+            }
+        }
+
+        takeDamage(amount) {
+            this.hp -= amount;
+            this.sound.damage();
+            
+            // Flash Screen
+            const flash = document.getElementById('damage-flash');
+            flash.style.opacity = 1;
+            setTimeout(() => flash.style.opacity = 0, 100);
+
+            // Recoil Shake
+            this.camera.rotation.z += (Math.random()-0.5) * 0.1;
+            setTimeout(() => { this.camera.rotation.z = 0; }, 100);
+
+            this.updateUI();
+
+            if(this.hp <= 0) {
+                this.gameOver();
+            }
+        }
+
+        nextWave() {
+            this.isPlaying = false;
+            this.screens.transition.classList.remove('hidden');
+            this.sound.powerup();
+            
+            // Heal slightly
+            this.hp = Math.min(100, this.hp + 20);
+            this.updateUI();
+
+            setTimeout(() => {
+                this.screens.transition.classList.add('hidden');
+                this.wave++;
+                this.generateLevel(); // Re-generate map layout for challenge
+                this.isPlaying = true;
+            }, 3000);
+        }
+
+        gameOver() {
+            this.isPlaying = false;
+            document.exitPointerLock();
+            
+            if(this.score > this.highScore) {
+                this.highScore = this.score;
+                localStorage.setItem('cyber_fps_highscore', this.highScore);
+            }
+
+            document.getElementById('final-score').innerText = this.score;
+            this.screens.hud.classList.add('hidden');
+            this.screens.gameOver.classList.remove('hidden');
+            this.updateUI();
+        }
+
+        createParticles(pos, color, count=5) {
+            const geo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+            const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true });
+            
+            for(let i=0; i<count; i++) {
+                const mesh = new THREE.Mesh(geo, mat.clone());
+                mesh.position.copy(pos);
+                mesh.position.x += (Math.random()-0.5)*0.5;
+                mesh.position.y += (Math.random()-0.5)*0.5;
+                mesh.position.z += (Math.random()-0.5)*0.5;
+                this.scene.add(mesh);
+                this.particles.push({
+                    mesh,
+                    vel: new THREE.Vector3((Math.random()-0.5)*0.5, (Math.random()-0.5)*0.5, (Math.random()-0.5)*0.5),
+                    life: 1.0
+                });
+            }
+        }
+
+        renderScene() {
+            if(this.isPlaying) {
+                const delta = this.clock.getDelta();
+                this.updatePhysics(delta);
+                this.renderer.render(this.scene, this.camera);
+                requestAnimationFrame(() => this.renderScene());
+            }
+        }
+
+        animate() {
+            if(this.isPlaying) this.renderScene();
+        }
+
+        updateUI() {
+            document.getElementById('hp-display').innerText = Math.max(0, Math.ceil(this.hp));
+            document.getElementById('hp-bar').style.width = Math.max(0, this.hp) + '%';
+            document.getElementById('score-display').innerText = this.score;
+            document.getElementById('wave-display').innerText = this.wave;
+            document.getElementById('highscore-display').innerText = this.highScore;
+            
+            // Update HP bar color based on health
+            const hpBar = document.getElementById('hp-bar');
+            if(this.hp > 50) hpBar.className = "h-full bg-gradient-to-r from-green-600 to-green-400";
+            else if (this.hp > 20) hpBar.className = "h-full bg-gradient-to-r from-yellow-500 to-yellow-300";
+            else hpBar.className = "h-full bg-gradient-to-r from-red-600 to-red-400";
+        }
+    }
+
+    // Init Game when DOM ready
+    window.onload = () => {
+        const game = new Game();
+        
+        // Fill Language Data
+        const startScreen = document.getElementById('start-screen');
+        startScreen.innerHTML = `
+            <h1 class="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-cyan-400 to-blue-600 mb-8 tracking-tighter drop-shadow-[0_0_15px_rgba(0,255,255,0.5)]">${LANG.title}</h1>
+            <button id="btn-start" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-12 rounded-lg text-xl shadow-[0_0_20px_rgba(37,99,235,0.6)] transition-all transform hover:scale-105 uppercase tracking-widest">${LANG.startBtn}</button>
+            <p class="mt-8 text-gray-400 text-sm max-w-md text-center leading-relaxed whitespace-pre-line">${LANG.instructions}</p>
+        `;
+        document.getElementById('btn-start').addEventListener('click', () => game.startGame());
+
+        // Bind Restart button again as innerHTML replaced it
+        // Actually, we should attach listener after modifying innerHTML, but simpler to query selector later
+        
+        // Re-bind buttons since innerHTML wipe removed references
+        const btnStart = document.getElementById('btn-start');
+        btnStart.addEventListener('click', () => game.startGame());
+        
+        const btnRestart = document.getElementById('btn-restart'); // This exists in DOM outside modified block
+        btnRestart.innerText = LANG.restartBtn;
+        btnRestart.onclick = () => game.resetAndStart();
+    };
+
+</script>
+</body>
+</html>

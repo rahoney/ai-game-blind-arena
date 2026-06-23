@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>2D 플랫폼 액션 게임</title>
+<style>
+  :root{
+    --bg:#0b1220;
+    --panel:#0f1724;
+    --accent:#ffd166;
+    --accent2:#06d6a0;
+    --text:#e6eef8;
+    --danger:#ff6b6b;
+  }
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#071021 0%, #0b1220 100%);font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;color:var(--text);}
+  .wrap{height:100%;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;}
+  .game-container{width:960px;max-width:96vw;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.05));border-radius:12px;box-shadow:0 10px 30px rgba(2,6,23,0.6);overflow:hidden;display:flex;flex-direction:column;}
+  canvas{display:block;background:linear-gradient(180deg,#7ec8ff 0%, #9ad0ff 40%, #cfefff 100%);width:100%;height:540px;image-rendering:pixelated;}
+  .hud{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));border-top:1px solid rgba(255,255,255,0.02);}
+  .hud .left,.hud .center,.hud .right{display:flex;align-items:center;gap:12px;}
+  .stat{background:rgba(0,0,0,0.25);padding:6px 10px;border-radius:8px;font-weight:600;color:var(--text);font-size:14px;}
+  .big{font-size:18px;font-weight:700;color:var(--accent);}
+  .btn{background:var(--accent);color:#072227;padding:8px 12px;border-radius:8px;font-weight:700;border:none;cursor:pointer;}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+  .panel{pointer-events:auto;background:linear-gradient(180deg,#071428,#0b2540);padding:28px;border-radius:12px;color:var(--text);box-shadow:0 10px 30px rgba(2,6,23,0.6);max-width:760px;width:90%;}
+  .center{text-align:center;}
+  .title{font-size:28px;font-weight:800;margin-bottom:8px;color:var(--accent);}
+  .sub{opacity:0.9;margin-bottom:18px;}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:18px;}
+  .small{font-size:13px;opacity:0.9;}
+  .row{display:flex;gap:8px;justify-content:center;}
+  .flag{width:28px;height:28px;background:linear-gradient(180deg,#ffef8a,#ffd166);border-radius:4px;display:inline-block;vertical-align:middle;margin-right:8px;}
+  footer{font-size:12px;color:rgba(255,255,255,0.6);text-align:center;padding:8px 0;}
+  @media (max-width:640px){canvas{height:420px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="game-container" id="gameRoot" style="position:relative;">
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div class="hud" id="hud">
+      <div class="left">
+        <div class="stat" id="statLives"></div>
+        <div class="stat" id="statHealth"></div>
+      </div>
+      <div class="center">
+        <div class="stat big" id="statScore"></div>
+      </div>
+      <div class="right">
+        <div class="stat" id="statStage"></div>
+        <div class="stat" id="statBest"></div>
+      </div>
+    </div>
+
+    <!-- Overlays -->
+    <div class="overlay" id="overlay" style="display:block;">
+      <div class="panel center" id="startPanel">
+        <div class="title" id="titleText"></div>
+        <div class="sub" id="descText"></div>
+        <div class="controls small" id="controlsText"></div>
+        <div style="margin:18px 0;">
+          <button class="btn" id="startBtn"></button>
+          <button class="btn" id="tutorialBtn" style="background:var(--accent2);margin-left:8px;"></button>
+        </div>
+        <div class="small" id="bestText"></div>
+      </div>
+
+      <div class="panel center" id="pausePanel" style="display:none;">
+        <div class="title" id="pauseTitle"></div>
+        <div class="sub" id="pauseSub"></div>
+        <div style="margin-top:12px;">
+          <button class="btn" id="resumeBtn"></button>
+          <button class="btn" id="restartBtn" style="background:var(--danger);margin-left:8px;"></button>
+        </div>
+      </div>
+
+      <div class="panel center" id="gameOverPanel" style="display:none;">
+        <div class="title" id="gameOverTitle"></div>
+        <div class="sub" id="gameOverSub"></div>
+        <div style="margin-top:12px;">
+          <button class="btn" id="goRestartBtn"></button>
+        </div>
+      </div>
+
+      <div class="panel center" id="clearPanel" style="display:none;">
+        <div class="title" id="clearTitle"></div>
+        <div class="sub" id="clearSub"></div>
+        <div style="margin-top:12px;">
+          <button class="btn" id="nextBtn"></button>
+          <button class="btn" id="clearRestartBtn" style="background:var(--accent2);margin-left:8px;"></button>
+        </div>
+      </div>
+
+      <div class="panel center" id="tutorialPanel" style="display:none;">
+        <div class="title" id="tutorialTitle"></div>
+        <div class="sub" id="tutorialSub"></div>
+        <div class="small" id="tutorialControls"></div>
+        <div style="margin-top:12px;">
+          <button class="btn" id="tutorialCloseBtn"></button>
+        </div>
+      </div>
+    </div>
+
+    <footer id="footerText" style="display:block;"></footer>
+  </div>
+</div>
+
+<script>
+/* LANG_DATA: 모든 게임 내 문자열을 여기서 관리 (한국어) */
+const LANG_DATA = {
+  GAME_TITLE: "코드플랫폼: 브라우저 액션",
+  DESC: "방향키/A,D 이동 · 스페이스/W/위 점프 · 코인 수집 · 적 회피 · 깃발 도달로 클리어",
+  START_BUTTON: "게임 시작",
+  TUTORIAL_BUTTON: "조작법",
+  BEST_TEXT: "최고 점수: {best}",
+  CONTROLS: "이동: ← → 또는 A/D · 점프: ↑ 또는 W 또는 스페이스 · 일시정지: P",
+  PAUSE_TITLE: "일시정지",
+  PAUSE_RESUME: "계속",
+  PAUSE_RESTART: "다시 시작",
+  GAME_OVER_TITLE: "게임 오버",
+  GAME_OVER_SUB: "목숨이 모두 소진되었습니다.",
+  RESTART_BUTTON: "처음부터",
+  CLEAR_TITLE: "스테이지 클리어!",
+  CLEAR_SUB: "축하합니다! 깃발에 도달했습니다.",
+  NEXT_BUTTON: "다음 스테이지",
+  CLEAR_RESTART: "처음부터 다시",
+  TUTORIAL_TITLE: "조작법",
+  TUTORIAL_SUB: "짧게 누르면 낮게, 길게 누르면 높게 점프합니다. 코요테 타임과 점프 버퍼링이 적용됩니다.",
+  TUTORIAL_CLOSE: "닫기",
+  HUD_LIVES: "목숨: {lives}",
+  HUD_HEALTH: "체력: {hp}",
+  HUD_SCORE: "점수: {score}",
+  HUD_STAGE: "스테이지: {stage}/{max}",
+  HUD_BEST: "최고: {best}",
+  FOOTER: "저장된 최고 점수는 로컬 스토리지에 보관됩니다.",
+  COIN_SCORE: "코인 +{n}",
+  HIT_TEXT: "피격!",
+  FALL_TEXT: "낙사!",
+  FLAG_REACHED: "깃발 도달!"
+};
+
+/* ---------------------------
+   기본 설정 및 전역 상태
+   --------------------------- */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d', { alpha: false });
+const W = canvas.width, H = canvas.height;
+const overlay = document.getElementById('overlay');
+
+let gameState = 'start'; // start, playing, paused, gameover, clear
+let keys = {};
+let gamepadConnected = false;
+let gamepadIndex = null;
+
+/* 저장 키 */
+const STORAGE_KEY = 'codeplatform_best';
+
+/* 화면 요소 바인딩 */
+const startPanel = document.getElementById('startPanel');
+const startBtn = document.getElementById('startBtn');
+const tutorialBtn = document.getElementById('tutorialBtn');
+const tutorialPanel = document.getElementById('tutorialPanel');
+const tutorialCloseBtn = document.getElementById('tutorialCloseBtn');
+const tutorialTitle = document.getElementById('tutorialTitle');
+const tutorialSub = document.getElementById('tutorialSub');
+const tutorialControls = document.getElementById('tutorialControls');
+const pausePanel = document.getElementById('pausePanel');
+const pauseTitle = document.getElementById('pauseTitle');
+const pauseSub = document.getElementById('pauseSub');
+const resumeBtn = document.getElementById('resumeBtn');
+const restartBtn = document.getElementById('restartBtn');
+const gameOverPanel = document.getElementById('gameOverPanel');
+const gameOverTitle = document.getElementById('gameOverTitle');
+const gameOverSub = document.getElementById('gameOverSub');
+const goRestartBtn = document.getElementById('goRestartBtn');
+const clearPanel = document.getElementById('clearPanel');
+const clearTitle = document.getElementById('clearTitle');
+const clearSub = document.getElementById('clearSub');
+const nextBtn = document.getElementById('nextBtn');
+const clearRestartBtn = document.getElementById('clearRestartBtn');
+
+const statLives = document.getElementById('statLives');
+const statHealth = document.getElementById('statHealth');
+const statScore = document.getElementById('statScore');
+const statStage = document.getElementById('statStage');
+const statBest = document.getElementById('statBest');
+const footerText = document.getElementById('footerText');
+
+const titleText = document.getElementById('titleText');
+const descText = document.getElementById('descText');
+const controlsText = document.getElementById('controlsText');
+const bestText = document.getElementById('bestText');
+
+const goRestart = document.getElementById('goRestartBtn');
+
+/* UI 초기화 */
+function fillUI(){
+  titleText.textContent = LANG_DATA.GAME_TITLE;
+  descText.textContent = LANG_DATA.DESC;
+  controlsText.textContent = LANG_DATA.CONTROLS;
+  startBtn.textContent = LANG_DATA.START_BUTTON;
+  tutorialBtn.textContent = LANG_DATA.TUTORIAL_BUTTON;
+  tutorialTitle.textContent = LANG_DATA.TUTORIAL_TITLE;
+  tutorialSub.textContent = LANG_DATA.TUTORIAL_SUB;
+  tutorialControls.textContent = LANG_DATA.CONTROLS;
+  tutorialCloseBtn.textContent = LANG_DATA.TUTORIAL_CLOSE;
+  pauseTitle.textContent = LANG_DATA.PAUSE_TITLE;
+  resumeBtn.textContent = LANG_DATA.PAUSE_RESUME;
+  restartBtn.textContent = LANG_DATA.PAUSE_RESTART;
+  gameOverTitle.textContent = LANG_DATA.GAME_OVER_TITLE;
+  gameOverSub.textContent = LANG_DATA.GAME_OVER_SUB;
+  goRestartBtn.textContent = LANG_DATA.RESTART_BUTTON;
+  clearTitle.textContent = LANG_DATA.CLEAR_TITLE;
+  clearSub.textContent = LANG_DATA.CLEAR_SUB;
+  nextBtn.textContent = LANG_DATA.NEXT_BUTTON;
+  clearRestartBtn.textContent = LANG_DATA.CLEAR_RESTART;
+  footerText.textContent = LANG_DATA.FOOTER;
+  bestText.textContent = LANG_DATA.BEST_TEXT.replace('{best}', getBest());
+  statBest.textContent = LANG_DATA.HUD_BEST.replace('{best}', getBest());
+}
+fillUI();
+
+/* ---------------------------
+   오디오: WebAudio로 간단한 효과 생성
+   --------------------------- */
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+const audioCtx = new AudioCtx();
+
+function playBeep(freq=440, time=0.08, type='sine', vol=0.12){
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  g.gain.value = vol;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start();
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + time);
+  o.stop(audioCtx.currentTime + time + 0.02);
+}
+function playCoin(){
+  playBeep(1200,0.12,'sine',0.12);
+  setTimeout(()=>playBeep(1600,0.08,'sine',0.08),60);
+}
+function playJump(){ playBeep(520,0.12,'triangle',0.12); }
+function playHit(){ playBeep(160,0.18,'sawtooth',0.14); }
+function playClear(){ playBeep(880,0.18,'sine',0.16); setTimeout(()=>playBeep(660,0.18,'sine',0.14),160); }
+
+/* ---------------------------
+   유틸리티
+   --------------------------- */
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function rand(min,max){ return Math.random()*(max-min)+min; }
+function now(){ return performance.now(); }
+
+/* ---------------------------
+   레벨 데이터 및 생성
+   - 하나의 스테이지는 화면 너비의 4배 이상 길이
+   - 플랫폼, 적, 코인, 깃발 배치
+   --------------------------- */
+const TILE = 48;
+const VIEW_W = W;
+const LEVEL_COUNT = 3;
+
+function createLevel(stageIndex){
+  // procedural-ish layout with guaranteed path to flag
+  const length = VIEW_W * (4 + stageIndex); // stage 0 => 4x width, stage1 =>5x, etc.
+  const groundY = H - 80;
+  const platforms = [];
+  const coins = [];
+  const enemies = [];
+  const hazards = [];
+
+  // ground as long platform
+  platforms.push({x:0,y:groundY,w:length,h:80, type:'ground'});
+
+  // create stepping platforms with gaps
+  let x = 200;
+  while(x < length - 300){
+    const w = rand(80, 220);
+    const y = groundY - rand(80, 260);
+    platforms.push({x:x,y:y,w:w,h:20, type:'platform'});
+    // place coins above some platforms
+    if(Math.random() < 0.7){
+      const cx = x + w/2;
+      const cy = y - 28;
+      coins.push({x:cx,y:cy, collected:false});
+    }
+    // add enemy occasionally
+    if(Math.random() < 0.35){
+      enemies.push({x:x + rand(20,w-20), y:y-28, type: Math.random()<0.6?'walker':'flyer', dir: Math.random()<0.5?-1:1, range: rand(80, Math.max(120,w-20))});
+    }
+    // hazards (spikes) in gaps sometimes
+    if(Math.random() < 0.25){
+      hazards.push({x:x + w + rand(20,80), y:groundY - 20, w:rand(30,80), h:20});
+    }
+    x += w + rand(80, 220);
+  }
+
+  // place some floating platforms near end
+  for(let i=0;i<4;i++){
+    const px = length - 600 + i*80;
+    const py = groundY - 160 - i*20;
+    platforms.push({x:px,y:py,w:80,h:18, type:'platform'});
+    if(Math.random()<0.6) coins.push({x:px+40,y:py-28, collected:false});
+  }
+
+  // place flag at end
+  const flag = {x: length - 120, y: groundY - 160};
+
+  // ensure at least two enemies
+  while(enemies.length < 2){
+    const ex = rand(300, length-400);
+    enemies.push({x:ex, y:groundY-28, type:'walker', dir: Math.random()<0.5?-1:1, range: rand(80,200)});
+  }
+
+  return {length, groundY, platforms, coins, enemies, hazards, flag};
+}
+
+/* ---------------------------
+   플레이어 정의 및 물리
+   --------------------------- */
+function createPlayer(){
+  return {
+    x: 120, y: 0, vx:0, vy:0, w:36, h:48,
+    onGround:false, facing:1,
+    maxSpeed: 320, accel: 2200, friction: 1600,
+    jumpSpeed: -520, jumpHoldAccel: -900, // variable jump
+    canDoubleJump:false,
+    hp: 3, lives: 3,
+    score: 0,
+    invuln: 0,
+    lastGroundTime: -9999, // for coyote time
+    lastJumpPress: -9999, // for jump buffer
+  };
+}
+
+/* ---------------------------
+   게임 상태 초기화 및 재시작
+   --------------------------- */
+let levelIndex = 0;
+let level = createLevel(levelIndex);
+let player = createPlayer();
+let cameraX = 0;
+let gravity = 2000;
+let coinsCollected = 0;
+let totalCoins = 0;
+let enemies = [];
+let lastTime = 0;
+let bestScore = parseInt(localStorage.getItem(STORAGE_KEY) || '0',10) || 0;
+let maxStage = LEVEL_COUNT;
+
+function getBest(){ return (localStorage.getItem(STORAGE_KEY) || '0'); }
+
+function resetGame(fullReset=true){
+  // fullReset true when starting brand new run
+  if(fullReset){
+    levelIndex = 0;
+    bestScore = parseInt(localStorage.getItem(STORAGE_KEY) || '0',10) || 0;
+  }
+  level = createLevel(levelIndex);
+  player = createPlayer();
+  player.y = level.groundY - player.h - 2;
+  cameraX = 0;
+  coinsCollected = 0;
+  totalCoins = level.coins.length;
+  enemies = level.enemies.map(e => ({...e, baseX: e.x, t:0}));
+  gameState = 'playing';
+  lastTime = now();
+  overlay.style.display = 'none';
+  updateHUD();
+}
+
+/* ---------------------------
+   입력 처리 (키보드 + 게임패드)
+   --------------------------- */
+window.addEventListener('keydown', (e)=>{
+  if(['ArrowLeft','ArrowRight','ArrowUp','Space','KeyA','KeyD','KeyW','KeyP'].includes(e.code)){
+    e.preventDefault();
+  }
+  keys[e.code] = true;
+  // jump buffer
+  if(e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW'){
+    player.lastJumpPress = now();
+  }
+  if(e.code === 'KeyP'){
+    togglePause();
+  }
+});
+window.addEventListener('keyup', (e)=>{
+  keys[e.code] = false;
+});
+
+/* Gamepad support (optional) */
+window.addEventListener("gamepadconnected", (e)=>{
+  gamepadConnected = true;
+  gamepadIndex = e.gamepad.index;
+});
+window.addEventListener("gamepaddisconnected", (e)=>{
+  gamepadConnected = false;
+  gamepadIndex = null;
+});
+
+/* ---------------------------
+   충돌 판정 유틸
+   --------------------------- */
+function rectsOverlap(a,b){
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+/* ---------------------------
+   게임 루프: 업데이트 및 렌더
+   --------------------------- */
+function update(dt){
+  if(gameState !== 'playing') return;
+
+  // handle gamepad input
+  let left = keys['ArrowLeft'] || keys['KeyA'];
+  let right = keys['ArrowRight'] || keys['KeyD'];
+  let jumpPressed = (keys['Space'] || keys['ArrowUp'] || keys['KeyW']);
+
+  if(gamepadConnected){
+    const gp = navigator.getGamepads()[gamepadIndex];
+    if(gp){
+      const ax = gp.axes[0];
+      if(ax < -0.3) { left = true; right = false; }
+      else if(ax > 0.3) { right = true; left = false; }
+      const aBtn = gp.buttons[0];
+      if(aBtn.pressed) { jumpPressed = true; player.lastJumpPress = now(); }
+      if(gp.buttons[9] && gp.buttons[9].pressed) togglePause();
+    }
+  }
+
+  // Horizontal movement with acceleration and friction
+  const desired = (left ? -1 : 0) + (right ? 1 : 0);
+  if(desired !== 0){
+    player.vx += desired * player.accel * dt;
+    player.facing = desired;
+  } else {
+    // apply friction
+    if(player.onGround){
+      const sign = Math.sign(player.vx);
+      player.vx -= sign * player.friction * dt;
+      if(Math.sign(player.vx) !== sign) player.vx = 0;
+    }
+  }
+  player.vx = clamp(player.vx, -player.maxSpeed, player.maxSpeed);
+
+  // Gravity
+  player.vy += gravity * dt;
+
+  // Jump buffering and coyote time
+  const COYOTE = 0.12; // seconds
+  const JUMP_BUFFER = 0.12;
+  const timeNow = now();
+  const canUseCoyote = (timeNow - player.lastGroundTime) < COYOTE*1000;
+  const buffered = (timeNow - player.lastJumpPress) < JUMP_BUFFER*1000;
+
+  // If on ground, reset lastGroundTime
+  if(player.onGround) player.lastGroundTime = timeNow;
+
+  // Jump initiation
+  if(buffered && (player.onGround || canUseCoyote)){
+    // perform jump
+    player.vy = player.jumpSpeed;
+    player.onGround = false;
+    player.lastJumpPress = -9999;
+    playJump();
+  }
+
+  // Variable jump height: if jump key held, apply upward acceleration while within short window
+  const jumpHold = (keys['Space'] || keys['ArrowUp'] || keys['KeyW']);
+  if(!jumpHold && player.vy < 0){
+    // cut jump short
+    player.vy += 1200 * dt;
+  }
+
+  // Integrate position
+  player.x += player.vx * dt;
+  player.y += player.vy * dt;
+
+  // Simple world bounds
+  if(player.x < -50) player.x = -50;
+  if(player.y > H + 400){
+    // fall death
+    player.hp = 0;
+    showFloatingText(LANG_DATA.FALL_TEXT, player.x, player.y - 40, 'danger');
+  }
+
+  // Platform collisions
+  player.onGround = false;
+  const pbox = {x:player.x, y:player.y, w:player.w, h:player.h};
+  for(const plat of level.platforms){
+    const box = {x:plat.x, y:plat.y, w:plat.w, h:plat.h};
+    // broad-phase: check overlap in x
+    if(pbox.x + pbox.w > box.x && pbox.x < box.x + box.w){
+      // check vertical collision (only from above)
+      const prevY = player.y - player.vy * dt;
+      if(prevY + player.h <= box.y && player.y + player.h >= box.y){
+        // land on platform
+        player.y = box.y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+      }
+    }
+  }
+
+  // Hazards (spikes)
+  for(const hz of level.hazards){
+    const hb = {x:hz.x, y:hz.y, w:hz.w, h:hz.h};
+    if(rectsOverlap(pbox, hb)){
+      // instant damage
+      damagePlayer(1);
+      // push player up a bit
+      player.vy = -260;
+      player.x -= player.facing * 40;
+      showFloatingText(LANG_DATA.HIT_TEXT, player.x, player.y - 40, 'danger');
+    }
+  }
+
+  // Coins
+  for(const coin of level.coins){
+    if(!coin.collected){
+      const cb = {x:coin.x-10,y:coin.y-10,w:20,h:20};
+      if(rectsOverlap(pbox, cb)){
+        coin.collected = true;
+        player.score += 10;
+        coinsCollected++;
+        playCoin();
+        showFloatingText(LANG_DATA.COIN_SCORE.replace('{n}', '10'), coin.x, coin.y-20, 'gold');
+      }
+    }
+  }
+
+  // Enemies update & collision
+  for(const e of enemies){
+    if(e.type === 'walker'){
+      e.t += dt;
+      e.x += e.dir * 60 * dt;
+      // patrol range
+      if(Math.abs(e.x - e.baseX) > e.range){
+        e.dir *= -1;
+      }
+      // collision with player
+      const eb = {x:e.x-18,y:e.y-28,w:36,h:36};
+      if(rectsOverlap(pbox, eb) && player.invuln <= 0){
+        // if player is falling onto enemy, kill enemy
+        if(player.vy > 120){
+          // stomp
+          e.dead = true;
+          player.vy = -260;
+          player.score += 25;
+          playBeep(900,0.08,'sine',0.12);
+          showFloatingText('+25', e.x, e.y-30, 'gold');
+        } else {
+          damagePlayer(1);
+          player.invuln = 1000; // ms
+          playHit();
+        }
+      }
+    } else if(e.type === 'flyer'){
+      e.t += dt;
+      e.y = e.baseY ? e.baseY + Math.sin(e.t*2)*24 : e.y + Math.sin(e.t*2)*24;
+      const eb = {x:e.x-18,y:e.y-18,w:36,h:36};
+      if(rectsOverlap(pbox, eb) && player.invuln <= 0){
+        damagePlayer(1);
+        player.invuln = 1000;
+        playHit();
+      }
+    }
+  }
+  // remove dead enemies
+  for(let i=enemies.length-1;i>=0;i--) if(enemies[i].dead) enemies.splice(i,1);
+
+  // Flag reach
+  const flagBox = {x: level.flag.x, y: level.flag.y, w: 24, h: 64};
+  if(player.x + player.w > flagBox.x && player.y + player.h > flagBox.y){
+    // reached flag
+    gameState = 'clear';
+    overlay.style.display = 'flex';
+    showClear();
+    playClear();
+    // update best
+    if(player.score > bestScore){
+      bestScore = player.score;
+      localStorage.setItem(STORAGE_KEY, String(bestScore));
+    }
+    updateHUD();
+    return;
+  }
+
+  // invuln timer
+  if(player.invuln > 0) player.invuln -= dt*1000;
+
+  // camera follow (smooth)
+  const targetCam = clamp(player.x - VIEW_W/2 + player.w/2, 0, level.length - VIEW_W);
+  cameraX += (targetCam - cameraX) * clamp(8*dt, 0, 1);
+
+  // update HUD
+  updateHUD();
+
+  // check death
+  if(player.hp <= 0){
+    player.lives -= 1;
+    if(player.lives > 0){
+      // respawn at last safe point (start)
+      player.hp = 3;
+      player.x = 120;
+      player.y = level.groundY - player.h - 2;
+      player.vx = player.vy = 0;
+      player.invuln = 1000;
+      showFloatingText(LANG_DATA.HIT_TEXT, player.x, player.y - 40, 'danger');
+    } else {
+      // game over
+      gameState = 'gameover';
+      overlay.style.display = 'flex';
+      showGameOver();
+      // update best
+      if(player.score > bestScore){
+        bestScore = player.score;
+        localStorage.setItem(STORAGE_KEY, String(bestScore));
+      }
+      updateHUD();
+    }
+  }
+}
+
+/* ---------------------------
+   플레이어 데미지 처리
+   --------------------------- */
+function damagePlayer(amount){
+  if(player.invuln > 0) return;
+  player.hp -= amount;
+  player.invuln = 1000;
+  playHit();
+  showFloatingText(LANG_DATA.HIT_TEXT, player.x, player.y - 40, 'danger');
+}
+
+/* ---------------------------
+   렌더링
+   --------------------------- */
+const skyGradient = ctx.createLinearGradient(0,0,0,H);
+skyGradient.addColorStop(0,'#7ec8ff'); skyGradient.addColorStop(0.4,'#9ad0ff'); skyGradient.addColorStop(1,'#cfefff');
+
+function render(){
+  // clear
+  ctx.fillStyle = skyGradient;
+  ctx.fillRect(0,0,W,H);
+
+  // parallax background (simple hills)
+  drawParallax();
+
+  // translate by camera
+  ctx.save();
+  ctx.translate(-Math.floor(cameraX), 0);
+
+  // draw platforms
+  for(const plat of level.platforms){
+    drawPlatform(plat);
+  }
+
+  // hazards
+  for(const hz of level.hazards){
+    drawHazard(hz);
+  }
+
+  // coins
+  for(const coin of level.coins){
+    if(!coin.collected) drawCoin(coin);
+  }
+
+  // enemies
+  for(const e of enemies){
+    drawEnemy(e);
+  }
+
+  // flag
+  drawFlag(level.flag);
+
+  // player
+  drawPlayer(player);
+
+  ctx.restore();
+
+  // HUD overlays (floating texts)
+  renderFloatingTexts();
+}
+
+/* Drawing helpers */
+function drawParallax(){
+  // simple rolling hills
+  for(let i=0;i<6;i++){
+    const speed = 0.2 + i*0.08;
+    const offset = (cameraX * speed) % (W*2);
+    ctx.fillStyle = `rgba(20,40,60,${0.06 + i*0.03})`;
+    ctx.beginPath();
+    ctx.moveTo(-offset, H - 120 - i*10);
+    for(let x= -offset; x < W + 200; x += 80){
+      ctx.quadraticCurveTo(x + 40, H - 160 - i*20 - Math.sin((x+offset)/120 + i)*20, x + 80, H - 120 - i*10);
+    }
+    ctx.lineTo(W, H);
+    ctx.lineTo(0,H);
+    ctx.fill();
+  }
+}
+
+function drawPlatform(p){
+  ctx.fillStyle = p.type === 'ground' ? '#6b4f2b' : '#3b5a7a';
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+  // top highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.06)';
+  ctx.fillRect(p.x, p.y, p.w, 4);
+}
+
+function drawHazard(h){
+  ctx.fillStyle = '#b33';
+  const spikeW = 12;
+  for(let sx = h.x; sx < h.x + h.w; sx += spikeW){
+    ctx.beginPath();
+    ctx.moveTo(sx, h.y + h.h);
+    ctx.lineTo(sx + spikeW/2, h.y);
+    ctx.lineTo(sx + spikeW, h.y + h.h);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawCoin(c){
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  const t = (now()/120)%Math.PI*2;
+  ctx.rotate(Math.sin(t)*0.08);
+  // coin circle
+  ctx.fillStyle = '#ffd166';
+  ctx.beginPath();
+  ctx.ellipse(0,0,10,12,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#ffb703';
+  ctx.fillRect(-2,-12,4,24);
+  ctx.restore();
+}
+
+function drawEnemy(e){
+  ctx.save();
+  ctx.translate(e.x, e.y);
+  if(e.type === 'walker'){
+    ctx.fillStyle = '#8b0000';
+    ctx.fillRect(-18,-18,36,36);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-8,-6,6,6);
+    ctx.fillRect(2,-6,6,6);
+  } else {
+    ctx.fillStyle = '#3a86ff';
+    ctx.beginPath();
+    ctx.ellipse(0,0,18,12,0,0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-6,-4,4,4);
+    ctx.fillRect(2,-4,4,4);
+  }
+  ctx.restore();
+}
+
+function drawFlag(f){
+  ctx.save();
+  ctx.translate(f.x, f.y);
+  ctx.fillStyle = '#6b4f2b';
+  ctx.fillRect(-6,0,12,120);
+  ctx.fillStyle = '#ffd166';
+  ctx.beginPath();
+  ctx.moveTo(0,8);
+  ctx.lineTo(40,24);
+  ctx.lineTo(0,40);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawPlayer(p){
+  ctx.save();
+  ctx.translate(p.x + p.w/2, p.y + p.h/2);
+  // flicker when invuln
+  if(p.invuln > 0 && Math.floor(now()/80)%2===0) ctx.globalAlpha = 0.5;
+  ctx.fillStyle = '#072227';
+  ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+  // eyes
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-8, -8, 6, 6);
+  ctx.fillRect(4, -8, 6, 6);
+  ctx.restore();
+}
+
+/* ---------------------------
+   HUD 업데이트
+   --------------------------- */
+function updateHUD(){
+  statLives.textContent = LANG_DATA.HUD_LIVES.replace('{lives}', player.lives);
+  statHealth.textContent = LANG_DATA.HUD_HEALTH.replace('{hp}', player.hp);
+  statScore.textContent = LANG_DATA.HUD_SCORE.replace('{score}', player.score);
+  statStage.textContent = LANG_DATA.HUD_STAGE.replace('{stage}', (levelIndex+1)).replace('{max}', maxStage);
+  statBest.textContent = LANG_DATA.HUD_BEST.replace('{best}', getBest());
+  bestText.textContent = LANG_DATA.BEST_TEXT.replace('{best}', getBest());
+}
+
+/* ---------------------------
+   오버레이 제어: 시작, 일시정지, 게임오버, 클리어
+   --------------------------- */
+startBtn.addEventListener('click', ()=>{
+  // resume audio context on user gesture
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  resetGame(true);
+});
+tutorialBtn.addEventListener('click', ()=>{
+  showTutorial();
+});
+tutorialCloseBtn.addEventListener('click', ()=>{
+  tutorialPanel.style.display = 'none';
+  startPanel.style.display = 'flex';
+});
+resumeBtn.addEventListener('click', ()=>{
+  overlay.style.display = 'none';
+  gameState = 'playing';
+});
+restartBtn.addEventListener('click', ()=>{
+  resetGame(true);
+});
+goRestartBtn.addEventListener('click', ()=>{
+  resetGame(true);
+});
+nextBtn.addEventListener('click', ()=>{
+  levelIndex = Math.min(levelIndex+1, maxStage-1);
+  resetGame(false);
+});
+clearRestartBtn.addEventListener('click', ()=>{
+  resetGame(true);
+});
+
+function showTutorial(){
+  startPanel.style.display = 'none';
+  tutorialPanel.style.display = 'flex';
+  overlay.style.display = 'flex';
+}
+
+function togglePause(){
+  if(gameState === 'playing'){
+    gameState = 'paused';
+    overlay.style.display = 'flex';
+    pausePanel.style.display = 'flex';
+  } else if(gameState === 'paused'){
+    gameState = 'playing';
+    overlay.style.display = 'none';
+    pausePanel.style.display = 'none';
+  }
+}
+
+function showGameOver(){
+  startPanel.style.display = 'none';
+  pausePanel.style.display = 'none';
+  tutorialPanel.style.display = 'none';
+  gameOverPanel.style.display = 'flex';
+  clearPanel.style.display = 'none';
+  gameOverTitle.textContent = LANG_DATA.GAME_OVER_TITLE;
+  gameOverSub.textContent = LANG_DATA.GAME_OVER_SUB;
+}
+
+function showClear(){
+  startPanel.style.display = 'none';
+  pausePanel.style.display = 'none';
+  tutorialPanel.style.display = 'none';
+  gameOverPanel.style.display = 'none';
+  clearPanel.style.display = 'flex';
+  clearTitle.textContent = LANG_DATA.CLEAR_TITLE;
+  clearSub.textContent = LANG_DATA.CLEAR_SUB + ` 점수: ${player.score}`;
+}
+
+/* ---------------------------
+   화면에 뜨는 텍스트 (플로팅)
+   --------------------------- */
+let floatingTexts = [];
+function showFloatingText(text, x, y, type='white'){
+  floatingTexts.push({text,x,y,alpha:1,vy:-30,type, t:0});
+}
+function renderFloatingTexts(){
+  const toRemove = [];
+  ctx.save();
+  ctx.font = 'bold 18px Inter, sans-serif';
+  for(let i=0;i<floatingTexts.length;i++){
+    const ft = floatingTexts[i];
+    ft.t += 1/60;
+    ft.y += ft.vy * (1/60);
+    ft.alpha -= 0.02;
+    ctx.globalAlpha = clamp(ft.alpha,0,1);
+    ctx.fillStyle = ft.type === 'gold' ? '#ffd166' : (ft.type === 'danger' ? '#ff6b6b' : '#fff');
+    ctx.fillText(ft.text, ft.x - cameraX, ft.y);
+    if(ft.alpha <= 0) toRemove.push(i);
+  }
+  ctx.restore();
+  for(let i=toRemove.length-1;i>=0;i--) floatingTexts.splice(toRemove[i],1);
+}
+
+/* ---------------------------
+   메인 루프
+   --------------------------- */
+function loop(){
+  const t = now();
+  const dt = Math.min(0.032, (t - lastTime)/1000 || 0.016);
+  lastTime = t;
+  if(gameState === 'playing') update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+lastTime = now();
+loop();
+
+/* ---------------------------
+   초기 화면 표시
+   --------------------------- */
+function showStart(){
+  overlay.style.display = 'flex';
+  startPanel.style.display = 'flex';
+  pausePanel.style.display = 'none';
+  tutorialPanel.style.display = 'none';
+  gameOverPanel.style.display = 'none';
+  clearPanel.style.display = 'none';
+}
+showStart();
+
+/* ---------------------------
+   초기 레벨/엔티티 세팅
+   --------------------------- */
+resetGame(true);
+
+/* ---------------------------
+   추가: 키보드로 재시작 시 모든 상태 초기화 보장
+   --------------------------- */
+window.addEventListener('keydown', (e)=>{
+  if(e.code === 'KeyR'){
+    resetGame(true);
+  }
+});
+
+/* ---------------------------
+   안전성: 윈도우 포커스 잃으면 일시정지
+   --------------------------- */
+window.addEventListener('blur', ()=>{
+  if(gameState === 'playing'){
+    gameState = 'paused';
+    overlay.style.display = 'flex';
+    pausePanel.style.display = 'flex';
+  }
+});
+
+/* ---------------------------
+   게임 시작 시 안내 텍스트 업데이트
+   --------------------------- */
+(function fillStartTexts(){
+  bestText.textContent = LANG_DATA.BEST_TEXT.replace('{best}', getBest());
+  document.getElementById('descText').textContent = LANG_DATA.DESC;
+})();
+
+/* ---------------------------
+   엔터프라이즈: 모든 상태를 완전히 초기화하는 버튼 (디버그용)
+   --------------------------- */
+window.resetAll = function(){
+  localStorage.removeItem(STORAGE_KEY);
+  bestScore = 0;
+  resetGame(true);
+  fillUI();
+};
+
+/* ---------------------------
+   게임 내 문자열을 동적으로 바꾸는 예시 (LANG_DATA 사용 확인)
+   --------------------------- */
+console.log("LANG_DATA loaded:", LANG_DATA.GAME_TITLE);
+
+</script>
+</body>
+</html>

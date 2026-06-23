@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>벽돌깨기</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:#0a0e1a;
+  display:flex;justify-content:center;align-items:center;
+  min-height:100vh;overflow:hidden;
+  font-family:'Segoe UI',sans-serif;color:#fff;
+}
+#wrap{position:relative;width:800px;height:600px}
+canvas{display:block;border-radius:12px;box-shadow:0 0 40px rgba(80,140,255,.25)}
+#overlay{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  justify-content:center;align-items:center;
+  background:rgba(6,10,24,.92);border-radius:12px;
+  transition:opacity .4s;z-index:10;
+}
+#overlay.hidden{opacity:0;pointer-events:none}
+#overlay h1{font-size:48px;font-weight:700;margin-bottom:8px;letter-spacing:2px}
+#overlay h2{font-size:28px;font-weight:600;margin-bottom:12px}
+#overlay p{font-size:16px;color:#94a3b8;margin-bottom:24px;text-align:center;line-height:1.6}
+.btn{
+  padding:14px 48px;font-size:18px;font-weight:600;border:none;border-radius:8px;
+  cursor:pointer;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;
+  box-shadow:0 4px 20px rgba(99,102,241,.4);transition:transform .15s,box-shadow .15s;
+}
+.btn:hover{transform:translateY(-2px);box-shadow:0 6px 28px rgba(99,102,241,.6)}
+.btn:active{transform:translateY(0)}
+#hud{
+  position:absolute;top:12px;left:16px;right:16px;display:flex;
+  justify-content:space-between;font-size:15px;font-weight:600;z-index:5;
+  pointer-events:none;
+}
+.hud-box{
+  background:rgba(255,255,255,.08);backdrop-filter:blur(6px);
+  padding:6px 16px;border-radius:6px;
+}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="800" height="600"></canvas>
+  <div id="hud">
+    <div class="hud-box" id="scoreEl">점수: 0</div>
+    <div class="hud-box" id="livesEl">❤ 3</div>
+  </div>
+  <div id="overlay">
+    <h1 id="oTitle">🧱 벽돌깨기</h1>
+    <h2 id="oSub"></h2>
+    <p id="oDesc">방향키 ← → 로 패들을 조작하세요<br>벽돌을 깨면 아이템이 떨어집니다!</p>
+    <button class="btn" id="oBtn">게임 시작</button>
+  </div>
+</div>
+
+<script>
+// ─── 캔버스 & 컨텍스트 ───
+const cvs = document.getElementById('c');
+const ctx = cvs.getContext('2d');
+const W = cvs.width, H = cvs.height;
+
+// ─── 오버레이 요소 ───
+const overlay = document.getElementById('overlay');
+const oTitle  = document.getElementById('oTitle');
+const oSub    = document.getElementById('oSub');
+const oDesc   = document.getElementById('oDesc');
+const oBtn    = document.getElementById('oBtn');
+const scoreEl = document.getElementById('scoreEl');
+const livesEl = document.getElementById('livesEl');
+
+// ─── 게임 상태 ───
+let score, lives, running, won, bricks, particles, items, combo;
+let paddle, ball;
+const keys = {};
+
+// ─── 브릭 설정 ───
+const COLS = 10, ROWS = 6, BW = 70, BH = 24, BPAD = 6;
+const BX0 = (W - (COLS * (BW + BPAD) - BPAD)) / 2;
+const BY0 = 60;
+const ROW_COLORS = ['#f43f5e','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6'];
+const ROW_SCORES  = [60,50,40,30,20,10];
+
+// ─── 아이템 종류 ───
+const ITEM_TYPES = [
+  {type:'wide',  color:'#38bdf8', label:'W', desc:'패들 확장'},
+  {type:'multi', color:'#a78bfa', label:'M', desc:'멀티볼'},
+  {type:'life',  color:'#f472b6', label:'♥', desc:'생명 +1'},
+  {type:'fast',  color:'#fb923c', label:'F', desc:'속도 증가'},
+  {type:'slow',  color:'#4ade80', label:'S', desc:'속도 감소'},
+];
+
+// ─── 초기화 ───
+function init(){
+  score=0; lives=3; running=true; won=false; combo=0;
+  particles=[]; items=[];
+  scoreEl.textContent='점수: 0';
+  livesEl.textContent='❤ '+lives;
+
+  // 패들
+  paddle = {w:120, h:14, x:W/2-60, y:H-40, speed:8, baseW:120};
+
+  // 공 (여러 개 관리)
+  ball = [];
+  resetBall();
+
+  // 벽돌 생성
+  bricks = [];
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    bricks.push({
+      x: BX0 + c*(BW+BPAD),
+      y: BY0 + r*(BH+BPAD),
+      w: BW, h: BH,
+      color: ROW_COLORS[r],
+      pts: ROW_SCORES[r],
+      alive: true,
+      // 25% 확률로 아이템 보유
+      hasItem: Math.random() < 0.25,
+      hp: r < 2 ? 2 : 1 // 상위 2줄은 체력 2
+    });
+  }
+}
+
+function resetBall(){
+  ball = [{x:W/2, y:H-60, dx:4*(Math.random()>.5?1:-1), dy:-5, r:7}];
+}
+
+// ─── 파티클 생성 ───
+function spawnParticles(x, y, color, count=12){
+  for(let i=0;i<count;i++){
+    const angle = Math.random()*Math.PI*2;
+    const speed = 1.5 + Math.random()*4;
+    particles.push({
+      x, y,
+      dx: Math.cos(angle)*speed,
+      dy: Math.sin(angle)*speed,
+      life: 1,
+      decay: 0.015 + Math.random()*0.025,
+      size: 2 + Math.random()*4,
+      color
+    });
+  }
+}
+
+// ─── 아이템 드롭 ───
+function spawnItem(x, y){
+  const t = ITEM_TYPES[Math.floor(Math.random()*ITEM_TYPES.length)];
+  items.push({x, y, dy:2, w:26, h:26, ...t, life:1});
+}
+
+// ─── 아이템 효과 적용 ───
+function applyItem(item){
+  switch(item.type){
+    case 'wide':
+      paddle.w = Math.min(220, paddle.w + 40);
+      // 8초 후 원래 크기로
+      setTimeout(()=>{ paddle.w = paddle.baseW; }, 8000);
+      break;
+    case 'multi':
+      // 기존 공 복제
+      const nb = [];
+      ball.forEach(b=>{
+        nb.push({x:b.x,y:b.y,dx:b.dx,dy:b.dy,r:b.r});
+        nb.push({x:b.x,y:b.y,dx:-b.dx,dy:b.dy,r:b.r});
+      });
+      ball = nb;
+      break;
+    case 'life':
+      lives = Math.min(5, lives+1);
+      livesEl.textContent='❤ '+lives;
+      break;
+    case 'fast':
+      ball.forEach(b=>{ const s=Math.sqrt(b.dx*b.dx+b.dy*b.dy); b.dx*=1.3; b.dy*=1.3; });
+      break;
+    case 'slow':
+      ball.forEach(b=>{ b.dx*=0.7; b.dy*=0.7; });
+      break;
+  }
+  spawnParticles(item.x, item.y, item.color, 20);
+}
+
+// ─── 충돌: 공 vs 벽돌 ───
+function ballBrickCollision(b, br){
+  const cx = Math.max(br.x, Math.min(b.x, br.x+br.w));
+  const cy = Math.max(br.y, Math.min(b.y, br.y+br.h));
+  const dx = b.x - cx, dy = b.y - cy;
+  if(dx*dx+dy*dy < b.r*b.r){
+    // 반사 방향 결정
+    const overlapX = b.r - Math.abs(dx);
+    const overlapY = b.r - Math.abs(dy);
+    if(overlapX < overlapY) b.dx = -b.dx; else b.dy = -b.dy;
+    return true;
+  }
+  return false;
+}
+
+// ─── 업데이트 ───
+function update(){
+  if(!running) return;
+
+  // 패들 이동
+  if(keys['ArrowLeft']||keys['a'])  paddle.x -= paddle.speed;
+  if(keys['ArrowRight']||keys['d']) paddle.x += paddle.speed;
+  paddle.x = Math.max(0, Math.min(W - paddle.w, paddle.x));
+
+  // 공 이동 & 충돌
+  const deadBalls = [];
+  ball.forEach((b,i)=>{
+    b.x += b.dx;
+    b.y += b.dy;
+
+    // 벽
+    if(b.x - b.r < 0){ b.x = b.r; b.dx = Math.abs(b.dx); }
+    if(b.x + b.r > W){ b.x = W - b.r; b.dx = -Math.abs(b.dx); }
+    if(b.y - b.r < 0){ b.y = b.r; b.dy = Math.abs(b.dy); }
+
+    // 바닥 → 공 제거
+    if(b.y - b.r > H){
+      deadBalls.push(i);
+      return;
+    }
+
+    // 패들 충돌
+    if(b.dy > 0 &&
+       b.y + b.r >= paddle.y && b.y + b.r <= paddle.y + paddle.h + 6 &&
+       b.x >= paddle.x - b.r && b.x <= paddle.x + paddle.w + b.r){
+      b.dy = -Math.abs(b.dy);
+      // 패들 위치에 따라 반사각 조절
+      const hit = (b.x - paddle.x) / paddle.w; // 0~1
+      b.dx = (hit - 0.5) * 10;
+      b.y = paddle.y - b.r;
+      // 속도 정규화 (최소 속도 보장)
+      const spd = Math.sqrt(b.dx*b.dx+b.dy*b.dy);
+      const targetSpd = 5.5;
+      b.dx = b.dx/spd*targetSpd;
+      b.dy = b.dy/spd*targetSpd;
+      combo = 0;
+    }
+
+    // 벽돌 충돌
+    bricks.forEach(br=>{
+      if(!br.alive) return;
+      if(ballBrickCollision(b, br)){
+        br.hp--;
+        if(br.hp <= 0){
+          br.alive = false;
+          combo++;
+          score += br.pts * (1 + Math.floor(combo/3));
+          scoreEl.textContent = '점수: ' + score;
+          spawnParticles(br.x+br.w/2, br.y+br.h/2, br.color, 16);
+          if(br.hasItem) spawnItem(br.x+br.w/2, br.y+br.h/2);
+        } else {
+          spawnParticles(br.x+br.w/2, br.y+br.h/2, '#ffffff', 5);
+        }
+      }
+    });
+  });
+
+  // 죽은 공 제거
+  for(let i=deadBalls.length-1;i>=0;i--) ball.splice(deadBalls[i],1);
+
+  // 모든 공을 잃으면 목숨 차감
+  if(ball.length === 0){
+    lives--;
+    livesEl.textContent = '❤ ' + lives;
+    if(lives <= 0){
+      endGame(false);
+    } else {
+      resetBall();
+    }
+  }
+
+  // 승리 체크
+  if(bricks.every(b=>!b.alive)) endGame(true);
+
+  // 아이템 업데이트
+  items.forEach((it,i)=>{
+    it.y += it.dy;
+    // 패들과 충돌
+    if(it.y + it.h >= paddle.y && it.y <= paddle.y+paddle.h &&
+       it.x + it.w/2 >= paddle.x && it.x - it.w/2 <= paddle.x+paddle.w){
+      applyItem(it);
+      it.life = 0;
+    }
+    if(it.y > H+30) it.life = 0;
+  });
+  items = items.filter(it=>it.life>0);
+
+  // 파티클 업데이트
+  particles.forEach(p=>{
+    p.x += p.dx; p.y += p.dy;
+    p.dy += 0.06; // 중력
+    p.life -= p.decay;
+  });
+  particles = particles.filter(p=>p.life>0);
+}
+
+// ─── 렌더 ───
+function draw(){
+  // 배경
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0,0,W,H);
+
+  // 미세한 그리드 패턴
+  ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+  ctx.lineWidth = 1;
+  for(let i=0;i<W;i+=40){ ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,H);ctx.stroke(); }
+  for(let i=0;i<H;i+=40){ ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(W,i);ctx.stroke(); }
+
+  // 벽돌
+  bricks.forEach(br=>{
+    if(!br.alive) return;
+    const grad = ctx.createLinearGradient(br.x, br.y, br.x, br.y+br.h);
+    grad.addColorStop(0, br.color);
+    grad.addColorStop(1, shadeColor(br.color, -30));
+    ctx.fillStyle = grad;
+    roundRect(br.x, br.y, br.w, br.h, 4);
+    ctx.fill();
+
+    // hp 2 이상이면 내부 표시
+    if(br.hp >= 2){
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 2;
+      roundRect(br.x+3, br.y+3, br.w-6, br.h-6, 2);
+      ctx.stroke();
+    }
+
+    // 하이라이트
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(br.x+4, br.y+2, br.w-8, 3);
+  });
+
+  // 아이템
+  items.forEach(it=>{
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.shadowColor = it.color;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = it.color;
+    ctx.beginPath();
+    ctx.arc(it.x, it.y, 13, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(it.label, it.x, it.y);
+    ctx.restore();
+  });
+
+  // 패들
+  const pGrad = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x+paddle.w, paddle.y);
+  pGrad.addColorStop(0, '#6366f1');
+  pGrad.addColorStop(0.5, '#818cf8');
+  pGrad.addColorStop(1, '#6366f1');
+  ctx.fillStyle = pGrad;
+  ctx.shadowColor = '#818cf8';
+  ctx.shadowBlur = 16;
+  roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 7);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // 공
+  ball.forEach(b=>{
+    ctx.save();
+    ctx.shadowColor = '#e0e7ff';
+    ctx.shadowBlur = 12;
+    const bGrad = ctx.createRadialGradient(b.x-2, b.y-2, 0, b.x, b.y, b.r);
+    bGrad.addColorStop(0, '#ffffff');
+    bGrad.addColorStop(1, '#c7d2fe');
+    ctx.fillStyle = bGrad;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+
+    // 공 꼬리
+    ctx.fillStyle = 'rgba(199,210,254,0.3)';
+    ctx.beginPath();
+    ctx.arc(b.x - b.dx*1.2, b.y - b.dy*1.2, b.r*0.7, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  // 파티클
+  particles.forEach(p=>{
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI*2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ─── 유틸 ───
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+function shadeColor(col,pct){
+  let r=parseInt(col.slice(1,3),16),g=parseInt(col.slice(3,5),16),b=parseInt(col.slice(5,7),16);
+  r=Math.max(0,Math.min(255,r+pct));
+  g=Math.max(0,Math.min(255,g+pct));
+  b=Math.max(0,Math.min(255,b+pct));
+  return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+
+// ─── 게임 종료 ───
+function endGame(victory){
+  running = false;
+  won = victory;
+  overlay.classList.remove('hidden');
+  oTitle.textContent = victory ? '🎉 승리!' : '💀 게임 오버';
+  oSub.textContent = '최종 점수: ' + score;
+  oDesc.innerHTML = victory
+    ? '모든 벽돌을 제거했습니다!'
+    : '다시 도전해보세요!';
+  oBtn.textContent = '재시작';
+}
+
+// ─── 오버레이 버튼 ───
+oBtn.addEventListener('click', ()=>{
+  overlay.classList.add('hidden');
+  init();
+});
+
+// ─── 키 입력 ───
+document.addEventListener('keydown', e=>{
+  keys[e.key] = true;
+  // 좌우 화살표의 기본 스크롤 방지
+  if(['ArrowLeft','ArrowRight'].includes(e.key)) e.preventDefault();
+});
+document.addEventListener('keyup', e=>{ keys[e.key] = false; });
+
+// ─── 게임 루프 ───
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// 최초 초기화 후 루프 시작
+init();
+loop();
+</script>
+</body>
+</html>

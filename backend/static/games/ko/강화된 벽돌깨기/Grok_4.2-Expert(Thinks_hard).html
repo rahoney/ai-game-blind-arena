@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>네온 벽돌 깨기</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&amp;display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #1a0033, #000011);
+            overflow: hidden;
+            font-family: 'Orbitron', sans-serif;
+        }
+        
+        .container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            border: 6px solid #00ffff;
+            border-radius: 20px;
+            box-shadow: 
+                0 0 40px #00ffff,
+                0 0 80px #ff00ff,
+                inset 0 0 60px rgba(0, 255, 255, 0.3);
+            overflow: hidden;
+            background: #0a1122;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            text-align: center;
+            transition: all 0.4s ease;
+        }
+        
+        #start-screen {
+            background: rgba(10, 15, 40, 0.96);
+        }
+        
+        #win-screen {
+            background: rgba(0, 80, 40, 0.96);
+            display: none;
+        }
+        
+        #lose-screen {
+            background: rgba(80, 10, 20, 0.96);
+            display: none;
+        }
+        
+        h1 {
+            font-size: 52px;
+            margin-bottom: 10px;
+            text-shadow: 
+                0 0 20px #00ffff,
+                0 0 40px #ff00ff;
+            letter-spacing: 4px;
+        }
+        
+        .subtitle {
+            font-size: 22px;
+            margin-bottom: 40px;
+            opacity: 0.9;
+            text-shadow: 0 0 15px #00ffff;
+        }
+        
+        button {
+            padding: 16px 48px;
+            font-size: 26px;
+            font-family: 'Orbitron', sans-serif;
+            background: transparent;
+            color: #00ffff;
+            border: 4px solid #00ffff;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 0 30px #00ffff;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+        
+        button:hover {
+            background: #00ffff;
+            color: #001122;
+            transform: scale(1.08) translateY(-3px);
+            box-shadow: 0 0 50px #00ffff;
+        }
+        
+        .info {
+            margin-top: 50px;
+            font-size: 18px;
+            line-height: 1.6;
+            opacity: 0.85;
+        }
+        
+        .score-display {
+            position: absolute;
+            top: 15px;
+            left: 30px;
+            color: #fff;
+            font-size: 22px;
+            text-shadow: 0 0 10px #00ffff;
+            z-index: 10;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <canvas id="canvas" width="800" height="600"></canvas>
+        
+        <!-- 시작 화면 -->
+        <div id="start-screen" class="screen">
+            <h1>NEON<br>BREAKOUT</h1>
+            <div class="subtitle">강화된 벽돌 깨기</div>
+            <p style="font-size:18px; margin-bottom:30px; max-width:420px;">
+                화려한 파티클 • 떨어지는 아이템 • 네온 테마
+            </p>
+            <button onclick="startGame()">게임 시작</button>
+            <div class="info">
+                ← → 방향키 : 패들 이동<br>
+                스페이스바 : 공 발사
+            </div>
+        </div>
+        
+        <!-- 승리 화면 -->
+        <div id="win-screen" class="screen">
+            <h1 style="color:#0f0; text-shadow:0 0 30px #0f0;">🎉 승리!</h1>
+            <p style="font-size:28px; margin:20px 0; color:#fff;">모든 벽돌을 파괴했습니다</p>
+            <p id="win-score-text" style="font-size:26px; color:#0ff; margin-bottom:30px;"></p>
+            <button onclick="restartGame()">다시 시작</button>
+        </div>
+        
+        <!-- 패배 화면 -->
+        <div id="lose-screen" class="screen">
+            <h1 style="color:#f33; text-shadow:0 0 30px #f33;">💥 GAME OVER</h1>
+            <p style="font-size:28px; margin:20px 0; color:#fff;">공을 모두 놓쳤습니다</p>
+            <p id="lose-score-text" style="font-size:26px; color:#0ff; margin-bottom:30px;"></p>
+            <button onclick="restartGame()">다시 시작</button>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 전체 게임 변수 ====================
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let paddle = { x: 340, y: 510, width: 120, height: 22, speed: 9 };
+        let ball = { x: 400, y: 480, radius: 11, vx: 0, vy: 0 };
+        let ballAttached = true;
+        
+        let bricks = [];
+        let powerups = [];
+        let particles = [];
+        
+        let score = 0;
+        let lives = 3;
+        let leftPressed = false;
+        let rightPressed = false;
+        let gameState = 'start'; // start | playing | win | lose
+        
+        const WIDTH = 800;
+        const HEIGHT = 600;
+        
+        // ==================== 벽돌 생성 (핵심 로직) ====================
+        function generateBricks() {
+            const rows = 6;
+            const cols = 10;
+            const brickW = 68;
+            const brickH = 26;
+            const padding = 8;
+            const offsetX = (WIDTH - (cols * (brickW + padding) - padding)) / 2;
+            const offsetY = 75;
+            
+            const newBricks = [];
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const hue = 180 + r * 32; // 네온 그라데이션
+                    newBricks.push({
+                        x: offsetX + c * (brickW + padding),
+                        y: offsetY + r * (brickH + padding),
+                        width: brickW,
+                        height: brickH,
+                        status: 1,
+                        color: `hsl(${hue}, 100%, 65%)`,
+                        power: Math.random() < 0.23 ? (Math.random() < 0.5 ? 'enlarge' : 'life') : null
+                    });
+                }
+            }
+            return newBricks;
+        }
+        
+        // ==================== 파티클 생성 (벽돌 파괴 시 화려한 효과) ====================
+        function createParticles(x, y, baseColor, count = 32) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const vel = 1.8 + Math.random() * 5.5;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * vel,
+                    vy: Math.sin(angle) * vel - 2.5,
+                    life: 32 + Math.random() * 18,
+                    size: 3 + Math.random() * 4.5,
+                    color: baseColor
+                });
+            }
+        }
+        
+        // ==================== 아이템 획득 즉시 적용 ====================
+        function applyPowerup(type) {
+            if (type === 'enlarge') {
+                // 패들 확대 (영구)
+                paddle.width = Math.min(210, paddle.width + 48);
+            } else if (type === 'life') {
+                // 생명 추가
+                lives = Math.min(5, lives + 1);
+            }
+        }
+        
+        // ==================== 게임 전체 초기화 (재시작 시 완전 리셋) ====================
+        function resetGame() {
+            score = 0;
+            lives = 3;
+            
+            paddle = { x: 340, y: 510, width: 120, height: 22, speed: 9 };
+            
+            ball = { x: 400, y: 480, radius: 11, vx: 0, vy: 0 };
+            ballAttached = true;
+            
+            bricks = generateBricks();
+            powerups = [];
+            particles = [];
+        }
+        
+        // ==================== 게임 업데이트 (핵심 루프) ====================
+        function update() {
+            if (gameState !== 'playing') return;
+            
+            // 패들 이동
+            if (leftPressed) {
+                paddle.x -= paddle.speed;
+                if (paddle.x < 0) paddle.x = 0;
+            }
+            if (rightPressed) {
+                paddle.x += paddle.speed;
+                if (paddle.x + paddle.width > WIDTH) paddle.x = WIDTH - paddle.width;
+            }
+            
+            // 공이 패들에 붙어있을 때
+            if (ballAttached) {
+                ball.x = paddle.x + paddle.width / 2;
+                ball.y = paddle.y - ball.radius - 4;
+                return;
+            }
+            
+            // 공 이동
+            ball.x += ball.vx;
+            ball.y += ball.vy;
+            
+            // 벽 충돌
+            if (ball.x - ball.radius < 0 || ball.x + ball.radius > WIDTH) ball.vx = -ball.vx;
+            if (ball.y - ball.radius < 0) ball.vy = -ball.vy;
+            
+            // 바닥에 떨어짐 → 생명 감소
+            if (ball.y + ball.radius > HEIGHT) {
+                lives--;
+                if (lives > 0) {
+                    ballAttached = true;
+                    ball.vx = 0;
+                    ball.vy = 0;
+                } else {
+                    gameState = 'lose';
+                    document.getElementById('lose-score-text').innerHTML = `최종 점수 <strong>${score}</strong>`;
+                    document.getElementById('lose-screen').style.display = 'flex';
+                }
+                return;
+            }
+            
+            // 패들 충돌 + 각도 조절 (핵심 로직)
+            if (ball.y + ball.radius > paddle.y &&
+                ball.y - ball.radius < paddle.y + paddle.height &&
+                ball.x > paddle.x && ball.x < paddle.x + paddle.width) {
+                
+                ball.vy = -Math.abs(ball.vy) * 1.03; // 살짝 가속
+                const hitRatio = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
+                ball.vx = hitRatio * 7.5;
+            }
+            
+            // 벽돌 충돌 루프 (역순으로 순회)
+            for (let i = bricks.length - 1; i >= 0; i--) {
+                const b = bricks[i];
+                if (b.status === 0) continue;
+                
+                if (ball.x + ball.radius > b.x &&
+                    ball.x - ball.radius < b.x + b.width &&
+                    ball.y + ball.radius > b.y &&
+                    ball.y - ball.radius < b.y + b.height) {
+                    
+                    b.status = 0;
+                    score += 10;
+                    ball.vy = -ball.vy;
+                    
+                    // 화려한 파티클 효과
+                    createParticles(b.x + b.width / 2, b.y + b.height / 2, b.color);
+                    
+                    // 특정 벽돌 → 아이템 드랍
+                    if (b.power) {
+                        powerups.push({
+                            x: b.x + b.width / 2,
+                            y: b.y + b.height / 2,
+                            type: b.power,
+                            vy: 3.2,
+                            size: 26
+                        });
+                    }
+                    
+                    break; // 한 프레임에 하나의 벽돌만 처리
+                }
+            }
+            
+            // 아이템 떨어짐 + 획득 체크
+            for (let i = powerups.length - 1; i >= 0; i--) {
+                const p = powerups[i];
+                p.y += p.vy;
+                
+                if (p.y > HEIGHT + 30) {
+                    powerups.splice(i, 1);
+                    continue;
+                }
+                
+                // 패들이 아이템 획득
+                if (p.y + p.size > paddle.y &&
+                    p.y < paddle.y + paddle.height &&
+                    p.x > paddle.x && p.x < paddle.x + paddle.width) {
+                    
+                    applyPowerup(p.type);
+                    powerups.splice(i, 1);
+                }
+            }
+            
+            // 파티클 업데이트
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.18; // 중력
+                p.life--;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+            
+            // 승리 체크
+            let remainingBricks = 0;
+            for (let b of bricks) if (b.status === 1) remainingBricks++;
+            if (remainingBricks === 0) {
+                gameState = 'win';
+                document.getElementById('win-score-text').innerHTML = `최종 점수 <strong>${score}</strong>`;
+                document.getElementById('win-screen').style.display = 'flex';
+            }
+        }
+        
+        // ==================== 그리기 (네온 테마) ====================
+        function draw() {
+            ctx.clearRect(0, 0, WIDTH, HEIGHT);
+            
+            // 배경
+            ctx.fillStyle = '#0a1122';
+            ctx.fillRect(0, 0, WIDTH, HEIGHT);
+            
+            // 벽돌
+            for (let b of bricks) {
+                if (b.status === 0) continue;
+                ctx.shadowBlur = 22;
+                ctx.shadowColor = b.color;
+                ctx.fillStyle = b.color;
+                ctx.fillRect(b.x, b.y, b.width, b.height);
+                
+                // 네온 하이라이트
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(255,255,255,0.35)';
+                ctx.fillRect(b.x + 5, b.y + 4, b.width - 10, 7);
+            }
+            
+            // 패들 (네온)
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = '#00ffff';
+            ctx.fillStyle = '#00ffff';
+            ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+            
+            // 패들 상단 라인
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(paddle.x + 8, paddle.y + 4, paddle.width - 16, 6);
+            
+            // 공
+            ctx.shadowBlur = 35;
+            ctx.shadowColor = '#ffffff';
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 공 내부 코어
+            ctx.shadowBlur = 12;
+            ctx.fillStyle = '#aaffff';
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius * 0.55, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 떨어지는 아이템
+            ctx.shadowBlur = 15;
+            for (let p of powerups) {
+                if (p.type === 'enlarge') {
+                    ctx.fillStyle = '#22ff88';
+                    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+                    ctx.fillStyle = '#001122';
+                    ctx.font = '900 20px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('↔', p.x, p.y + 1);
+                } else if (p.type === 'life') {
+                    ctx.fillStyle = '#ff3388';
+                    ctx.font = '900 28px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('♥', p.x, p.y);
+                }
+            }
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+            
+            // 파티클 (화려한 효과)
+            for (let p of particles) {
+                const alpha = Math.max(0, p.life / 38);
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+            }
+            ctx.globalAlpha = 1;
+            
+            // HUD
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#00ffff';
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '700 26px Orbitron';
+            ctx.fillText(`SCORE ${score}`, 34, 38);
+            
+            ctx.textAlign = 'right';
+            ctx.fillText('LIFE ', WIDTH - 78, 38);
+            ctx.fillStyle = '#ff3366';
+            ctx.fillText('♥'.repeat(lives), WIDTH - 34, 38);
+            ctx.textAlign = 'left';
+            ctx.shadowBlur = 0;
+        }
+        
+        // ==================== 메인 루프 ====================
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // ==================== 입력 처리 ====================
+        document.addEventListener('keydown', e => {
+            if (e.key === 'ArrowLeft') leftPressed = true;
+            if (e.key === 'ArrowRight') rightPressed = true;
+            
+            // 스페이스바로 공 발사
+            if (e.key === ' ' && gameState === 'playing' && ballAttached) {
+                ballAttached = false;
+                ball.vx = (Math.random() * 3.8 - 1.9); // 약간의 랜덤 각도
+                ball.vy = -6.2;
+                e.preventDefault();
+            }
+        });
+        
+        document.addEventListener('keyup', e => {
+            if (e.key === 'ArrowLeft') leftPressed = false;
+            if (e.key === 'ArrowRight') rightPressed = false;
+        });
+        
+        // ==================== 게임 시작 / 재시작 ====================
+        window.startGame = function () {
+            document.getElementById('start-screen').style.display = 'none';
+            gameState = 'playing';
+            resetGame();
+        };
+        
+        window.restartGame = function () {
+            document.getElementById('win-screen').style.display = 'none';
+            document.getElementById('lose-screen').style.display = 'none';
+            gameState = 'playing';
+            resetGame();
+        };
+        
+        // ==================== 초기화 및 시작 ====================
+        resetGame();
+        gameLoop();
+    </script>
+</body>
+</html>

@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>던전 로그라이크</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Courier New', monospace;
+        }
+
+        body {
+            background-color: #0a0a0a;
+            color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .game-container {
+            max-width: 800px;
+            width: 100%;
+            text-align: center;
+            background-color: #1a1a1a;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0, 100, 0, 0.5);
+            border: 1px solid #333;
+        }
+
+        h1 {
+            color: #8aff80;
+            margin-bottom: 10px;
+            text-shadow: 0 0 5px #00ff00;
+        }
+
+        .subtitle {
+            color: #aaa;
+            margin-bottom: 20px;
+        }
+
+        .screen {
+            display: none;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        .start-screen button, .game-over-screen button {
+            background-color: #2a5a2a;
+            color: #e0e0e0;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s;
+        }
+
+        .start-screen button:hover, .game-over-screen button:hover {
+            background-color: #3a7a3a;
+            transform: scale(1.05);
+        }
+
+        .instructions {
+            background-color: #252525;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: left;
+            border-left: 4px solid #2a5a2a;
+        }
+
+        .instructions h3 {
+            color: #8aff80;
+            margin-bottom: 10px;
+        }
+
+        .instructions ul {
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 5px;
+        }
+
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            background-color: #252525;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-size: 18px;
+        }
+
+        .health {
+            color: #ff8080;
+        }
+
+        .score {
+            color: #80a0ff;
+        }
+
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-gap: 2px;
+            margin: 20px auto;
+            width: fit-content;
+            background-color: #333;
+            padding: 5px;
+            border-radius: 5px;
+        }
+
+        .cell {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            background-color: #222;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        .cell.visible {
+            background-color: #1a2a1a;
+        }
+
+        .cell.player {
+            background-color: #2a4a2a;
+        }
+
+        .cell.enemy {
+            background-color: #4a1a1a;
+        }
+
+        .controls {
+            margin-top: 20px;
+            color: #aaa;
+        }
+
+        .key {
+            display: inline-block;
+            background-color: #333;
+            padding: 5px 10px;
+            margin: 0 5px;
+            border-radius: 3px;
+            border: 1px solid #555;
+        }
+
+        .message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            min-height: 30px;
+        }
+
+        .message.combat {
+            color: #ff8080;
+            background-color: rgba(255, 0, 0, 0.1);
+        }
+
+        .message.item {
+            color: #80ff80;
+            background-color: rgba(0, 255, 0, 0.1);
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        @media (max-width: 600px) {
+            .cell {
+                width: 40px;
+                height: 40px;
+                font-size: 20px;
+            }
+            
+            .game-info {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>던전 로그라이크</h1>
+        <p class="subtitle">던전을 탐험하고 탈출구를 찾아라!</p>
+        
+        <!-- 시작 화면 -->
+        <div class="screen start-screen active">
+            <div class="instructions">
+                <h3>게임 방법</h3>
+                <ul>
+                    <li>방향키 또는 WASD로 플레이어(🧙)를 이동시킵니다</li>
+                    <li>적(👹)과 만나면 서로 체력을 잃습니다</li>
+                    <li>회복 아이템(❤️)을 먹으면 체력이 회복됩니다</li>
+                    <li>탈출구(🚪)에 도달하면 승리합니다</li>
+                    <li>안개(Fog of War) 때문에 주변만 볼 수 있습니다</li>
+                </ul>
+            </div>
+            <button id="start-btn">게임 시작</button>
+        </div>
+        
+        <!-- 게임 화면 -->
+        <div class="screen game-screen">
+            <div class="game-info">
+                <div class="health">체력: <span id="health">10</span></div>
+                <div class="score">점수: <span id="score">0</span></div>
+                <div class="turns">턴: <span id="turns">0</span></div>
+            </div>
+            
+            <div class="game-grid" id="game-grid">
+                <!-- 격자 셀들은 JavaScript로 생성됩니다 -->
+            </div>
+            
+            <div class="message" id="game-message"></div>
+            
+            <div class="controls">
+                이동: 
+                <span class="key">↑</span>
+                <span class="key">↓</span>
+                <span class="key">←</span>
+                <span class="key">→</span>
+                또는
+                <span class="key">W</span>
+                <span class="key">A</span>
+                <span class="key">S</span>
+                <span class="key">D</span>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item"><div class="cell player">🧙</div>플레이어</div>
+                <div class="legend-item"><div class="cell">👹</div>적</div>
+                <div class="legend-item"><div class="cell">❤️</div>회복 아이템</div>
+                <div class="legend-item"><div class="cell">🚪</div>탈출구</div>
+                <div class="legend-item"><div class="cell">🧱</div>벽</div>
+            </div>
+            
+            <button id="restart-btn" style="margin-top: 20px;">재시작</button>
+        </div>
+        
+        <!-- 게임 오버 화면 -->
+        <div class="screen game-over-screen">
+            <h2 id="game-result">게임 오버</h2>
+            <p id="result-details"></p>
+            <button id="play-again-btn">다시 시작</button>
+        </div>
+    </div>
+
+    <script>
+        // 게임 상태 변수
+        let gameState = {
+            gridSize: 8,
+            player: { x: 0, y: 0, health: 10, maxHealth: 10 },
+            enemy: { x: 0, y: 0, health: 5 },
+            item: { x: 0, y: 0, collected: false },
+            exit: { x: 0, y: 0 },
+            walls: [],
+            score: 0,
+            turns: 0,
+            gameOver: false,
+            gameWin: false,
+            fogOfWar: true,
+            fogRadius: 2
+        };
+
+        // 게임 요소들
+        const startScreen = document.querySelector('.start-screen');
+        const gameScreen = document.querySelector('.game-screen');
+        const gameOverScreen = document.querySelector('.game-over-screen');
+        const gameGrid = document.getElementById('game-grid');
+        const healthDisplay = document.getElementById('health');
+        const scoreDisplay = document.getElementById('score');
+        const turnsDisplay = document.getElementById('turns');
+        const gameMessage = document.getElementById('game-message');
+        const gameResult = document.getElementById('game-result');
+        const resultDetails = document.getElementById('result-details');
+        
+        // 셀 타입 정의
+        const CELL_TYPES = {
+            EMPTY: { char: ' ', emoji: ' ' },
+            PLAYER: { char: 'P', emoji: '🧙' },
+            ENEMY: { char: 'E', emoji: '👹' },
+            ITEM: { char: 'I', emoji: '❤️' },
+            EXIT: { char: 'O', emoji: '🚪' },
+            WALL: { char: '#', emoji: '🧱' }
+        };
+
+        // 게임 초기화
+        function initGame() {
+            // 상태 초기화
+            gameState = {
+                gridSize: 8,
+                player: { x: 0, y: 0, health: 10, maxHealth: 10 },
+                enemy: { x: 0, y: 0, health: 5 },
+                item: { x: 0, y: 0, collected: false },
+                exit: { x: 0, y: 0 },
+                walls: [],
+                score: 0,
+                turns: 0,
+                gameOver: false,
+                gameWin: false,
+                fogOfWar: true,
+                fogRadius: 2
+            };
+            
+            // 게임 그리드 생성
+            createGrid();
+            
+            // 맵 생성
+            generateMap();
+            
+            // UI 업데이트
+            updateUI();
+            
+            // 메시지 초기화
+            gameMessage.textContent = "던전에 도착했습니다. 탈출구를 찾으세요!";
+            gameMessage.className = "message";
+        }
+
+        // 그리드 생성
+        function createGrid() {
+            gameGrid.innerHTML = '';
+            gameGrid.style.gridTemplateColumns = `repeat(${gameState.gridSize}, 1fr)`;
+            
+            for (let y = 0; y < gameState.gridSize; y++) {
+                for (let x = 0; x < gameState.gridSize; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.x = x;
+                    cell.dataset.y = y;
+                    cell.textContent = '🌫️'; // 안개로 초기화
+                    gameGrid.appendChild(cell);
+                }
+            }
+        }
+
+        // 맵 생성 (플레이어 시작 위치에서 탈출구까지 경로가 보장되도록)
+        function generateMap() {
+            // 1. 플레이어 위치 설정 (왼쪽 상단)
+            gameState.player.x = 0;
+            gameState.player.y = 0;
+            
+            // 2. 탈출구 위치 설정 (오른쪽 하단)
+            gameState.exit.x = gameState.gridSize - 1;
+            gameState.exit.y = gameState.gridSize - 1;
+            
+            // 3. 벽 생성 (랜덤하게 배치하되 경로 차단하지 않도록)
+            generateWallsWithPath();
+            
+            // 4. 적 배치 (플레이어나 탈출구 위치 제외)
+            placeEnemy();
+            
+            // 5. 아이템 배치 (플레이어, 적, 탈출구 위치 제외)
+            placeItem();
+        }
+
+        // 벽 생성 (경로 보장)
+        function generateWallsWithPath() {
+            // 모든 셀을 빈 칸으로 초기화
+            const allCells = [];
+            for (let y = 0; y < gameState.gridSize; y++) {
+                for (let x = 0; x < gameState.gridSize; x++) {
+                    // 플레이어 시작점과 탈출구는 벽이 될 수 없음
+                    if ((x === gameState.player.x && y === gameState.player.y) ||
+                        (x === gameState.exit.x && y === gameState.exit.y)) {
+                        continue;
+                    }
+                    allCells.push({x, y});
+                }
+            }
+            
+            // 벽 개수 결정 (맵 크기의 약 20-30%)
+            const wallCount = Math.floor(allCells.length * 0.25);
+            
+            // 벽 배치
+            gameState.walls = [];
+            
+            // 먼저 일부 벽을 랜덤하게 배치
+            for (let i = 0; i < wallCount; i++) {
+                const randomIndex = Math.floor(Math.random() * allCells.length);
+                const wall = allCells[randomIndex];
+                
+                // 벽 추가
+                gameState.walls.push(wall);
+                
+                // 경로가 여전히 있는지 확인
+                if (!pathExists()) {
+                    // 경로가 없으면 벽 제거
+                    gameState.walls.pop();
+                } else {
+                    // 벽을 배치했으므로 목록에서 제거
+                    allCells.splice(randomIndex, 1);
+                }
+            }
+        }
+
+        // 플레이어에서 탈출구까지 경로가 존재하는지 확인 (BFS 사용)
+        function pathExists() {
+            const grid = Array(gameState.gridSize).fill().map(() => Array(gameState.gridSize).fill(0));
+            
+            // 벽 표시
+            gameState.walls.forEach(wall => {
+                grid[wall.y][wall.x] = 1;
+            });
+            
+            // 시작점과 종료점
+            const start = {x: gameState.player.x, y: gameState.player.y};
+            const end = {x: gameState.exit.x, y: gameState.exit.y};
+            
+            // BFS 초기화
+            const queue = [start];
+            const visited = Array(gameState.gridSize).fill().map(() => Array(gameState.gridSize).fill(false));
+            visited[start.y][start.x] = true;
+            
+            // 방향 배열 (상하좌우)
+            const directions = [
+                {dx: 0, dy: -1}, // 상
+                {dx: 0, dy: 1},  // 하
+                {dx: -1, dy: 0}, // 좌
+                {dx: 1, dy: 0}   // 우
+            ];
+            
+            // BFS 실행
+            while (queue.length > 0) {
+                const current = queue.shift();
+                
+                // 목표 지점에 도달했는지 확인
+                if (current.x === end.x && current.y === end.y) {
+                    return true;
+                }
+                
+                // 네 방향 탐색
+                for (const dir of directions) {
+                    const nx = current.x + dir.dx;
+                    const ny = current.y + dir.dy;
+                    
+                    // 그리드 범위 내인지 확인
+                    if (nx >= 0 && nx < gameState.gridSize && ny >= 0 && ny < gameState.gridSize) {
+                        // 벽이 아니고 방문하지 않은 곳인지 확인
+                        if (grid[ny][nx] === 0 && !visited[ny][nx]) {
+                            visited[ny][nx] = true;
+                            queue.push({x: nx, y: ny});
+                        }
+                    }
+                }
+            }
+            
+            return false;
+        }
+
+        // 적 배치
+        function placeEnemy() {
+            let placed = false;
+            
+            while (!placed) {
+                const x = Math.floor(Math.random() * gameState.gridSize);
+                const y = Math.floor(Math.random() * gameState.gridSize);
+                
+                // 플레이어, 탈출구, 벽 위치가 아닌지 확인
+                if ((x !== gameState.player.x || y !== gameState.player.y) &&
+                    (x !== gameState.exit.x || y !== gameState.exit.y) &&
+                    !isWall(x, y)) {
+                    gameState.enemy.x = x;
+                    gameState.enemy.y = y;
+                    placed = true;
+                }
+            }
+        }
+
+        // 아이템 배치
+        function placeItem() {
+            let placed = false;
+            
+            while (!placed) {
+                const x = Math.floor(Math.random() * gameState.gridSize);
+                const y = Math.floor(Math.random() * gameState.gridSize);
+                
+                // 플레이어, 적, 탈출구, 벽 위치가 아닌지 확인
+                if ((x !== gameState.player.x || y !== gameState.player.y) &&
+                    (x !== gameState.enemy.x || y !== gameState.enemy.y) &&
+                    (x !== gameState.exit.x || y !== gameState.exit.y) &&
+                    !isWall(x, y)) {
+                    gameState.item.x = x;
+                    gameState.item.y = y;
+                    placed = true;
+                }
+            }
+        }
+
+        // 특정 위치가 벽인지 확인
+        function isWall(x, y) {
+            return gameState.walls.some(wall => wall.x === x && wall.y === y);
+        }
+
+        // UI 업데이트
+        function updateUI() {
+            // 체력, 점수, 턴 업데이트
+            healthDisplay.textContent = `${gameState.player.health}/${gameState.player.maxHealth}`;
+            scoreDisplay.textContent = gameState.score;
+            turnsDisplay.textContent = gameState.turns;
+            
+            // 그리드 업데이트
+            updateGrid();
+        }
+
+        // 그리드 업데이트 (Fog of War 적용)
+        function updateGrid() {
+            const cells = document.querySelectorAll('.cell');
+            
+            cells.forEach(cell => {
+                const x = parseInt(cell.dataset.x);
+                const y = parseInt(cell.dataset.y);
+                
+                // 안개 계산
+                const isVisible = isCellVisible(x, y);
+                
+                // 셀 내용 결정
+                let cellContent = '';
+                let cellClass = 'cell';
+                
+                if (isVisible) {
+                    cellClass += ' visible';
+                    
+                    // 셀 내용 설정
+                    if (x === gameState.player.x && y === gameState.player.y) {
+                        cellContent = CELL_TYPES.PLAYER.emoji;
+                        cellClass += ' player';
+                    } else if (x === gameState.enemy.x && y === gameState.enemy.y && !gameState.gameOver) {
+                        cellContent = CELL_TYPES.ENEMY.emoji;
+                        cellClass += ' enemy';
+                    } else if (x === gameState.item.x && y === gameState.item.y && !gameState.item.collected) {
+                        cellContent = CELL_TYPES.ITEM.emoji;
+                    } else if (x === gameState.exit.x && y === gameState.exit.y) {
+                        cellContent = CELL_TYPES.EXIT.emoji;
+                    } else if (isWall(x, y)) {
+                        cellContent = CELL_TYPES.WALL.emoji;
+                    } else {
+                        cellContent = ' ';
+                    }
+                } else {
+                    // 안개 처리
+                    cellContent = '🌫️';
+                }
+                
+                cell.className = cellClass;
+                cell.textContent = cellContent;
+            });
+        }
+
+        // 셀이 보이는지 확인 (Fog of War)
+        function isCellVisible(x, y) {
+            if (!gameState.fogOfWar) return true;
+            
+            // 플레이어 위치와의 거리 계산
+            const distance = Math.abs(x - gameState.player.x) + Math.abs(y - gameState.player.y);
+            return distance <= gameState.fogRadius;
+        }
+
+        // 플레이어 이동
+        function movePlayer(dx, dy) {
+            if (gameState.gameOver || gameState.gameWin) return;
+            
+            const newX = gameState.player.x + dx;
+            const newY = gameState.player.y + dy;
+            
+            // 그리드 범위 확인
+            if (newX < 0 || newX >= gameState.gridSize || newY < 0 || newY >= gameState.gridSize) {
+                return;
+            }
+            
+            // 벽 확인
+            if (isWall(newX, newY)) {
+                gameMessage.textContent = "벽에 막혀 이동할 수 없습니다.";
+                gameMessage.className = "message";
+                return;
+            }
+            
+            // 플레이어 위치 업데이트
+            gameState.player.x = newX;
+            gameState.player.y = newY;
+            gameState.turns++;
+            
+            // 충돌 확인
+            checkCollisions();
+            
+            // 적 이동
+            if (!gameState.gameOver && !gameState.gameWin) {
+                moveEnemy();
+                checkCollisions();
+            }
+            
+            // UI 업데이트
+            updateUI();
+            
+            // 승리/패배 조건 확인
+            checkGameStatus();
+        }
+
+        // 적 이동
+        function moveEnemy() {
+            // 적이 플레이어를 향해 이동 (간단한 AI)
+            const directions = [
+                {dx: 0, dy: -1}, // 상
+                {dx: 0, dy: 1},  // 하
+                {dx: -1, dy: 0}, // 좌
+                {dx: 1, dy: 0}   // 우
+            ];
+            
+            // 플레이어와의 거리 계산
+            const currentDistance = Math.abs(gameState.enemy.x - gameState.player.x) + 
+                                   Math.abs(gameState.enemy.y - gameState.player.y);
+            
+            let bestMove = null;
+            let bestDistance = currentDistance;
+            
+            // 가능한 이동 중 플레이어와 가장 가까워지는 이동 선택
+            for (const dir of directions) {
+                const newX = gameState.enemy.x + dir.dx;
+                const newY = gameState.enemy.y + dir.dy;
+                
+                // 그리드 범위 확인
+                if (newX < 0 || newX >= gameState.gridSize || newY < 0 || newY >= gameState.gridSize) {
+                    continue;
+                }
+                
+                // 벽 확인
+                if (isWall(newX, newY)) {
+                    continue;
+                }
+                
+                // 플레이어 위치는 피하기
+                if (newX === gameState.player.x && newY === gameState.player.y) {
+                    bestMove = dir;
+                    break;
+                }
+                
+                // 거리 계산
+                const newDistance = Math.abs(newX - gameState.player.x) + Math.abs(newY - gameState.player.y);
+                
+                // 더 가까워지는 이동 선택
+                if (newDistance < bestDistance) {
+                    bestDistance = newDistance;
+                    bestMove = dir;
+                }
+            }
+            
+            // 이동 수행
+            if (bestMove) {
+                gameState.enemy.x += bestMove.dx;
+                gameState.enemy.y += bestMove.dy;
+            }
+        }
+
+        // 충돌 확인
+        function checkCollisions() {
+            // 적과 충돌
+            if (gameState.player.x === gameState.enemy.x && gameState.player.y === gameState.enemy.y) {
+                // 전투 발생
+                gameState.player.health -= 2;
+                gameState.enemy.health -= 3;
+                
+                gameMessage.textContent = "적과 전투! 플레이어 체력 -2, 적 체력 -3";
+                gameMessage.className = "message combat";
+                
+                // 적 처치
+                if (gameState.enemy.health <= 0) {
+                    gameState.score += 50;
+                    gameMessage.textContent = "적을 처치했습니다! +50점";
+                    // 적 재배치 (게임 오버가 아닌 경우)
+                    if (!gameState.gameOver) {
+                        placeEnemy();
+                    }
+                }
+            }
+            
+            // 아이템 획득
+            if (!gameState.item.collected && 
+                gameState.player.x === gameState.item.x && gameState.player.y === gameState.item.y) {
+                gameState.player.health = Math.min(gameState.player.maxHealth, gameState.player.health + 4);
+                gameState.score += 20;
+                gameState.item.collected = true;
+                
+                gameMessage.textContent = "회복 아이템 획득! 체력 +4, +20점";
+                gameMessage.className = "message item";
+            }
+            
+            // 탈출구 도달
+            if (gameState.player.x === gameState.exit.x && gameState.player.y === gameState.exit.y) {
+                gameState.gameWin = true;
+                gameState.score += 100;
+            }
+        }
+
+        // 게임 상태 확인
+        function checkGameStatus() {
+            if (gameState.player.health <= 0) {
+                gameState.gameOver = true;
+                showGameOverScreen(false);
+            } else if (gameState.gameWin) {
+                showGameOverScreen(true);
+            }
+        }
+
+        // 게임 오버 화면 표시
+        function showGameOverScreen(isWin) {
+            if (isWin) {
+                gameResult.textContent = "승리!";
+                resultDetails.textContent = `던전에서 탈출했습니다! 최종 점수: ${gameState.score}`;
+            } else {
+                gameResult.textContent = "패배!";
+                resultDetails.textContent = `던전에서 죽었습니다... 최종 점수: ${gameState.score}`;
+            }
+            
+            gameScreen.classList.remove('active');
+            gameOverScreen.classList.add('active');
+            
+            // 안개 해제
+            gameState.fogOfWar = false;
+            updateGrid();
+        }
+
+        // 키보드 입력 처리
+        function handleKeyPress(e) {
+            // 게임 중일 때만 처리
+            if (!gameScreen.classList.contains('active')) return;
+            
+            let dx = 0, dy = 0;
+            
+            switch(e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    dy = -1;
+                    break;
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    dy = 1;
+                    break;
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    dx = -1;
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    dx = 1;
+                    break;
+                default:
+                    return; // 다른 키는 무시
+            }
+            
+            e.preventDefault();
+            movePlayer(dx, dy);
+        }
+
+        // 이벤트 리스너 설정
+        function setupEventListeners() {
+            // 시작 버튼
+            document.getElementById('start-btn').addEventListener('click', () => {
+                startScreen.classList.remove('active');
+                gameScreen.classList.add('active');
+                initGame();
+            });
+            
+            // 재시작 버튼
+            document.getElementById('restart-btn').addEventListener('click', initGame);
+            
+            // 다시 시작 버튼
+            document.getElementById('play-again-btn').addEventListener('click', () => {
+                gameOverScreen.classList.remove('active');
+                gameScreen.classList.add('active');
+                initGame();
+            });
+            
+            // 키보드 이벤트
+            document.addEventListener('keydown', handleKeyPress);
+            
+            // 셀 클릭 이벤트 (모바일용 방향 이동)
+            document.addEventListener('click', (e) => {
+                if (!gameScreen.classList.contains('active')) return;
+                
+                const cell = e.target.closest('.cell');
+                if (!cell) return;
+                
+                const x = parseInt(cell.dataset.x);
+                const y = parseInt(cell.dataset.y);
+                
+                // 클릭한 셀과 플레이어 위치 차이 계산
+                const dx = x - gameState.player.x;
+                const dy = y - gameState.player.y;
+                
+                // 한 칸만 이동 가능 (대각선은 처리하지 않음)
+                if (Math.abs(dx) + Math.abs(dy) === 1) {
+                    movePlayer(dx, dy);
+                } else if (Math.abs(dx) > 0 && Math.abs(dy) === 0) {
+                    // 수평 이동 (여러 칸)
+                    movePlayer(dx > 0 ? 1 : -1, 0);
+                } else if (Math.abs(dy) > 0 && Math.abs(dx) === 0) {
+                    // 수직 이동 (여러 칸)
+                    movePlayer(0, dy > 0 ? 1 : -1);
+                }
+            });
+        }
+
+        // 게임 시작
+        window.onload = function() {
+            setupEventListeners();
+        };
+    </script>
+</body>
+</html>

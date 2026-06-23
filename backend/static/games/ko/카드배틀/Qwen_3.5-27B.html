@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>큐트 턴제 전투</title>
+<style>
+    :root {
+        --bg-color: #fce4ec;
+        --card-bg: #ffffff;
+        --primary: #ff80ab;
+        --secondary: #f48fb1;
+        --text-color: #880e4f;
+        --shadow: 0 4px 6px rgba(0,0,0,0.1);
+        --hp-bar-bg: #ffcccc;
+        --hp-bar-fill: #e91e63;
+        --energy-bg: #b39ddb;
+        --energy-fill: #7e57c2;
+        --block-color: #4fc3f7;
+    }
+
+    body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        background-color: var(--bg-color);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        color: var(--text-color);
+        user-select: none;
+    }
+
+    #game-container {
+        width: 100%;
+        max-width: 600px;
+        height: 90vh;
+        background: #fff;
+        border-radius: 20px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+        border: 4px solid #f8bbd0;
+    }
+
+    /* --- Header & Status Bars --- */
+    .status-area {
+        padding: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.9);
+        z-index: 10;
+    }
+
+    .character-portrait {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        border: 3px solid var(--text-color);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 30px;
+        background: #eee;
+        position: relative;
+    }
+
+    .monster-portrait {
+        background: #e0f2f1;
+        border-color: #009688;
+    }
+
+    .stats-container {
+        flex-grow: 1;
+        margin: 0 15px;
+    }
+
+    .bar-wrapper {
+        height: 12px;
+        background: #eee;
+        border-radius: 6px;
+        margin-bottom: 5px;
+        overflow: hidden;
+        position: relative;
+        border: 1px solid #ddd;
+    }
+
+    .bar-fill {
+        height: 100%;
+        transition: width 0.3s ease-out;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: white;
+        font-weight: bold;
+    }
+
+    #player-hp-bar { background-color: var(--hp-bar-fill); width: 100%; }
+    #enemy-hp-bar { background-color: #ef5350; width: 100%; }
+    
+    .resource-text {
+        display: flex;
+        gap: 10px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .resource-icon {
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: #eee;
+    }
+    
+    .resource-icon.energy { background: var(--energy-bg); color: white; }
+    .resource-icon.block { background: var(--block-color); color: white; }
+
+    /* --- Battle Scene --- */
+    #scene {
+        flex-grow: 1;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding: 20px 40px;
+        position: relative;
+        background-image: radial-gradient(circle, #ffebee 20%, transparent 20%), radial-gradient(circle, #ffebee 20%, transparent 20%);
+        background-size: 20px 20px;
+        background-position: 0 0, 10px 10px;
+    }
+
+    .entity {
+        text-align: center;
+        transition: transform 0.1s;
+    }
+
+    .sprite {
+        font-size: 80px;
+        filter: drop-shadow(0 5px 5px rgba(0,0,0,0.1));
+        cursor: pointer;
+    }
+
+    /* Animations */
+    @keyframes shake {
+        0% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        50% { transform: translateX(5px); }
+        75% { transform: translateX(-5px); }
+        100% { transform: translateX(0); }
+    }
+    .anim-shake { animation: shake 0.4s; }
+
+    @keyframes flash-red {
+        0% { transform: scale(1); filter: brightness(1); }
+        50% { transform: scale(1.1); filter: brightness(0.5) sepia(1) hue-rotate(-50deg) saturate(5); }
+        100% { transform: scale(1); filter: brightness(1); }
+    }
+    .anim-hit { animation: flash-red 0.4s; }
+
+    @keyframes float-up {
+        0% { transform: translateY(0); opacity: 1; }
+        100% { transform: translateY(-50px); opacity: 0; }
+    }
+
+    .floating-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 24px;
+        font-weight: bold;
+        pointer-events: none;
+        animation: float-up 1s forwards;
+        z-index: 20;
+    }
+
+    /* --- Card Hand Area --- */
+    #card-area {
+        height: 180px;
+        background: #fafafa;
+        border-top: 2px solid #eee;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 10px;
+        perspective: 1000px;
+        gap: 10px;
+        overflow-x: auto;
+    }
+
+    .card {
+        width: 100px;
+        height: 140px;
+        background: var(--card-bg);
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+        position: relative;
+        user-select: none;
+        flex-shrink: 0;
+    }
+
+    .card:hover {
+        transform: translateY(-20px) scale(1.05);
+        box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        z-index: 100;
+        border-color: var(--primary);
+    }
+
+    .card.disabled {
+        filter: grayscale(1);
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    .card.disabled:hover { transform: none; }
+
+    .card-cost {
+        width: 20px;
+        height: 20px;
+        background: var(--energy-bg);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 14px;
+        font-weight: bold;
+        border: 1px solid #7e57c2;
+    }
+
+    .card-image {
+        font-size: 40px;
+    }
+
+    .card-info {
+        width: 100%;
+        text-align: center;
+    }
+    .card-title { font-size: 12px; font-weight: bold; margin-bottom: 2px; }
+    .card-desc { font-size: 10px; color: #666; line-height: 1.2;}
+
+    /* --- Controls --- */
+    #controls {
+        padding: 15px;
+        display: flex;
+        justify-content: center;
+        background: white;
+    }
+
+    button#btn-end-turn {
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 12px 30px;
+        font-size: 16px;
+        border-radius: 25px;
+        cursor: pointer;
+        font-weight: bold;
+        box-shadow: 0 4px 0 #c2185b;
+        transition: all 0.1s;
+    }
+
+    button#btn-end-turn:active {
+        transform: translateY(4px);
+        box-shadow: none;
+    }
+
+    /* --- Modal --- */
+    #modal-overlay {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.6);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    #modal-content {
+        background: white;
+        padding: 30px;
+        border-radius: 20px;
+        text-align: center;
+        animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes popIn {
+        from { transform: scale(0.5); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+
+    h2 { margin-top: 0; color: var(--primary); }
+    
+    #btn-restart {
+        margin-top: 15px;
+        background: var(--secondary);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    
+    #battle-log {
+        position: absolute;
+        top: 60px;
+        right: 10px;
+        background: rgba(255,255,255,0.9);
+        padding: 5px;
+        border-radius: 5px;
+        font-size: 12px;
+        color: #555;
+        max-height: 100px;
+        overflow-y: auto;
+        width: 150px;
+        pointer-events: none;
+    }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- Top Status Bar -->
+    <div class="status-area">
+        <!-- Player Stats -->
+        <div>
+            <div class="character-portrait">🧚‍♀️</div>
+        </div>
+        <div class="stats-container">
+            <div class="bar-wrapper">
+                <div id="player-hp-bar" class="bar-fill"><span id="player-hp-text">20/20</span></div>
+            </div>
+            <div class="resource-text">
+                <span class="resource-icon energy" id="player-energy-display">⚡ 3</span>
+                <span class="resource-icon block" id="player-block-display" style="display:none;">🛡️ 0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Middle Battle Scene -->
+    <div id="scene">
+        <div class="entity" id="player-entity">
+            <div class="sprite">🧚‍♀️</div>
+        </div>
+        
+        <div id="battle-log"></div>
+
+        <div class="entity monster" id="enemy-entity">
+            <div class="sprite">🐉</div>
+            <div class="resource-text" style="justify-content:center; margin-top:5px;">
+                 <span class="resource-icon block" id="enemy-block-display" style="display:none;">🛡️ 0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enemy Status (Optional, shown near scene or top) - Simplified here by just putting bar in top right -->
+    <div style="position:absolute; top: 20px; right: 20px; text-align: right; z-index: 1;">
+        <small style="color:#888;">DRAGON</small><br>
+        <div class="bar-wrapper" style="width: 120px; align-self: flex-end;">
+            <div id="enemy-hp-bar" class="bar-fill"><span id="enemy-hp-text">30/30</span></div>
+        </div>
+    </div>
+
+
+    <!-- Card Hand -->
+    <div id="card-area">
+        <!-- Cards generated by JS -->
+    </div>
+
+    <!-- Controls -->
+    <div id="controls">
+        <button id="btn-end-turn" onclick="endTurn()">턴 종료</button>
+    </div>
+
+    <!-- Modal Overlay -->
+    <div id="modal-overlay">
+        <div id="modal-content">
+            <h2 id="modal-title">전투 시작!</h2>
+            <p id="modal-msg">적을 처치하기 위해 카드 전략을 세워보세요.</p>
+            <button id="btn-restart" onclick="restartGame()">게임 시작</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Game Configuration & Data ---
+    const CARD_TYPES = [
+        { id: 'attack', name: '스택 타격', icon: '⚔️', cost: 1, type: 'ATTACK', value: 6, desc: '적에게 6 피해' },
+        { id: 'strong_attack', name: '강력 타격', icon: '🪓', cost: 2, type: 'ATTACK', value: 10, desc: '적에게 10 피해' },
+        { id: 'heal', name: '회복', icon: '💖', cost: 1, type: 'HEAL', value: 4, desc: '체력 4 회복' },
+        { id: 'block', name: '방어 태세', icon: '🛡️', cost: 1, type: 'DEFEND', value: 5, desc: '5 점 방어력' },
+        { id: 'magic', name: '마법 화살', icon: '✨', cost: 1, type: 'ATTACK', value: 8, desc: '마법으로 8 피해' }
+    ];
+
+    // --- State Variables ---
+    let state = {
+        playerHp: 20,
+        playerMaxHp: 20,
+        enemyHp: 30,
+        enemyMaxHp: 30,
+        energy: 3,
+        maxEnergy: 3,
+        playerBlock: 0,
+        hand: [],
+        deck: [],
+        discard: [],
+        isPlayerTurn: true,
+        isGameOver: false
+    };
+
+    // --- DOM Elements ---
+    const els = {
+        pHpBar: document.getElementById('player-hp-bar'),
+        pHpText: document.getElementById('player-hp-text'),
+        eHpBar: document.getElementById('enemy-hp-bar'),
+        eHpText: document.getElementById('enemy-hp-text'),
+        pEnergy: document.getElementById('player-energy-display'),
+        pBlock: document.getElementById('player-block-display'),
+        eBlock: document.getElementById('enemy-block-display'),
+        cardArea: document.getElementById('card-area'),
+        btnEndTurn: document.getElementById('btn-end-turn'),
+        modal: document.getElementById('modal-overlay'),
+        modalTitle: document.getElementById('modal-title'),
+        modalMsg: document.getElementById('modal-msg'),
+        btnRestart: document.getElementById('btn-restart'),
+        playerSprite: document.querySelector('#player-entity .sprite'),
+        enemySprite: document.querySelector('#enemy-entity .sprite'),
+        log: document.getElementById('battle-log')
+    };
+
+    // --- Helper Functions ---
+    
+    function log(msg) {
+        const div = document.createElement('div');
+        div.textContent = `> ${msg}`;
+        els.log.prepend(div);
+        if(els.log.children.length > 5) els.log.lastChild.remove();
+    }
+
+    function createDeck() {
+        // Starting Deck
+        return [
+            { ...CARD_TYPES[0], uid: Math.random() }, // Attack
+            { ...CARD_TYPES[0], uid: Math.random() }, // Attack
+            { ...CARD_TYPES[2], uid: Math.random() }, // Heal
+            { ...CARD_TYPES[3], uid: Math.random() }, // Block
+            { ...CARD_TYPES[0], uid: Math.random() }, 
+            { ...CARD_TYPES[1], uid: Math.random() }, 
+            { ...CARD_TYPES[4], uid: Math.random() }, 
+        ];
+    }
+
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    function addFloatingText(text, element, color) {
+        const floatEl = document.createElement('div');
+        floatEl.className = 'floating-text';
+        floatEl.textContent = text;
+        floatEl.style.color = color || '#e91e63';
+        element.appendChild(floatEl);
+        setTimeout(() => floatEl.remove(), 1000);
+    }
+
+    // --- Core Game Logic ---
+
+    function initGame() {
+        state.playerHp = state.playerMaxHp;
+        state.enemyHp = state.enemyMaxHp;
+        state.energy = state.maxEnergy;
+        state.playerBlock = 0;
+        state.deck = shuffle(createDeck());
+        state.hand = [];
+        state.discard = [];
+        state.isPlayerTurn = true;
+        state.isGameOver = false;
+
+        updateUI();
+        
+        els.modal.style.display = 'none';
+        els.cardArea.innerHTML = '';
+        els.btnRestart.onclick = () => {
+             // Second click handles actual start or re-draw
+             if(state.hand.length === 0) startTurn(true);
+             else location.reload(); // Force reset if already playing
+        };
+        
+        // Initial setup delay for effect
+        setTimeout(() => {
+            startTurn(true);
+        }, 100);
+    }
+
+    function startTurn(firstTime = false) {
+        state.isPlayerTurn = true;
+        state.energy = 3;
+        
+        // Remove old block at start of turn (Standard mechanism: Block protects *last* incoming hit, then expires)
+        if(!firstTime) state.playerBlock = 0;
+
+        // Draw Cards
+        while (state.hand.length < 3) {
+            if (state.deck.length === 0) {
+                if (state.discard.length === 0) break; // Empty deck
+                state.deck = shuffle(state.discard);
+                state.discard = [];
+                log("덱 재정리 중...");
+            }
+            state.hand.push(state.deck.pop());
+        }
+        
+        renderHand();
+        updateUI();
+    }
+
+    function renderHand() {
+        els.cardArea.innerHTML = '';
+        state.hand.forEach((card, index) => {
+            const el = document.createElement('div');
+            el.className = 'card';
+            // Visual check for affordability
+            if(state.energy < card.cost) el.classList.add('disabled');
+
+            el.innerHTML = `
+                <div class="card-cost">${card.cost}</div>
+                <div class="card-image">${card.icon}</div>
+                <div class="card-info">
+                    <div class="card-title">${card.name}</div>
+                    <div class="card-desc">${card.desc}</div>
+                </div>
+            `;
+            
+            el.onclick = () => playCard(index);
+            els.cardArea.appendChild(el);
+        });
+    }
+
+    function playCard(handIndex) {
+        if (!state.isPlayerTurn || state.isGameOver) return;
+
+        const card = state.hand[handIndex];
+        if (state.energy < card.cost) return;
+
+        // Play Effect
+        state.energy -= card.cost;
+        state.hand.splice(handIndex, 1); // Remove from hand
+        
+        // Move to Discard (Simplified Exhaust/Discard logic)
+        state.discard.push(card);
+
+        let msg = "";
+        
+        if (card.type === 'ATTACK') {
+            state.enemyHp -= card.value;
+            triggerAnimation(els.enemySprite, 'anim-hit');
+            addFloatingText(`-${card.value}`, els.enemySprite, '#d32f2f');
+            msg = `${card.name} 사용! 적에게 ${card.value} 피해.`;
+        } else if (card.type === 'HEAL') {
+            const healAmount = Math.min(state.playerMaxHp - state.playerHp, card.value);
+            state.playerHp += healAmount;
+            triggerAnimation(els.playerSprite, 'anim-heal'); // Custom css needed or reuse shake
+            addFloatingText(`+${healAmount}`, els.playerSprite, '#4caf50');
+            msg = `${card.name} 사용! 체력 ${healAmount} 회복.`;
+        } else if (card.type === 'DEFEND') {
+            state.playerBlock += card.value;
+            addFloatingText(`+${card.value} 🛡️`, els.playerSprite, '#2196f3');
+            msg = `${card.name} 사용! 방어력 ${card.value} 증가.`;
+        }
+
+        if(msg) log(msg);
+        
+        updateUI();
+        renderHand();
+        
+        if (state.enemyHp <= 0) gameOver(true);
+    }
+
+    function endTurn() {
+        if (!state.isPlayerTurn || state.isGameOver) return;
+        state.isPlayerTurn = false;
+        els.btnEndTurn.disabled = true;
+        els.btnEndTurn.innerText = "적을 기다리는 중...";
+        els.btnEndTurn.style.background = "#ccc";
+
+        // Disable cards visually
+        const cards = document.querySelectorAll('.card');
+        cards.forEach(c => c.classList.add('disabled'));
+
+        // Enemy Turn Delay
+        setTimeout(enemyAction, 1000);
+    }
+
+    function enemyAction() {
+        if (state.isGameOver) return;
+
+        // Simple Enemy AI
+        const dmg = 4 + Math.floor(Math.random() * 4); // 4~7 Damage
+        
+        // Apply Block
+        if (state.playerBlock >= dmg) {
+            state.playerBlock -= dmg;
+            log(`몬스터가 공격 (${dmg})! 하지만 방어벽이 막았습니다.`);
+            addFloatingText(`차단됨!`, els.playerSprite, '#fff');
+        } else {
+            const realDmg = dmg - state.playerBlock;
+            state.playerBlock = 0;
+            state.playerHp -= realDmg;
+            triggerAnimation(els.playerSprite, 'anim-shake');
+            addFloatingText(`-${realDmg}`, els.playerSprite, '#d32f2f');
+            log(`몬스터가 플레이어에게 ${realDmg} 피해를 입혔습니다!`);
+        }
+
+        if (state.playerHp <= 0) {
+            state.playerHp = 0;
+            gameOver(false);
+        } else {
+            // Start Next Player Turn
+            setTimeout(startTurn, 1000);
+            els.btnEndTurn.disabled = false;
+            els.btnEndTurn.innerText = "턴 종료";
+            els.btnEndTurn.style.background = "var(--primary)";
+        }
+        updateUI();
+    }
+
+    function triggerAnimation(element, animClass) {
+        element.classList.remove(animClass);
+        void element.offsetWidth; // Trigger reflow
+        element.classList.add(animClass);
+    }
+
+    function updateUI() {
+        // Player HP
+        const pHpPct = (state.playerHp / state.playerMaxHp) * 100;
+        els.pHpBar.style.width = `${pHpPct}%`;
+        els.pHpText.innerText = `${state.playerHp}/${state.playerMaxHp}`;
+        
+        // Energy
+        els.pEnergy.innerText = `⚡ ${state.energy}`;
+        
+        // Player Block
+        if (state.playerBlock > 0) {
+            els.pBlock.style.display = 'inline-block';
+            els.pBlock.innerText = `🛡️ ${state.playerBlock}`;
+        } else {
+            els.pBlock.style.display = 'none';
+        }
+
+        // Enemy HP
+        const eHpPct = Math.max(0, (state.enemyHp / state.enemyMaxHp) * 100);
+        els.eHpBar.style.width = `${eHpPct}%`;
+        els.eHpText.innerText = `${Math.max(0, state.enemyHp)}/${state.enemyMaxHp}`;
+        
+        // Disable End Turn button if out of cards and energy low (Optional quality of life)
+        if(!state.isPlayerTurn && !state.isGameOver) {
+            els.btnEndTurn.disabled = true;
+        } else {
+             els.btnEndTurn.disabled = false;
+        }
+    }
+
+    function gameOver(win) {
+        state.isGameOver = true;
+        els.modal.style.display = 'flex';
+        if (win) {
+            els.modalTitle.innerText = "승리!";
+            els.modalMsg.innerText = "드래곤을 물리쳤습니다! 잘했어요.";
+            els.btnRestart.innerText = "다시 하기";
+            els.btnRestart.onclick = () => location.reload();
+        } else {
+            els.modalTitle.innerText = "패배...";
+            els.modalMsg.innerText = "체력이 0 이 되었습니다. 다시 도전해보세요.";
+            els.btnRestart.innerText = "재시작";
+            els.btnRestart.onclick = () => initGame();
+        }
+    }
+    
+    function restartGame() {
+        initGame();
+    }
+
+    // Initial Launch
+    window.onload = function() {
+        // Start with Modal asking to begin
+        els.modal.style.display = 'flex';
+        els.modalTitle.innerText = "카드 배틀";
+        els.modalMsg.innerText = "에너지를 소비하여 카드를 사용해 몬스터를 격파하세요!";
+        els.btnRestart.innerText = "게임 시작";
+        els.btnRestart.onclick = initGame;
+    };
+
+</script>
+</body>
+</html>

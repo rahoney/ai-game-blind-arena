@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>8x8 Roguelike Dungeon</title>
+    <style>
+        /* 브라우저 중앙 정렬 및 전체 테마 설정 */
+        body {
+            background-color: #1a1a1a;
+            color: #eeeeee;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        #game-container {
+            text-align: center;
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.8);
+        }
+
+        /* 8x8 격자 보드 스타일 */
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 40px);
+            grid-template-rows: repeat(8, 40px);
+            gap: 2px;
+            background-color: #000;
+            border: 4px solid #444;
+            margin: 15px auto;
+        }
+
+        .cell {
+            width: 40px;
+            height: 40px;
+            background-color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            user-select: none;
+        }
+
+        /* 시야가 닿지 않는 곳(Fog of War) */
+        .fog {
+            background-color: #050505 !important;
+            color: transparent !important;
+            text-shadow: none !important;
+        }
+
+        .wall { background-color: #555; }
+        
+        .screen { display: none; flex-direction: column; align-items: center; }
+        .active { display: flex; }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        button:hover { background-color: #45a049; }
+
+        #stats { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+        #log {
+            width: 320px;
+            height: 60px;
+            background: #111;
+            padding: 10px;
+            font-size: 14px;
+            overflow-y: auto;
+            text-align: left;
+            border: 1px solid #444;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="screen-start" class="screen active">
+        <h1>Dungeon Escape</h1>
+        <p>Move with Arrow keys or WASD.</p>
+        <p>P: Player | E: Enemy | I: Heal | O: Exit</p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+
+    <div id="screen-game" class="screen">
+        <div id="stats">HP: <span id="hp-val">20</span> / 20</div>
+        <div id="board"></div>
+        <div id="log"></div>
+    </div>
+
+    <div id="screen-end" class="screen">
+        <h1 id="end-title">Game Over</h1>
+        <p id="end-desc"></p>
+        <button onclick="startGame()">Restart</button>
+    </div>
+</div>
+
+<script>
+    const SIZE = 8;
+    const EMOJI = {
+        'P': '🧙', 'E': '👾', 'I': '🍎', 'O': '🚪', 'W': '🧱', ' ': ''
+    };
+
+    let gameState = 'start'; // start, playing, end
+    let board = [];
+    let entities = {};
+    let player = { r: 0, c: 0, hp: 20, maxHp: 20, attack: 5 };
+
+    const domBoard = document.getElementById('board');
+    const domHp = document.getElementById('hp-val');
+    const domLog = document.getElementById('log');
+
+    // 이벤트 리스너 등록 (1회만 실행됨)
+    document.addEventListener('keydown', handleInput);
+
+    function startGame() {
+        // 1. Status 초기화
+        player = { r: 0, c: 0, hp: 20, maxHp: 20, attack: 5 };
+        entities = {};
+        domLog.innerHTML = "Entered the dungeon.<br>";
+        gameState = 'playing';
+
+        // 2. 맵 생성 (탈출 가능한 구조가 나올 때까지 반복)
+        do {
+            generateMap();
+        } while (!isSolvable());
+
+        // 3. 엔티티(Enemy, 아이템, Exit) 배치
+        placeEntities();
+
+        // 4. 화면 전환 및 렌더링
+        switchScreen('screen-game');
+        render();
+    }
+
+    function generateMap() {
+        board = [];
+        for (let r = 0; r < SIZE; r++) {
+            let row = [];
+            for (let c = 0; c < SIZE; c++) {
+                // 시작pts과 도착pts을 제외하고 25% 확률로 Wall 생성
+                if ((r === 0 && c === 0) || (r === SIZE - 1 && c === SIZE - 1)) {
+                    row.push(' ');
+                } else {
+                    row.push(Math.random() < 0.25 ? 'W' : ' ');
+                }
+            }
+            board.push(row);
+        }
+    }
+
+    // [핵심 로직] Exit 도달 가능성 검증 (BFS 알고리즘)
+    function isSolvable() {
+        let queue = [[0, 0]];
+        let visited = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+        visited[0][0] = true;
+        
+        let dirs = [[0,1], [1,0], [0,-1], [-1,0]];
+
+        while(queue.length > 0) {
+            let [r, c] = queue.shift();
+            
+            // 목Enemy지 (7, 7) 도달 시 플레이 가능 판정
+            if (r === SIZE - 1 && c === SIZE - 1) return true;
+
+            for (let [dr, dc] of dirs) {
+                let nr = r + dr, nc = c + dc;
+                // 보드 범위 내, 미방문, Wall이 아닌 곳 탐색
+                if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && !visited[nr][nc] && board[nr][nc] !== 'W') {
+                    visited[nr][nc] = true;
+                    queue.push([nr, nc]);
+                }
+            }
+        }
+        return false;
+    }
+
+    function placeEntities() {
+        // Exit 고정 배치
+        entities[`${SIZE - 1},${SIZE - 1}`] = { type: 'O' };
+
+        // 무작위 빈 공간 찾기 함수
+        const getRandomEmptyCell = () => {
+            let r, c;
+            do {
+                r = Math.floor(Math.random() * SIZE);
+                c = Math.floor(Math.random() * SIZE);
+            } while (board[r][c] === 'W' || entities[`${r},${c}`] || (r === 0 && c === 0));
+            return { r, c };
+        };
+
+        // Enemy 3 monsters 배치
+        for (let i = 0; i < 3; i++) {
+            let pos = getRandomEmptyCell();
+            entities[`${pos.r},${pos.c}`] = { type: 'E', hp: 10, attack: 3 };
+        }
+
+        // Recovery Item 2개 배치
+        for (let i = 0; i < 2; i++) {
+            let pos = getRandomEmptyCell();
+            entities[`${pos.r},${pos.c}`] = { type: 'I', heal: 10 };
+        }
+    }
+
+    // [핵심 로직] 키보드 입력 및 턴 처리
+    function handleInput(e) {
+        if (gameState !== 'playing') return;
+
+        let dr = 0, dc = 0;
+        if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') dr = -1;
+        else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') dr = 1;
+        else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') dc = -1;
+        else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') dc = 1;
+
+        if (dr !== 0 || dc !== 0) {
+            movePlayer(dr, dc);
+        }
+    }
+
+    function movePlayer(dr, dc) {
+        let nr = player.r + dr;
+        let nc = player.c + dc;
+
+        // 경계선 및 Wall 충돌 검사
+        if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE) return;
+        if (board[nr][nc] === 'W') {
+            logMsg("A wall is blocking the way.");
+            return;
+        }
+
+        let entityKey = `${nr},${nc}`;
+        let entity = entities[entityKey];
+
+        // 목표 지pts에 상호작용 가능한 객체가 있을 경우
+        if (entity) {
+            if (entity.type === 'E') {
+                // 전투 처리 (턴 소모, 이동 불가)
+                entity.hp -= player.attack;
+                player.hp -= entity.attack;
+                logMsg(`Enemy attacked! (My HP: ${player.hp}, Enemy HP: ${entity.hp})`);
+                
+                if (player.hp <= 0) {
+                    endGame(false);
+                    return;
+                }
+                if (entity.hp <= 0) {
+                    logMsg("Defeated the enemy!");
+                    delete entities[entityKey];
+                }
+                render();
+                return; 
+            } else if (entity.type === 'I') {
+                // 아이템 획득
+                player.hp = Math.min(player.maxHp, player.hp + entity.heal);
+                logMsg(`Ate an apple and recovered Health! (Current HP: ${player.hp})`);
+                delete entities[entityKey];
+            } else if (entity.type === 'O') {
+                // 탈출 성공
+                endGame(true);
+                return;
+            }
+        }
+
+        // 이동 처리
+        player.r = nr;
+        player.c = nc;
+        render();
+    }
+
+    function render() {
+        domBoard.innerHTML = '';
+        domHp.innerText = player.hp;
+
+        for (let r = 0; r < SIZE; r++) {
+            for (let c = 0; c < SIZE; c++) {
+                let cell = document.createElement('div');
+                cell.className = 'cell';
+                
+                let content = ' ';
+                if (board[r][c] === 'W') {
+                    cell.classList.add('wall');
+                    content = EMOJI['W'];
+                }
+
+                let entityKey = `${r},${c}`;
+                if (entities[entityKey]) {
+                    content = EMOJI[entities[entityKey].type];
+                }
+
+                if (r === player.r && c === player.c) {
+                    content = EMOJI['P'];
+                }
+
+                cell.innerText = content;
+
+                // [핵심 로직] 시야 (Fog of War) Enemy용: Player 기준 반경 2칸만 보임
+                let dist = Math.max(Math.abs(player.r - r), Math.abs(player.c - c));
+                if (dist > 2) {
+                    cell.classList.add('fog');
+                }
+
+                domBoard.appendChild(cell);
+            }
+        }
+    }
+
+    function logMsg(msg) {
+        domLog.innerHTML += msg + "<br>";
+        domLog.scrollTop = domLog.scrollHeight;
+    }
+
+    function switchScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+    }
+
+    function endGame(isWin) {
+        gameState = 'end';
+        switchScreen('screen-end');
+        document.getElementById('end-title').innerText = isWin ? "Escape Successful!" : "Game Over";
+        document.getElementById('end-title').style.color = isWin ? "#4CAF50" : "#F44336";
+        document.getElementById('end-desc').innerText = isWin ? "Safely escaped the dungeon." : "Fallen by enemy attack.";
+    }
+</script>
+
+</body>
+</html>

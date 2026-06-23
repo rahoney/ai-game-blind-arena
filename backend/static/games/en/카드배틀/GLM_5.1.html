@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚔️ Card Battle!</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --pink: #ff6b9d;
+    --purple: #c44dff;
+    --blue: #4dc9ff;
+    --green: #4dff88;
+    --yellow: #ffd84d;
+    --red: #ff4d4d;
+    --bg: #1a1a2e;
+    --card-bg: #16213e;
+    --panel: #0f3460;
+  }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* localized comment */
+  .bg-particle {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    animation: floatUp linear infinite;
+    opacity: 0.15;
+  }
+
+  @keyframes floatUp {
+    0% { transform: translateY(100vh) scale(0); opacity: 0; }
+    10% { opacity: 0.15; }
+    90% { opacity: 0.15; }
+    100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+  }
+
+  #game-container {
+    width: 900px;
+    max-width: 95vw;
+    position: relative;
+    user-select: none;
+  }
+
+  /* localized comment */
+  .enemy-area {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 16px 24px;
+    background: linear-gradient(135deg, #1a1a3e, #2a1a3e);
+    border-radius: 20px;
+    border: 2px solid rgba(255,107,157,0.3);
+    margin-bottom: 12px;
+    position: relative;
+  }
+
+  .enemy-sprite {
+    width: 100px;
+    height: 100px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 52px;
+    background: linear-gradient(135deg, #2d1b4e, #3d1b5e);
+    border: 2px solid rgba(196,77,255,0.4);
+    flex-shrink: 0;
+    transition: transform 0.3s, filter 0.3s;
+    position: relative;
+  }
+
+  .enemy-sprite.hit {
+    animation: shakeHit 0.4s ease;
+    filter: brightness(2);
+  }
+
+  @keyframes shakeHit {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-8px) rotate(-3deg); }
+    40% { transform: translateX(8px) rotate(3deg); }
+    60% { transform: translateX(-4px) rotate(-1deg); }
+    80% { transform: translateX(4px) rotate(1deg); }
+  }
+
+  .intent-display {
+    position: absolute;
+    top: -14px;
+    right: -10px;
+    background: rgba(255,77,77,0.9);
+    color: white;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(255,77,77,0.5);
+    z-index: 5;
+  }
+
+  .intent-display.buff-intent {
+    background: rgba(255,216,77,0.9);
+    color: #333;
+    box-shadow: 0 2px 8px rgba(255,216,77,0.5);
+  }
+
+  .stat-bars { flex: 1; }
+
+  .entity-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #ddd;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .hp-bar-wrap {
+    width: 100%;
+    height: 22px;
+    background: #0a0a1a;
+    border-radius: 11px;
+    overflow: hidden;
+    position: relative;
+    border: 2px solid #333;
+  }
+
+  .hp-bar {
+    height: 100%;
+    border-radius: 9px;
+    transition: width 0.5s ease, background 0.5s;
+    position: relative;
+  }
+
+  .hp-bar.player-hp { background: linear-gradient(90deg, #ff4d6d, #ff6b9d); }
+  .hp-bar.enemy-hp { background: linear-gradient(90deg, #9d4dff, #c44dff); }
+
+  .hp-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+    font-size: 12px;
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  }
+
+  .stat-icons {
+    display: flex;
+    gap: 14px;
+    margin-top: 6px;
+    font-size: 14px;
+    color: #bbb;
+  }
+
+  .stat-icons span { display: flex; align-items: center; gap: 4px; }
+
+  /* localized comment */
+  .battle-log {
+    height: 60px;
+    overflow-y: auto;
+    padding: 8px 16px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: #aaa;
+    border: 1px solid rgba(255,255,255,0.05);
+    scroll-behavior: smooth;
+  }
+
+  .battle-log .log-entry { padding: 2px 0; }
+  .log-entry.dmg { color: #ff6b6b; }
+  .log-entry.heal { color: #4dff88; }
+  .log-entry.def { color: #4dc9ff; }
+  .log-entry.info { color: #ffd84d; }
+  .log-entry.enemy { color: #c44dff; }
+
+  /* localized comment */
+  .player-area {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 16px 24px;
+    background: linear-gradient(135deg, #1a2a3e, #1a3a4e);
+    border-radius: 20px;
+    border: 2px solid rgba(77,201,255,0.3);
+    margin-bottom: 12px;
+    position: relative;
+  }
+
+  .player-sprite {
+    width: 100px;
+    height: 100px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 52px;
+    background: linear-gradient(135deg, #1b3d5e, #1b4d6e);
+    border: 2px solid rgba(77,201,255,0.4);
+    flex-shrink: 0;
+    transition: transform 0.3s, filter 0.3s;
+  }
+
+  .player-sprite.hit {
+    animation: shakeHit 0.4s ease;
+    filter: brightness(2) saturate(0.5);
+  }
+
+  .energy-display {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #4dc9ff;
+  }
+
+  .energy-orb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: inline-block;
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+
+  .energy-orb.filled {
+    background: radial-gradient(circle at 35% 35%, #8df, #4dc9ff);
+    box-shadow: 0 0 8px rgba(77,201,255,0.6);
+  }
+
+  .energy-orb.empty {
+    background: #1a2a3e;
+    border: 1px solid #2a4a5e;
+  }
+
+  /* localized comment */
+  .hand-area {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    min-height: 180px;
+    align-items: flex-end;
+    padding: 8px 0;
+    perspective: 800px;
+  }
+
+  .card {
+    width: 120px;
+    height: 170px;
+    border-radius: 14px;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, opacity 0.3s;
+    transform-origin: bottom center;
+    flex-shrink: 0;
+  }
+
+  .card:hover:not(.disabled) {
+    transform: translateY(-20px) scale(1.08);
+    z-index: 10;
+  }
+
+  .card.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    filter: grayscale(0.6);
+  }
+
+  .card-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 8px;
+    position: relative;
+    overflow: hidden;
+    border: 2px solid rgba(255,255,255,0.15);
+  }
+
+  .card-inner::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 50%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.1), transparent);
+    border-radius: 12px 12px 0 0;
+    pointer-events: none;
+  }
+
+  .card-attack .card-inner { background: linear-gradient(135deg, #3d1b1b, #5e1b2d); border-color: rgba(255,77,77,0.4); }
+  .card-defend .card-inner { background: linear-gradient(135deg, #1b2d3d, #1b3d5e); border-color: rgba(77,201,255,0.4); }
+  .card-heal .card-inner { background: linear-gradient(135deg, #1b3d1b, #2d5e1b); border-color: rgba(77,255,136,0.4); }
+  .card-special .card-inner { background: linear-gradient(135deg, #3d1b3d, #5e1b5e); border-color: rgba(196,77,255,0.4); }
+
+  .card:hover:not(.disabled) .card-attack .card-inner,
+  .card.card-attack:hover:not(.disabled) .card-inner { box-shadow: 0 0 20px rgba(255,77,77,0.4); }
+  .card:hover:not(.disabled) .card-defend .card-inner,
+  .card.card-defend:hover:not(.disabled) .card-inner { box-shadow: 0 0 20px rgba(77,201,255,0.4); }
+  .card:hover:not(.disabled) .card-heal .card-inner,
+  .card.card-heal:hover:not(.disabled) .card-inner { box-shadow: 0 0 20px rgba(77,255,136,0.4); }
+  .card:hover:not(.disabled) .card-special .card-inner,
+  .card.card-special:hover:not(.disabled) .card-inner { box-shadow: 0 0 20px rgba(196,77,255,0.4); }
+
+  .card-cost {
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #8df, #4dc9ff);
+    color: #111;
+    font-size: 15px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(77,201,255,0.5);
+    z-index: 2;
+  }
+
+  .card-icon {
+    font-size: 36px;
+    margin: 14px 0 6px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  }
+
+  .card-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: #eee;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+
+  .card-desc {
+    font-size: 10px;
+    color: #aaa;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  .card.played {
+    animation: cardPlay 0.5s ease forwards;
+    pointer-events: none;
+  }
+
+  @keyframes cardPlay {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2) translateY(-40px); opacity: 0.8; }
+    100% { transform: scale(0.5) translateY(-200px); opacity: 0; }
+  }
+
+  .card.dealt {
+    animation: cardDeal 0.4s ease forwards;
+  }
+
+  @keyframes cardDeal {
+    0% { transform: translateY(80px) scale(0.5) rotateY(90deg); opacity: 0; }
+    100% { transform: translateY(0) scale(1) rotateY(0deg); opacity: 1; }
+  }
+
+  /* localized comment */
+  .btn-area {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 4px;
+  }
+
+  .btn {
+    padding: 10px 28px;
+    border: none;
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.2s;
+  }
+
+  .btn:hover { transform: translateY(-2px); }
+  .btn:active { transform: translateY(0); }
+
+  .btn-end-turn {
+    background: linear-gradient(135deg, var(--yellow), #ffb84d);
+    color: #333;
+    box-shadow: 0 4px 15px rgba(255,216,77,0.3);
+  }
+
+  .btn-end-turn:hover { box-shadow: 0 6px 20px rgba(255,216,77,0.5); }
+
+  .btn-end-turn:disabled {
+    background: #555;
+    color: #888;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+
+  .btn-restart {
+    background: linear-gradient(135deg, var(--pink), var(--purple));
+    color: white;
+    box-shadow: 0 4px 15px rgba(255,107,157,0.3);
+  }
+
+  /* localized comment */
+  .dmg-popup {
+    position: absolute;
+    font-size: 24px;
+    font-weight: 900;
+    pointer-events: none;
+    z-index: 100;
+    animation: popUp 1s ease forwards;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+  }
+
+  @keyframes popUp {
+    0% { transform: translateY(0) scale(0.5); opacity: 1; }
+    30% { transform: translateY(-20px) scale(1.2); opacity: 1; }
+    100% { transform: translateY(-60px) scale(0.8); opacity: 0; }
+  }
+
+  /* localized comment */
+  .turn-banner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    font-size: 36px;
+    font-weight: 900;
+    color: white;
+    text-shadow: 0 0 20px rgba(255,255,255,0.5);
+    z-index: 200;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .turn-banner.show {
+    animation: bannerShow 1.2s ease forwards;
+  }
+
+  @keyframes bannerShow {
+    0% { transform: translate(-50%,-50%) scale(0); opacity: 0; }
+    20% { transform: translate(-50%,-50%) scale(1.2); opacity: 1; }
+    40% { transform: translate(-50%,-50%) scale(1); opacity: 1; }
+    80% { opacity: 1; }
+    100% { transform: translate(-50%,-50%) scale(1.1); opacity: 0; }
+  }
+
+  /* localized comment */
+  .overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.75);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 300;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s;
+  }
+
+  .overlay.active { opacity: 1; pointer-events: all; }
+
+  .overlay-title {
+    font-size: 48px;
+    font-weight: 900;
+    margin-bottom: 12px;
+    text-shadow: 0 0 30px currentColor;
+  }
+
+  .overlay-title.win { color: var(--yellow); }
+  .overlay-title.lose { color: var(--red); }
+
+  .overlay-sub {
+    font-size: 18px;
+    color: #bbb;
+    margin-bottom: 28px;
+  }
+
+  .overlay .btn { font-size: 18px; padding: 14px 36px; }
+
+  /* localized comment */
+  .floor-display {
+    text-align: center;
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+
+  .floor-display span { color: var(--yellow); }
+
+  /* localized comment */
+  .shield-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(77,201,255,0.15);
+    border: 1px solid rgba(77,201,255,0.3);
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--blue);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .shield-badge.visible { opacity: 1; }
+
+  /* localized comment */
+  .battle-log::-webkit-scrollbar { width: 4px; }
+  .battle-log::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <div class="floor-display">🏰 Dungeon <span id="floor-num">1</span>F — <span id="enemy-title">Slime</span></div>
+
+  <!-- localized comment -->
+  <div class="enemy-area">
+    <div class="enemy-sprite" id="enemy-sprite">
+      <div class="intent-display" id="enemy-intent">⚔️ 6</div>
+      🐲
+    </div>
+    <div class="stat-bars">
+      <div class="entity-name">
+        <span id="enemy-name">Slime</span>
+        <span class="shield-badge" id="enemy-shield-badge">🛡️ <span id="enemy-shield-val">0</span></span>
+      </div>
+      <div class="hp-bar-wrap">
+        <div class="hp-bar enemy-hp" id="enemy-hp-bar" style="width:100%"></div>
+        <div class="hp-text" id="enemy-hp-text">30 / 30</div>
+      </div>
+      <div class="stat-icons">
+        <span>⚔️ Attack: <b id="enemy-atk">5~8</b></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Battle Log -->
+  <div class="battle-log" id="battle-log"></div>
+
+  <!-- localized comment -->
+  <div class="player-area">
+    <div class="player-sprite" id="player-sprite">🧙</div>
+    <div class="stat-bars">
+      <div class="entity-name">
+        <span>🧙 Adventurer</span>
+        <span class="shield-badge" id="player-shield-badge">🛡️ <span id="player-shield-val">0</span></span>
+      </div>
+      <div class="hp-bar-wrap">
+        <div class="hp-bar player-hp" id="player-hp-bar" style="width:100%"></div>
+        <div class="hp-text" id="player-hp-text">50 / 50</div>
+      </div>
+      <div class="stat-icons">
+        <div class="energy-display" id="energy-display"></div>
+        <span>🏆 Defeated: <b id="kill-count">0</b></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- localized comment -->
+  <div class="hand-area" id="hand-area"></div>
+
+  <!-- localized comment -->
+  <div class="btn-area">
+    <button class="btn btn-end-turn" id="btn-end-turn" onclick="endPlayerTurn()">End Turn ⏩</button>
+    <button class="btn btn-restart" onclick="restartGame()">🔄 Restart</button>
+  </div>
+</div>
+
+<!-- localized comment -->
+<div class="turn-banner" id="turn-banner"></div>
+
+<!-- localized comment -->
+<div class="overlay" id="overlay">
+  <div class="overlay-title" id="overlay-title"></div>
+  <div class="overlay-sub" id="overlay-sub"></div>
+  <button class="btn btn-restart" onclick="restartGame()">🔄 Restart</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// localized comment
+// ═══════════════════════════════════════════
+const CARD_POOL = [
+  { id:'strike',    name:'Strike',       cost:1, type:'attack',  icon:'⚔️',  desc:'Damage 6',          value:6 },
+  { id:'heavystrike',name:'Smash',      cost:2, type:'attack',  icon:'🗡️',  desc:'Damage 10',         value:10 },
+  { id:'slash',     name:'Double Slash',  cost:2, type:'attack',  icon:'⚡',  desc:'Damage 8x2',        value:8, hits:2 },
+  { id:'fireball',  name:'Fireball',     cost:2, type:'attack',  icon:'🔥',  desc:'Damage 12',         value:12 },
+  { id:'poison',    name:'Poison Attack',    cost:1, type:'attack',  icon:'☠️',  desc:'Damage 4 + Poison 3',    value:4, poison:3 },
+  { id:'drain',     name:'Drain',       cost:2, type:'special', icon:'🧛',  desc:'Damage 7, then heal 5',value:7, healAmt:5 },
+  { id:'defend',    name:'Defend',       cost:1, type:'defend',  icon:'🛡️',  desc:'Block 5',          value:5 },
+  { id:'ironwall',  name:'Iron Wall',       cost:2, type:'defend',  icon:'🏰',  desc:'Block 8',          value:8 },
+  { id:'heal',      name:'Heal',       cost:1, type:'heal',    icon:'💚',  desc:'Heal 5 HP',     value:5 },
+  { id:'bigheal',   name:'Greater Heal',     cost:2, type:'heal',    icon:'💖',  desc:'Heal 9 HP',     value:9 },
+  { id:'rage',      name:'Rage',       cost:1, type:'special', icon:'💢',  desc:'Attack +4 this turn',  value:4, buffType:'atkUp' },
+  { id:'shieldbash',name:'Shield Bash',  cost:2, type:'special', icon:'💥',  desc:'Block 5 + Damage 5', value:5, defValue:5 },
+];
+
+// ═══════════════════════════════════════════
+// localized comment
+// ═══════════════════════════════════════════
+const MONSTERS = [
+  { name:'Slime',    emoji:'🟢', hp:28,  atk:[4,7],  sprite:'🟢', title:'Cute Slime' },
+  { name:'Bat',      emoji:'🦇', hp:24,  atk:[5,8],  sprite:'🦇', title:'Noisy Bat' },
+  { name:'Skeleton Warrior', emoji:'💀', hp:36,  atk:[6,10], sprite:'💀', title:'Skeleton Warrior' },
+  { name:'Goblin',    emoji:'👺', hp:32,  atk:[5,9],  sprite:'👺', title:'Mischievous Goblin' },
+  { name:'Orc',      emoji:'👹', hp:44,  atk:[7,12], sprite:'👹', title:'Fierce Orc' },
+  { name:'Dragon',    emoji:'🐲', hp:60,  atk:[9,15], sprite:'🐲', title:'Ancient Dragon' },
+];
+
+// ═══════════════════════════════════════════
+// localized comment
+// ═══════════════════════════════════════════
+let state = {};
+
+function initState() {
+  state = {
+    player: { hp: 50, maxHp: 50, energy: 0, maxEnergy: 3, shield: 0, atkBuff: 0, poison: 0 },
+    enemy:  { hp: 0, maxHp: 0, shield: 0, atk: [0,0], poison: 0 },
+    hand: [],          // hand
+    floor: 1,
+    kills: 0,
+    turnActive: false,
+    animating: false,
+    currentMonster: null,
+  };
+}
+
+// ═══════════════════════════════════════════
+// localized comment
+// ═══════════════════════════════════════════
+function createBgParticles() {
+  document.querySelectorAll('.bg-particle').forEach(p => p.remove());
+  const colors = ['#ff6b9d','#c44dff','#4dc9ff','#4dff88','#ffd84d'];
+  for (let i = 0; i < 25; i++) {
+    const p = document.createElement('div');
+    p.className = 'bg-particle';
+    const size = Math.random() * 12 + 4;
+    p.style.width = size + 'px';
+    p.style.height = size + 'px';
+    p.style.left = Math.random() * 100 + 'vw';
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.animationDuration = (Math.random() * 8 + 6) + 's';
+    p.style.animationDelay = (Math.random() * 10) + 's';
+    document.body.appendChild(p);
+  }
+}
+
+// ═══════════════════════════════════════════
+// localized comment
+// ═══════════════════════════════════════════
+function spawnMonster() {
+  // localized comment
+  let pool;
+  if (state.floor <= 2) pool = MONSTERS.slice(0, 2);
+  else if (state.floor <= 4) pool = MONSTERS.slice(1, 4);
+  else pool = MONSTERS.slice(3, 6);
+
+  const m = pool[Math.floor(Math.random() * pool.length)];
+  const hpScale = 1 + (state.floor - 1) * 0.12;
+  const scaledHp = Math.floor(m.hp * hpScale);
+
+  state.currentMonster = m;
+  state.enemy = {
+    hp: scaledHp,
+    maxHp: scaledHp,
+    shield: 0,
+    atk: [...m.atk],
+    poison: 0,
+  };
+
+  document.getElementById('enemy-sprite').querySelector('.intent-display').remove();
+  const spriteEl = document.getElementById('enemy-sprite');
+  spriteEl.innerHTML = m.sprite;
+  const intent = document.createElement('div');
+  intent.className = 'intent-display';
+  intent.id = 'enemy-intent';
+  spriteEl.appendChild(intent);
+
+  document.getElementById('enemy-name').textContent = m.name;
+  document.getElementById('enemy-title').textContent = m.title;
+  document.getElementById('enemy-atk').textContent = `${m.atk[0]}~${m.atk[1]}`;
+
+  updateEnemyIntent();
+}
+
+// ═══════════════════════════════════════════
+// localized comment
+// ═══════════════════════════════════════════
+function getEnemyAction() {
+  const roll = Math.random();
+  if (roll < 0.65) {
+    // Attack
+    const dmg = randInt(state.enemy.atk[0], state.enemy.atk[1]);
+    return { type: 'attack', value: dmg, text: `⚔️ ${dmg}` };
+  } else if (roll < 0.85) {
+    // localized comment
+    const dmg = randInt(state.enemy.atk[1], state.enemy.atk[1] + 4);
+    return { type: 'attack', value: dmg, text: `⚔️💥 ${dmg}` };
+  } else {
+    // Block
+    const def = randInt(4, 8);
+    return { type: 'defend', value: def, text: `🛡️ ${def}`, class: 'buff-intent' };
+  }
+}
+
+let nextEnemyAction = null;
+
+function updateEnemyIntent() {
+  nextEnemyAction = getEnemyAction();
+  const el = document.getElementById('enemy-intent');
+  el.textContent = nextEnemyAction.text;
+  el.className = 'intent-display' + (nextEnemyAction.class ? ' ' + nextEnemyAction.class : '');
+}
+
+// ═══════════════════════════════════════════
+// localized comment
+// ═══════════════════════════════════════════
+function drawCards(count) {
+  const hand = [];
+  for (let i = 0; i < count; i++) {
+    const template = CARD_POOL[Math.floor(Math.random() * CARD_POOL.length)];
+    hand.push({ ...template, uid: Math.random() });
+  }
+  return hand;
+}
+
+// ═══════════════════════════════════════════
+// localized comment
+// ═══════════════════════════════════════════
+function startPlayerTurn() {
+  state.player.energy = state.player.maxEnergy;
+  state.player.shield = 0;       // reset block
+  state.player.atkBuff = 0;      // reset attack buff
+  state.hand = drawCards(3);
+  state.turnActive = true;
+  state.animating = false;
+
+  updateEnemyIntent();
+  showBanner(`⚔️ Turn ${state.floor} — Battle!`);
+  addLog(`— Turn start! Gain 3 energy and draw 3 cards —`, 'info');
+
+  // localized comment
+  if (state.player.poison > 0) {
+    state.player.hp -= state.player.poison;
+    addLog(`☠️ Poison deals ${state.player.poison} damage!`, 'dmg');
+    state.player.poison = Math.max(0, state.player.poison - 1);
+  }
+
+  renderAll();
+}
+
+// ═══════════════════════════════════════════
+// localized comment
+// ═══════════════════════════════════════════
+function playCard(index) {
+  if (!state.turnActive || state.animating) return;
+
+  const card = state.hand[index];
+  if (!card) return;
+  if (card.cost > state.player.energy) return;
+
+  state.animating = true;
+  state.player.energy -= card.cost;
+
+  // card play animation
+  const cardEl = document.querySelectorAll('.card')[index];
+  if (cardEl) cardEl.classList.add('played');
+
+  setTimeout(() => {
+    // localized comment
+    resolveCard(card);
+
+    // localized comment
+    state.hand.splice(index, 1);
+
+    // localized comment
+    if (state.enemy.hp <= 0) {
+      state.enemy.hp = 0;
+      renderAll();
+      onEnemyDead();
+      return;
+    }
+
+    state.animating = false;
+    renderAll();
+  }, 400);
+}
+
+function resolveCard(card) {
+  const p = state.player;
+  const e = state.enemy;
+
+  switch (card.type) {
+    case 'attack': {
+      let dmg = card.value + p.atkBuff;
+      const hits = card.hits || 1;
+      for (let i = 0; i < hits; i++) {
+        const actual = applyDamageToEnemy(dmg);
+        addLog(`⚔️ ${card.name} with  ${actual} damage!`, 'dmg');
+        showDmgPopup('enemy', actual, '#ff4d4d');
+      }
+      if (card.poison) {
+        e.poison += card.poison;
+        addLog(`☠️ Poisoned enemy for ${card.poison} applied!`, 'enemy');
+      }
+      break;
+    }
+    case 'defend': {
+      p.shield += card.value;
+      addLog(`🛡️ ${card.name} with  Block +${card.value}`, 'def');
+      break;
+    }
+    case 'heal': {
+      const healed = Math.min(card.value, p.maxHp - p.hp);
+      p.hp += healed;
+      addLog(`💚 ${card.name} with  Health ${healed} Heal`, 'heal');
+      showDmgPopup('player', healed, '#4dff88');
+      break;
+    }
+    case 'special': {
+      if (card.buffType === 'atkUp') {
+        p.atkBuff += card.value;
+        addLog(`💢 Attack this turn +${card.value}!`, 'info');
+      }
+      if (card.value && !card.buffType) {
+        // Drain
+        const actual = applyDamageToEnemy(card.value + p.atkBuff);
+        addLog(`🧛 ${card.name} with  ${actual} damage!`, 'dmg');
+        showDmgPopup('enemy', actual, '#ff4d4d');
+        if (card.healAmt) {
+          const healed = Math.min(card.healAmt, p.maxHp - p.hp);
+          p.hp += healed;
+          addLog(`💚 ${healed} health drained!`, 'heal');
+          showDmgPopup('player', healed, '#4dff88');
+        }
+      }
+      if (card.defValue) {
+        // Shield Bash
+        const actual = applyDamageToEnemy(card.value + p.atkBuff);
+        p.shield += card.defValue;
+        addLog(`💥 ${card.name}! ${actual} damage + Block ${card.defValue}`, 'dmg');
+        showDmgPopup('enemy', actual, '#ff4d4d');
+      }
+      break;
+    }
+  }
+}
+
+// localized comment
+function applyDamageToEnemy(dmg) {
+  let remaining = dmg;
+  if (state.enemy.shield > 0) {
+    const absorbed = Math.min(state.enemy.shield, remaining);
+    state.enemy.shield -= absorbed;
+    remaining -= absorbed;
+  }
+  state.enemy.hp = Math.max(0, state.enemy.hp - remaining);
+  shakeSprite('enemy');
+  return dmg; // total damage display
+}
+
+// ═══════════════════════════════════════════
+// End Turn → Enemy Turn
+// ═══════════════════════════════════════════
+function endPlayerTurn() {
+  if (!state.turnActive || state.animating) return;
+  state.turnActive = false;
+  document.getElementById('btn-end-turn').disabled = true;
+
+  // localized comment
+  setTimeout(() => enemyTurn(), 500);
+}
+
+function enemyTurn() {
+  const e = state.enemy;
+  const p = state.player;
+
+  // localized comment
+  if (e.poison > 0) {
+    e.hp = Math.max(0, e.hp - e.poison);
+    addLog(`☠️ Enemy takes poison ${e.poison} damage!`, 'dmg');
+    showDmgPopup('enemy', e.poison, '#9d4dff');
+    e.poison = Math.max(0, e.poison - 1);
+
+    if (e.hp <= 0) {
+      renderAll();
+      onEnemyDead();
+      return;
+    }
+  }
+
+  // localized comment
+  const action = nextEnemyAction;
+  if (action.type === 'attack') {
+    let remaining = action.value;
+    if (p.shield > 0) {
+      const absorbed = Math.min(p.shield, remaining);
+      p.shield -= absorbed;
+      remaining -= absorbed;
+      if (absorbed > 0) addLog(`🛡️ Block prevented ${absorbed} damage!`, 'def');
+    }
+    p.hp = Math.max(0, p.hp - remaining);
+    addLog(`👹 ${state.currentMonster.name} attacks! ${remaining} damage!`, 'enemy');
+    if (remaining > 0) {
+      showDmgPopup('player', remaining, '#ff4d4d');
+      shakeSprite('player');
+    }
+  } else if (action.type === 'defend') {
+    e.shield += action.value;
+    addLog(`🛡️ ${state.currentMonster.name}takes a defensive stance! +${action.value}`, 'enemy');
+  }
+
+  renderAll();
+
+  // localized comment
+  if (p.hp <= 0) {
+    setTimeout(() => gameOver(false), 600);
+    return;
+  }
+
+  // localized comment
+  setTimeout(() => {
+    document.getElementById('btn-end-turn').disabled = false;
+    startPlayerTurn();
+  }, 800);
+}
+
+// ═══════════════════════════════════════════
+// localized comment
+// ═══════════════════════════════════════════
+function onEnemyDead() {
+  state.kills++;
+  addLog(`🎉 ${state.currentMonster.name} Defeated!`, 'info');
+
+  // localized comment
+  state.floor++;
+
+  if (state.floor > 10) {
+    setTimeout(() => gameOver(true), 800);
+    return;
+  }
+
+  // localized comment
+  const bonus = Math.floor(state.player.maxHp * 0.1);
+  state.player.hp = Math.min(state.player.maxHp, state.player.hp + bonus);
+  addLog(`✨ ${bonus} HP restored. Moving to next floor...`, 'heal');
+
+  setTimeout(() => {
+    spawnMonster();
+    startPlayerTurn();
+  }, 1200);
+}
+
+// ═══════════════════════════════════════════
+// Game Over
+// ═══════════════════════════════════════════
+function gameOver(win) {
+  state.turnActive = false;
+  const overlay = document.getElementById('overlay');
+  const title = document.getElementById('overlay-title');
+  const sub = document.getElementById('overlay-sub');
+
+  if (win) {
+    title.textContent = '🎉 Victory!';
+    title.className = 'overlay-title win';
+    sub.textContent = `You cleared the dungeon! Kills: ${state.kills}`;
+  } else {
+    title.textContent = '💀 Defeat...';
+    title.className = 'overlay-title lose';
+    sub.textContent = `${state.floor}You fell on floor. Kills: ${state.kills}`;
+  }
+
+  overlay.classList.add('active');
+}
+
+// ═══════════════════════════════════════════
+// Restart
+// ═══════════════════════════════════════════
+function restartGame() {
+  document.getElementById('overlay').classList.remove('active');
+  document.getElementById('battle-log').innerHTML = '';
+  document.getElementById('btn-end-turn').disabled = false;
+
+  initState();
+  spawnMonster();
+  renderAll();
+  startPlayerTurn();
+}
+
+// ═══════════════════════════════════════════
+// localized comment
+// ═══════════════════════════════════════════
+function renderAll() {
+  renderPlayerStats();
+  renderEnemyStats();
+  renderHand();
+  renderFloor();
+}
+
+function renderPlayerStats() {
+  const p = state.player;
+  const pct = Math.max(0, (p.hp / p.maxHp) * 100);
+  document.getElementById('player-hp-bar').style.width = pct + '%';
+  document.getElementById('player-hp-text').textContent = `${Math.max(0,p.hp)} / ${p.maxHp}`;
+
+  // localized comment
+  let html = '⚡ ';
+  for (let i = 0; i < p.maxEnergy; i++) {
+    html += `<span class="energy-orb ${i < p.energy ? 'filled' : 'empty'}"></span>`;
+  }
+  document.getElementById('energy-display').innerHTML = html;
+
+  // localized comment
+  const shieldBadge = document.getElementById('player-shield-badge');
+  document.getElementById('player-shield-val').textContent = p.shield;
+  shieldBadge.classList.toggle('visible', p.shield > 0);
+
+  document.getElementById('kill-count').textContent = state.kills;
+}
+
+function renderEnemyStats() {
+  const e = state.enemy;
+  const pct = Math.max(0, (e.hp / e.maxHp) * 100);
+  document.getElementById('enemy-hp-bar').style.width = pct + '%';
+  document.getElementById('enemy-hp-text').textContent = `${Math.max(0,e.hp)} / ${e.maxHp}`;
+
+  const shieldBadge = document.getElementById('enemy-shield-badge');
+  document.getElementById('enemy-shield-val').textContent = e.shield;
+  shieldBadge.classList.toggle('visible', e.shield > 0);
+}
+
+function renderHand() {
+  const container = document.getElementById('hand-area');
+  container.innerHTML = '';
+
+  state.hand.forEach((card, i) => {
+    const canPlay = card.cost <= state.player.energy && state.turnActive && !state.animating;
+    const typeClass = card.type === 'attack' ? 'card-attack' :
+                      card.type === 'defend' ? 'card-defend' :
+                      card.type === 'heal' ? 'card-heal' : 'card-special';
+
+    const div = document.createElement('div');
+    div.className = `card ${typeClass} dealt ${canPlay ? '' : 'disabled'}`;
+    div.style.animationDelay = (i * 0.1) + 's';
+    div.innerHTML = `
+      <div class="card-inner">
+        <div class="card-cost">${card.cost}</div>
+        <div class="card-icon">${card.icon}</div>
+        <div class="card-name">${card.name}</div>
+        <div class="card-desc">${card.desc}</div>
+      </div>
+    `;
+    if (canPlay) {
+      div.addEventListener('click', () => playCard(i));
+    }
+    container.appendChild(div);
+  });
+}
+
+function renderFloor() {
+  document.getElementById('floor-num').textContent = state.floor;
+}
+
+// ═══════════════════════════════════════════
+// localized comment
+// ═══════════════════════════════════════════
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function addLog(msg, type) {
+  const log = document.getElementById('battle-log');
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${type || ''}`;
+  entry.textContent = msg;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+function showBanner(text) {
+  const banner = document.getElementById('turn-banner');
+  banner.textContent = text;
+  banner.classList.remove('show');
+  void banner.offsetWidth; // reflow
+  banner.classList.add('show');
+}
+
+function showDmgPopup(target, value, color) {
+  const spriteId = target === 'enemy' ? 'enemy-sprite' : 'player-sprite';
+  const sprite = document.getElementById(spriteId);
+  const rect = sprite.getBoundingClientRect();
+
+  const popup = document.createElement('div');
+  popup.className = 'dmg-popup';
+  popup.textContent = (color === '#4dff88' ? '+' : '-') + value;
+  popup.style.color = color;
+  popup.style.left = (rect.left + rect.width / 2 - 20) + 'px';
+  popup.style.top = (rect.top) + 'px';
+  document.body.appendChild(popup);
+
+  setTimeout(() => popup.remove(), 1000);
+}
+
+function shakeSprite(target) {
+  const spriteId = target === 'enemy' ? 'enemy-sprite' : 'player-sprite';
+  const el = document.getElementById(spriteId);
+  el.classList.remove('hit');
+  void el.offsetWidth;
+  el.classList.add('hit');
+  setTimeout(() => el.classList.remove('hit'), 500);
+}
+
+// ═══════════════════════════════════════════
+// Start Game!
+// ═══════════════════════════════════════════
+createBgParticles();
+initState();
+spawnMonster();
+renderAll();
+startPlayerTurn();
+</script>
+</body>
+</html>

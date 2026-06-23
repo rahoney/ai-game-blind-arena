@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>AI GAME: RUN</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #2c3e50;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+        canvas {
+            background-color: #87CEEB; /* 하늘색 배경 */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<script>
+// ==========================================
+// [1] 다국어 지원(i18n) 문자열 데이터
+// ==========================================
+const LANG_DATA = {
+    TITLE: "AI GAME: RUN",
+    START: "PRESS SPACE TO START",
+    GAME_OVER: "GAME OVER",
+    GAME_CLEAR: "STAGE CLEARED!",
+    RESTART: "PRESS SPACE TO RESTART",
+    SCORE: "Score: ",
+    HIGH_SCORE: "Best Score: ",
+    LIVES: "Lives: ",
+    PROGRESS: "Progress: "
+};
+
+// ==========================================
+// [2] 게임 설정 및 글로벌 상태
+// ==========================================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const TILE_SIZE = 40;
+const LEVEL_WIDTH = 100 * TILE_SIZE; // 4000px (화면 너비의 5배)
+
+let state = "START"; // START, PLAYING, GAMEOVER, CLEAR
+let score = 0;
+let lives = 3;
+let cameraX = 0;
+let highScore = parseInt(localStorage.getItem('blindArenaHighScore')) || 0;
+
+// 엔티티 배열
+let platforms = [];
+let enemies = [];
+let coins = [];
+let particles = [];
+let clouds = [];
+let goal = null;
+
+// 플레이어 객체
+let player = {
+    x: 0, y: 0, w: 24, h: 32,
+    vx: 0, vy: 0,
+    startX: 0, startY: 0,
+    grounded: false,
+    coyoteTime: 0,
+    jumpBuffer: 0,
+    jumpPressed: false
+};
+
+// 물리 상수
+const GRAVITY = 0.6;
+const FRICTION = 0.8;
+const MAX_FALL_SPEED = 12;
+const JUMP_FORCE = -11;
+const MOVE_ACCEL = 1.2;
+const MAX_SPEED = 6;
+const COYOTE_FRAMES = 8;
+const JUMP_BUFFER_FRAMES = 8;
+
+const keys = {};
+
+// 맵 구조 (P: 플레이어, X: 지형, C: 코인, E: 걷는 적, F: 나는 적, G: 목표 깃발)
+const levelMap = [
+"                                                                                                    ",
+"                                                                                                    ",
+"                                                                                                    ",
+"                                            F                                            C          ",
+"                                                                                        XXX         ",
+"                                        C                                              X            ",
+"               C                       XXX               C C                          X             ",
+"              XXX      E                              XXXXXXXXX          F           X              ",
+"                      XXX             XXXXX                                         X               ",
+"        C                              XXX                             E           X                ",
+"       XXX               E                           XXXXXXXXX        XXX         X             G   ",
+"P                       XXX                                                      X                  ",
+"XXXX   XXXX   XXXXX   XXXXXXX   XXXXXXXXXXXXXXX   XXXXXXXXXXXXXXXX   XXXXXXXXXXXXX   XXXXXXXXXXXXXXX",
+"XXXX   XXXX   XXXXX   XXXXXXX   XXXXXXXXXXXXXXX   XXXXXXXXXXXXXXXX   XXXXXXXXXXXXX   XXXXXXXXXXXXXXX",
+"XXXX   XXXX   XXXXX   XXXXXXX   XXXXXXXXXXXXXXX   XXXXXXXXXXXXXXXX   XXXXXXXXXXXXX   XXXXXXXXXXXXXXX"
+];
+
+// ==========================================
+// [3] Web Audio API (효과음 절차적 생성)
+// ==========================================
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+const audioCtx = new AudioContext();
+let audioInitialized = false;
+
+function playSound(type) {
+    if (!audioInitialized || audioCtx.state === 'suspended') return;
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    const now = audioCtx.currentTime;
+    if (type === 'jump') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+        gainNode.gain.setValueAtTime(0.3, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+    } else if (type === 'coin') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.setValueAtTime(1200, now + 0.05);
+        gainNode.gain.setValueAtTime(0.2, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+    } else if (type === 'hit') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.2);
+        gainNode.gain.setValueAtTime(0.3, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+    }
+}
+
+// ==========================================
+// [4] 핵심 로직 (초기화, 물리, 업데이트)
+// ==========================================
+function initClouds() {
+    clouds = [];
+    for(let i=0; i<20; i++) {
+        clouds.push({
+            x: Math.random() * LEVEL_WIDTH,
+            y: Math.random() * (canvas.height * 0.5),
+            s: Math.random() * 0.5 + 0.5
+        });
+    }
+}
+
+function resetGame(fullReset = false) {
+    if (fullReset) {
+        score = 0;
+        lives = 3;
+        initClouds();
+    }
+    
+    // 배열 및 상태 완벽 초기화
+    platforms.length = 0;
+    enemies.length = 0;
+    coins.length = 0;
+    particles.length = 0;
+    cameraX = 0;
+    player.vx = 0;
+    player.vy = 0;
+    
+    // 맵 파싱
+    for (let i = 0; i < levelMap.length; i++) {
+        for (let j = 0; j < levelMap[i].length; j++) {
+            let char = levelMap[i][j];
+            let px = j * TILE_SIZE;
+            let py = i * TILE_SIZE;
+            
+            if (char === 'X') platforms.push({x: px, y: py, w: TILE_SIZE, h: TILE_SIZE});
+            else if (char === 'P') { 
+                player.x = px; player.y = py + (TILE_SIZE - player.h); // 바닥에 맞춤
+                player.startX = player.x; player.startY = player.y; 
+            }
+            else if (char === 'C') coins.push({x: px + TILE_SIZE/2, y: py + TILE_SIZE/2, r: 8});
+            else if (char === 'E') enemies.push({x: px, y: py, w: TILE_SIZE, h: TILE_SIZE, vx: -2, type: 'walker'});
+            else if (char === 'F') enemies.push({x: px + 10, y: py, w: 20, h: 20, vy: -2, startY: py, type: 'flyer'});
+            else if (char === 'G') goal = {x: px, y: py - TILE_SIZE, w: TILE_SIZE, h: TILE_SIZE * 2};
+        }
+    }
+    state = "PLAYING";
+}
+
+function spawnParticles(x, y, color, count) {
+    for(let i=0; i<count; i++) {
+        particles.push({
+            x: x, y: y,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8,
+            life: 30, color: color,
+            size: Math.random() * 4 + 2
+        });
+    }
+}
+
+function rectIntersect(r1, r2) {
+    return r1.x < r2.x + r2.w && r1.x + r1.w > r2.x &&
+           r1.y < r2.y + r2.h && r1.y + r1.h > r2.y;
+}
+
+function die() {
+    playSound('hit');
+    lives--;
+    if (lives <= 0) {
+        state = "GAMEOVER";
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem("blindArenaHighScore", highScore);
+        }
+    } else {
+        // 체크포인트(시작점) 부활 및 속도 초기화
+        player.x = player.startX;
+        player.y = player.startY;
+        player.vx = 0;
+        player.vy = 0;
+        cameraX = 0;
+    }
+}
+
+function update() {
+    if (state !== "PLAYING") return;
+
+    // 1. 플레이어 이동 처리
+    if (keys['ArrowLeft'] || keys['a']) player.vx -= MOVE_ACCEL;
+    else if (keys['ArrowRight'] || keys['d']) player.vx += MOVE_ACCEL;
+    else player.vx *= FRICTION;
+
+    player.vx = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, player.vx));
+
+    // X축 이동 및 충돌
+    player.x += player.vx;
+    for (let p of platforms) {
+        if (rectIntersect(player, p)) {
+            if (player.vx > 0) { player.x = p.x - player.w; player.vx = 0; }
+            else if (player.vx < 0) { player.x = p.x + p.w; player.vx = 0; }
+        }
+    }
+
+    // Y축 이동 및 중력, 충돌
+    player.vy += GRAVITY;
+    if (player.vy > MAX_FALL_SPEED) player.vy = MAX_FALL_SPEED;
+    
+    player.y += player.vy;
+    player.grounded = false;
+    for (let p of platforms) {
+        if (rectIntersect(player, p)) {
+            if (player.vy > 0) { 
+                player.y = p.y - player.h; 
+                player.vy = 0; 
+                player.grounded = true; 
+            }
+            else if (player.vy < 0) { 
+                player.y = p.y + p.h; 
+                player.vy = 0; 
+            }
+        }
+    }
+
+    // 2. 조작 보정 (코요테 타임 & 점프 버퍼링)
+    if (player.grounded) player.coyoteTime = COYOTE_FRAMES;
+    else player.coyoteTime--;
+
+    if (keys['ArrowUp'] || keys['w'] || keys[' ']) {
+        if (!player.jumpPressed) {
+            player.jumpBuffer = JUMP_BUFFER_FRAMES;
+            player.jumpPressed = true;
+        }
+    } else {
+        player.jumpPressed = false;
+        if (player.vy < -3) player.vy *= 0.5; // 가변 점프(짧게 누르면 낮게 점프)
+    }
+
+    if (player.jumpBuffer > 0) player.jumpBuffer--;
+
+    // 점프 실행
+    if (player.jumpBuffer > 0 && player.coyoteTime > 0) {
+        player.vy = JUMP_FORCE;
+        player.jumpBuffer = 0;
+        player.coyoteTime = 0;
+        player.grounded = false;
+        playSound('jump');
+    }
+
+    // 3. 낙사 판정
+    if (player.y > canvas.height + 100) {
+        die();
+        return;
+    }
+
+    // 4. 아이템 수집 판정
+    for (let i = coins.length - 1; i >= 0; i--) {
+        let c = coins[i];
+        let distX = Math.abs(c.x - (player.x + player.w / 2));
+        let distY = Math.abs(c.y - (player.y + player.h / 2));
+        if (distX <= (player.w / 2 + c.r) && distY <= (player.h / 2 + c.r)) {
+            score += 100;
+            spawnParticles(c.x, c.y, '#f1c40f', 10);
+            playSound('coin');
+            coins.splice(i, 1);
+        }
+    }
+
+    // 5. 적 로직 및 판정
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        let e = enemies[i];
+        
+        if (e.type === 'walker') {
+            e.x += e.vx;
+            // 지형 충돌 및 절벽 확인
+            let hitWall = false;
+            for (let p of platforms) {
+                if (rectIntersect(e, p)) { hitWall = true; e.x -= e.vx; break; }
+            }
+            let nextX = e.x + (e.vx > 0 ? e.w : 0) + e.vx;
+            let groundUnder = platforms.find(p => nextX >= p.x && nextX <= p.x + p.w && e.y + e.h + 2 >= p.y && e.y + e.h + 2 <= p.y + p.h + 5);
+            
+            if (hitWall || !groundUnder) e.vx *= -1; // 방향 전환
+        } else if (e.type === 'flyer') {
+            e.y += e.vy;
+            if (Math.abs(e.y - e.startY) > 60) e.vy *= -1;
+        }
+
+        // 플레이어-적 충돌
+        if (rectIntersect(player, e)) {
+            // 밟기 판정 (플레이어가 떨어지는 중이고, 적의 상단을 타격)
+            if (player.vy > 0 && player.y + player.h < e.y + e.h * 0.6) {
+                score += 200;
+                player.vy = JUMP_FORCE * 0.8; // 바운스
+                spawnParticles(e.x + e.w/2, e.y + e.h/2, '#e74c3c', 15);
+                playSound('hit');
+                enemies.splice(i, 1);
+            } else {
+                die();
+                break;
+            }
+        }
+    }
+
+    // 6. 목표 도달 판정 (클리어)
+    if (goal && rectIntersect(player, goal)) {
+        state = "CLEAR";
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem("blindArenaHighScore", highScore);
+        }
+    }
+
+    // 파티클 업데이트
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.life--;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    // 7. 카메라 스무딩
+    let targetCameraX = player.x - canvas.width / 2 + player.w / 2;
+    targetCameraX = Math.max(0, Math.min(targetCameraX, LEVEL_WIDTH - canvas.width));
+    cameraX += (targetCameraX - cameraX) * 0.1;
+}
+
+// ==========================================
+// [5] 렌더링
+// ==========================================
+function drawText(text, x, y, size, align = 'center', color = 'white') {
+    ctx.fillStyle = color;
+    ctx.font = `bold ${size}px 'Segoe UI'`;
+    ctx.textAlign = align;
+    ctx.fillText(text, x, y);
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (state === "START") {
+        drawText(LANG_DATA.TITLE, canvas.width/2, canvas.height/2 - 20, 40);
+        drawText(LANG_DATA.START, canvas.width/2, canvas.height/2 + 30, 20, 'center', '#bdc3c7');
+        return;
+    }
+
+    if (state === "GAMEOVER") {
+        drawText(LANG_DATA.GAME_OVER, canvas.width/2, canvas.height/2 - 20, 50, 'center', '#e74c3c');
+        drawText(LANG_DATA.RESTART, canvas.width/2, canvas.height/2 + 30, 20, 'center', '#bdc3c7');
+        return;
+    }
+
+    if (state === "CLEAR") {
+        drawText(LANG_DATA.GAME_CLEAR, canvas.width/2, canvas.height/2 - 20, 50, 'center', '#2ecc71');
+        drawText(LANG_DATA.RESTART, canvas.width/2, canvas.height/2 + 30, 20, 'center', '#bdc3c7');
+        return;
+    }
+
+    ctx.save();
+    ctx.translate(-Math.floor(cameraX), 0);
+
+    // 배경 구름 (패럴랙스 스크롤링 효과 적용)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    clouds.forEach(c => {
+        let cx = c.x - cameraX * 0.3 * c.s;
+        if (cx < -100) c.x += LEVEL_WIDTH + 100;
+        ctx.beginPath();
+        ctx.arc(cx, c.y, 30 * c.s, 0, Math.PI * 2);
+        ctx.arc(cx + 25 * c.s, c.y - 10 * c.s, 35 * c.s, 0, Math.PI * 2);
+        ctx.arc(cx + 50 * c.s, c.y, 30 * c.s, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // 깃발(Goal)
+    if (goal) {
+        ctx.fillStyle = '#bdc3c7'; // 깃대
+        ctx.fillRect(goal.x + 16, goal.y, 8, goal.h);
+        ctx.fillStyle = '#e74c3c'; // 깃발
+        ctx.beginPath();
+        ctx.moveTo(goal.x + 24, goal.y + 10);
+        ctx.lineTo(goal.x + TILE_SIZE + 10, goal.y + 25);
+        ctx.lineTo(goal.x + 24, goal.y + 40);
+        ctx.fill();
+    }
+
+    // 지형
+    platforms.forEach(p => {
+        ctx.fillStyle = '#27ae60'; // 풀
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+        ctx.fillStyle = '#2ecc71'; // 풀 하이라이트
+        ctx.fillRect(p.x, p.y, p.w, 8);
+    });
+
+    // 코인
+    coins.forEach(c => {
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#f1c40f';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#f39c12';
+        ctx.stroke();
+    });
+
+    // 파티클
+    particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life / 30;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+    });
+    ctx.globalAlpha = 1.0;
+
+    // 적
+    enemies.forEach(e => {
+        if (e.type === 'walker') {
+            ctx.fillStyle = '#e74c3c';
+            ctx.fillRect(e.x, e.y, e.w, e.h);
+            ctx.fillStyle = '#c0392b'; // 뿔
+            ctx.beginPath();
+            ctx.moveTo(e.x, e.y); ctx.lineTo(e.x+10, e.y-10); ctx.lineTo(e.x+20, e.y);
+            ctx.lineTo(e.x+30, e.y-10); ctx.lineTo(e.x+40, e.y); ctx.fill();
+        } else {
+            ctx.fillStyle = '#9b59b6';
+            ctx.beginPath(); ctx.arc(e.x + e.w/2, e.y + e.h/2, e.w/2, 0, Math.PI*2); ctx.fill();
+            let wingY = Math.sin(Date.now() / 150) * 8;
+            ctx.fillStyle = '#8e44ad'; // 날개
+            ctx.fillRect(e.x - 12, e.y + e.h/2 - 2 + wingY, 12, 4);
+            ctx.fillRect(e.x + e.w, e.y + e.h/2 - 2 + wingY, 12, 4);
+        }
+    });
+
+    // 플레이어
+    ctx.fillStyle = '#3498db';
+    ctx.fillRect(player.x, player.y, player.w, player.h);
+    // 방향 지시 눈
+    ctx.fillStyle = '#fff';
+    let eyeOff = player.vx > 0.1 ? 12 : (player.vx < -0.1 ? 4 : 8);
+    ctx.fillRect(player.x + eyeOff, player.y + 6, 4, 4);
+    ctx.fillRect(player.x + eyeOff + 6, player.y + 6, 4, 4);
+    // 다리 애니메이션
+    if (player.grounded && Math.abs(player.vx) > 0.5) {
+        let legOff = Math.sin(Date.now() / 100) * 4;
+        ctx.fillStyle = '#2980b9';
+        ctx.fillRect(player.x + 4, player.y + player.h, 6, legOff > 0 ? 5 : 0);
+        ctx.fillRect(player.x + player.w - 10, player.y + player.h, 6, legOff < 0 ? 5 : 0);
+    }
+
+    ctx.restore();
+
+    // UI 레이어
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(0, 0, canvas.width, 40);
+    
+    ctx.fillStyle = 'white';
+    ctx.font = "bold 18px 'Segoe UI'";
+    ctx.textAlign = 'left';
+    ctx.fillText(LANG_DATA.LIVES + "❤️".repeat(Math.max(0, lives)), 20, 26);
+    ctx.fillText(LANG_DATA.SCORE + score, 180, 26);
+    ctx.fillText(LANG_DATA.HIGH_SCORE + highScore, 320, 26);
+    
+    let progress = Math.min(100, Math.max(0, Math.floor((player.x / LEVEL_WIDTH) * 100)));
+    ctx.fillText(LANG_DATA.PROGRESS + progress + "%", 680, 26);
+}
+
+// ==========================================
+// [6] 이벤트 및 게임 루프
+// ==========================================
+window.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    
+    // 오디오 컨텍스트 사용자 제스처 활성화 (브라우저 정책)
+    if (!audioInitialized) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        audioInitialized = true;
+    }
+
+    if (e.key === ' ') {
+        if (state === "START" || state === "GAMEOVER" || state === "CLEAR") {
+            resetGame(true);
+        }
+    }
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+// 게임 초기 화면 렌더링 시작
+requestAnimationFrame(gameLoop);
+
+</script>
+</body>
+</html>

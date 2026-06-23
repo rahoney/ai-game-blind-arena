@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>🌸 카드 배틀 🌸</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #ffd3e0 0%, #c1a1ff 50%, #a1d8ff 100%);
+    font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+    padding: 20px;
+  }
+  .game {
+    width: 100%;
+    max-width: 900px;
+    background: rgba(255, 255, 255, 0.88);
+    border-radius: 24px;
+    padding: 24px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(10px);
+  }
+  h1 {
+    text-align: center;
+    font-size: 32px;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, #ff6b9d, #c44dff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .stage-label {
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 14px;
+    color: #888;
+    font-size: 14px;
+  }
+  .battlefield {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 30px 10px;
+    margin-bottom: 16px;
+    background: linear-gradient(180deg, #fff5fa, #f0e7ff);
+    border-radius: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+  }
+  .character {
+    text-align: center;
+    position: relative;
+    min-width: 180px;
+  }
+  .character-emoji {
+    font-size: 80px;
+    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.15));
+    transition: transform 0.3s;
+    display: inline-block;
+  }
+  .character.hit .character-emoji { animation: shake 0.4s; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0) rotate(0); }
+    20% { transform: translateX(-10px) rotate(-5deg); }
+    40% { transform: translateX(10px) rotate(5deg); }
+    60% { transform: translateX(-8px) rotate(-3deg); }
+    80% { transform: translateX(8px) rotate(3deg); }
+  }
+  .name { font-weight: bold; margin-top: 6px; font-size: 18px; color: #444; }
+  .hp-bar {
+    width: 160px;
+    height: 16px;
+    background: #e6e6e6;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 6px auto 4px;
+    border: 2px solid #fff;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  .hp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6b9d, #ff8ec5);
+    transition: width 0.4s ease;
+  }
+  .hp-text { font-size: 13px; color: #666; font-weight: bold; }
+  .stats { display: flex; gap: 6px; justify-content: center; margin-top: 6px; flex-wrap: wrap; }
+  .stat {
+    background: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: bold;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  }
+  .energy { color: #f5a623; }
+  .shield { color: #4a90e2; }
+  .intent {
+    background: #fff0f0;
+    color: #d32f2f;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: bold;
+    margin-top: 6px;
+    display: inline-block;
+  }
+
+  .hand {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    min-height: 200px;
+    margin-bottom: 14px;
+    padding: 8px;
+  }
+  .card {
+    width: 130px;
+    height: 180px;
+    background: white;
+    border-radius: 14px;
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    border: 3px solid transparent;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+    transition: transform 0.25s, box-shadow 0.25s, opacity 0.25s;
+    user-select: none;
+    position: relative;
+  }
+  .card:hover:not(.disabled) {
+    transform: translateY(-10px);
+    box-shadow: 0 14px 24px rgba(0, 0, 0, 0.2);
+  }
+  .card.disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(40%); }
+  .card.attack { border-color: #ff6b6b; background: linear-gradient(180deg, #fff, #ffeaea); }
+  .card.defense { border-color: #4a90e2; background: linear-gradient(180deg, #fff, #e8f1ff); }
+  .card.heal { border-color: #6bcf7f; background: linear-gradient(180deg, #fff, #e7f9ec); }
+  .card-cost {
+    align-self: flex-start;
+    background: linear-gradient(135deg, #f5a623, #ff8c42);
+    color: white;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    box-shadow: 0 2px 6px rgba(245, 166, 35, 0.4);
+  }
+  .card-icon { font-size: 40px; margin: 6px 0; }
+  .card-name { font-weight: bold; font-size: 14px; color: #333; }
+  .card-desc { font-size: 11px; color: #666; margin-top: 4px; line-height: 1.3; }
+  .card.played { animation: cardPlay 0.6s forwards; pointer-events: none; }
+  @keyframes cardPlay {
+    0% { transform: translateY(0) scale(1) rotate(0); opacity: 1; }
+    50% { transform: translateY(-100px) scale(1.15) rotate(5deg); opacity: 0.9; }
+    100% { transform: translateY(-220px) scale(0.4) rotate(20deg); opacity: 0; }
+  }
+
+  .controls { display: flex; justify-content: center; gap: 12px; margin-bottom: 12px; }
+  button {
+    padding: 12px 28px;
+    border: none;
+    border-radius: 30px;
+    background: linear-gradient(135deg, #ff6b9d, #c44dff);
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 6px 14px rgba(196, 77, 255, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(196, 77, 255, 0.5); }
+  button:active { transform: translateY(0); }
+  button.secondary { background: linear-gradient(135deg, #aaa, #888); box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2); }
+
+  .log {
+    max-height: 90px;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 12px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: #555;
+  }
+  .log p { margin: 2px 0; }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .overlay.show { display: flex; }
+  .modal {
+    background: white;
+    padding: 36px;
+    border-radius: 24px;
+    text-align: center;
+    max-width: 400px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: pop 0.4s;
+  }
+  @keyframes pop {
+    0% { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .modal h2 { font-size: 28px; margin-bottom: 12px; }
+  .modal p { margin-bottom: 20px; color: #666; }
+
+  .floating-text {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    font-size: 26px;
+    font-weight: bold;
+    pointer-events: none;
+    animation: float 1s forwards;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    z-index: 10;
+  }
+  @keyframes float {
+    0% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -70px) scale(1.3); }
+  }
+</style>
+</head>
+<body>
+<div class="game">
+  <h1>🌸 카드 배틀 🌸</h1>
+  <div class="stage-label" id="stageLabel">스테이지 1</div>
+
+  <div class="battlefield">
+    <div class="character" id="player">
+      <div class="character-emoji">🧙‍♀️</div>
+      <div class="name">용사</div>
+      <div class="hp-bar"><div class="hp-fill" id="playerHpFill"></div></div>
+      <div class="hp-text" id="playerHpText">50 / 50</div>
+      <div class="stats">
+        <div class="stat energy">⚡ <span id="energyText">3</span>/3</div>
+        <div class="stat shield">🛡️ <span id="shieldText">0</span></div>
+      </div>
+    </div>
+    <div class="character" id="enemy">
+      <div class="character-emoji" id="enemyEmoji">👹</div>
+      <div class="name" id="enemyName">고블린</div>
+      <div class="hp-bar"><div class="hp-fill" id="enemyHpFill"></div></div>
+      <div class="hp-text" id="enemyHpText">30 / 30</div>
+      <div class="intent" id="enemyIntent">💥 다음 공격: 6</div>
+    </div>
+  </div>
+
+  <div class="hand" id="hand"></div>
+
+  <div class="controls">
+    <button id="endTurnBtn">턴 종료</button>
+    <button id="restartBtn" class="secondary">재시작</button>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="modalTitle">승리!</h2>
+    <p id="modalText">축하합니다!</p>
+    <button id="modalBtn">다시 시작</button>
+  </div>
+</div>
+
+<script>
+// === 카드 종류 정의 ===
+const CARD_TYPES = [
+  { name: '베기',       icon: '⚔️', cost: 1, type: 'attack',  value: 6,  desc: '적에게 6 피해' },
+  { name: '강타',       icon: '🔨', cost: 2, type: 'attack',  value: 10, desc: '적에게 10 피해' },
+  { name: '연속 공격',  icon: '🗡️', cost: 1, type: 'attack',  value: 3, hits: 2, desc: '3 피해 2회' },
+  { name: '화염구',     icon: '🔥', cost: 2, type: 'attack',  value: 8,  desc: '적에게 8 피해' },
+  { name: '방패',       icon: '🛡️', cost: 1, type: 'defense', value: 5,  desc: '방어 +5' },
+  { name: '견고한 벽',  icon: '🏰', cost: 2, type: 'defense', value: 9,  desc: '방어 +9' },
+  { name: '치유',       icon: '💖', cost: 1, type: 'heal',    value: 5,  desc: '체력 +5' },
+  { name: '대치유',     icon: '✨', cost: 2, type: 'heal',    value: 10, desc: '체력 +10' },
+];
+
+// === 적 정의 (스테이지 별 난이도 증가) ===
+const ENEMIES = [
+  { name: '고블린', emoji: '👹', hp: 30, minAtk: 5, maxAtk: 8 },
+  { name: '슬라임 킹', emoji: '🟢', hp: 45, minAtk: 7, maxAtk: 11 },
+  { name: '드래곤', emoji: '🐲', hp: 65, minAtk: 9, maxAtk: 14 },
+];
+
+// === 게임 상태 (재시작 시 완전 초기화) ===
+let state;
+
+function initState() {
+  state = {
+    stage: 0,
+    player: { hp: 50, maxHp: 50, energy: 3, shield: 0 },
+    enemy: null,
+    hand: [],
+    nextEnemyAtk: 0,
+    canPlay: true,
+    busy: false,
+  };
+  document.getElementById('log').innerHTML = '';
+  loadEnemy(0);
+  startPlayerTurn();
+  log('게임 시작! 카드를 사용하여 적을 물리치세요.');
+}
+
+// 스테이지 적 로드
+function loadEnemy(idx) {
+  const e = ENEMIES[idx];
+  state.enemy = { ...e, maxHp: e.hp };
+  state.stage = idx;
+  document.getElementById('stageLabel').textContent = `스테이지 ${idx + 1} / ${ENEMIES.length}`;
+  document.getElementById('enemyEmoji').textContent = e.emoji;
+  document.getElementById('enemyName').textContent = e.name;
+  setEnemyIntent();
+}
+
+// 적의 다음 공격 미리 결정
+function setEnemyIntent() {
+  const e = state.enemy;
+  state.nextEnemyAtk = Math.floor(Math.random() * (e.maxAtk - e.minAtk + 1)) + e.minAtk;
+  document.getElementById('enemyIntent').textContent = `💥 다음 공격: ${state.nextEnemyAtk}`;
+}
+
+// 손패 3장을 무작위로 뽑기
+function drawCards() {
+  state.hand = [];
+  for (let i = 0; i < 3; i++) {
+    const c = CARD_TYPES[Math.floor(Math.random() * CARD_TYPES.length)];
+    state.hand.push({ ...c, uid: Date.now() + i + Math.random() });
+  }
+}
+
+// 플레이어 턴 시작: 방어 초기화, 에너지 충전, 카드 드로우
+function startPlayerTurn() {
+  state.player.shield = 0;
+  state.player.energy = 3;
+  drawCards();
+  state.canPlay = true;
+  state.busy = false;
+  render();
+}
+
+// 화면 렌더링 (HP, 에너지, 방어, 손패 실시간 반영)
+function render() {
+  const p = state.player, e = state.enemy;
+  document.getElementById('playerHpFill').style.width = (p.hp / p.maxHp * 100) + '%';
+  document.getElementById('playerHpText').textContent = `${p.hp} / ${p.maxHp}`;
+  document.getElementById('energyText').textContent = p.energy;
+  document.getElementById('shieldText').textContent = p.shield;
+  document.getElementById('enemyHpFill').style.width = (e.hp / e.maxHp * 100) + '%';
+  document.getElementById('enemyHpText').textContent = `${e.hp} / ${e.maxHp}`;
+
+  const handEl = document.getElementById('hand');
+  handEl.innerHTML = '';
+  state.hand.forEach(card => {
+    const el = document.createElement('div');
+    el.className = `card ${card.type}`;
+    // 에너지 부족하거나 행동 불가 시 비활성화
+    if (!state.canPlay || p.energy < card.cost) el.classList.add('disabled');
+    el.innerHTML = `
+      <div class="card-cost">${card.cost}</div>
+      <div class="card-icon">${card.icon}</div>
+      <div class="card-name">${card.name}</div>
+      <div class="card-desc">${card.desc}</div>
+    `;
+    el.addEventListener('click', () => playCard(card.uid, el));
+    handEl.appendChild(el);
+  });
+}
+
+// 카드 사용 처리
+function playCard(uid, el) {
+  if (!state.canPlay || state.busy) return;
+  const idx = state.hand.findIndex(c => c.uid === uid);
+  if (idx === -1) return;
+  const card = state.hand[idx];
+  if (state.player.energy < card.cost) return;
+
+  state.player.energy -= card.cost;
+  el.classList.add('played'); // 카드 사용 애니메이션
+
+  // 효과 적용
+  if (card.type === 'attack') {
+    const hits = card.hits || 1;
+    for (let i = 0; i < hits; i++) {
+      setTimeout(() => dealDamageToEnemy(card.value), i * 220);
+    }
+    log(`${card.name} 사용 → ${card.value * hits} 피해`);
+  } else if (card.type === 'defense') {
+    state.player.shield += card.value;
+    showFloating('player', `+${card.value}🛡️`, '#4a90e2');
+    log(`${card.name} 사용 → 방어 +${card.value}`);
+  } else if (card.type === 'heal') {
+    const heal = Math.min(card.value, state.player.maxHp - state.player.hp);
+    state.player.hp += heal;
+    showFloating('player', `+${heal}💖`, '#6bcf7f');
+    log(`${card.name} 사용 → 체력 +${heal}`);
+  }
+
+  // 손패에서 카드 제거 후 다시 렌더
+  setTimeout(() => {
+    const i = state.hand.findIndex(c => c.uid === uid);
+    if (i !== -1) state.hand.splice(i, 1);
+    render();
+    checkBattleEnd();
+  }, 500);
+}
+
+// 적에게 피해
+function dealDamageToEnemy(dmg) {
+  state.enemy.hp = Math.max(0, state.enemy.hp - dmg);
+  document.getElementById('enemy').classList.add('hit');
+  showFloating('enemy', `-${dmg}`, '#ff6b6b');
+  setTimeout(() => document.getElementById('enemy').classList.remove('hit'), 400);
+  render();
+  checkBattleEnd();
+}
+
+// 턴 종료: 적이 행동
+function endTurn() {
+  if (!state.canPlay || state.busy) return;
+  state.canPlay = false;
+  state.busy = true;
+  render();
+
+  setTimeout(() => {
+    if (state.enemy.hp <= 0) return;
+    const dmg = state.nextEnemyAtk;
+    let actual;
+    if (state.player.shield >= dmg) {
+      state.player.shield -= dmg;
+      actual = 0;
+    } else {
+      actual = dmg - state.player.shield;
+      state.player.shield = 0;
+    }
+    state.player.hp = Math.max(0, state.player.hp - actual);
+    document.getElementById('player').classList.add('hit');
+    showFloating('player', actual > 0 ? `-${actual}` : '막음!', actual > 0 ? '#ff6b6b' : '#4a90e2');
+    setTimeout(() => document.getElementById('player').classList.remove('hit'), 400);
+    log(`${state.enemy.name}의 공격 → ${actual} 피해${actual === 0 ? ' (완전 방어!)' : ''}`);
+    render();
+
+    if (state.player.hp <= 0) {
+      showEnd(false);
+      return;
+    }
+    setTimeout(() => {
+      setEnemyIntent();
+      startPlayerTurn();
+    }, 800);
+  }, 500);
+}
+
+// 전투 종료 검사
+function checkBattleEnd() {
+  if (state.enemy.hp <= 0 && !state.busy) {
+    state.canPlay = false;
+    state.busy = true;
+    log(`✨ ${state.enemy.name} 처치! ✨`);
+    setTimeout(() => {
+      if (state.stage + 1 < ENEMIES.length) {
+        loadEnemy(state.stage + 1);
+        log(`다음 적: ${state.enemy.name} 등장!`);
+        startPlayerTurn();
+      } else {
+        showEnd(true);
+      }
+    }, 1100);
+  }
+}
+
+// 게임 종료 모달
+function showEnd(win) {
+  document.getElementById('modalTitle').textContent = win ? '🎉 승리! 🎉' : '💀 패배 💀';
+  document.getElementById('modalText').textContent = win
+    ? '모든 적을 물리쳤습니다! 멋져요!'
+    : '아쉽지만 다시 도전해 보세요!';
+  document.getElementById('overlay').classList.add('show');
+}
+
+// 떠오르는 텍스트 효과
+function showFloating(target, text, color) {
+  const el = document.getElementById(target);
+  const f = document.createElement('div');
+  f.className = 'floating-text';
+  f.textContent = text;
+  f.style.color = color;
+  el.appendChild(f);
+  setTimeout(() => f.remove(), 1000);
+}
+
+// 로그 출력
+function log(msg) {
+  const l = document.getElementById('log');
+  const p = document.createElement('p');
+  p.textContent = '> ' + msg;
+  l.appendChild(p);
+  l.scrollTop = l.scrollHeight;
+}
+
+// 재시작 (모든 상태 초기화)
+function restart() {
+  document.getElementById('overlay').classList.remove('show');
+  initState();
+}
+
+// 이벤트 연결
+document.getElementById('endTurnBtn').addEventListener('click', endTurn);
+document.getElementById('restartBtn').addEventListener('click', restart);
+document.getElementById('modalBtn').addEventListener('click', restart);
+
+// 게임 시작
+initState();
+</script>
+</body>
+</html>

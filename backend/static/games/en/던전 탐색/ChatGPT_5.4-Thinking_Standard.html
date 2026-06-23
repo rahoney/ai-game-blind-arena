@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8x8 Roguelike Dungeon</title>
+  <style>
+    :root{
+      --bg:#0d1117;
+      --panel:#161b22;
+      --panel-2:#1f2630;
+      --line:#2d3748;
+      --text:#e6edf3;
+      --muted:#9aa4b2;
+      --accent:#7c3aed;
+      --accent-2:#22c55e;
+      --danger:#ef4444;
+      --warn:#f59e0b;
+      --shadow:0 12px 30px rgba(0,0,0,.35);
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:
+        radial-gradient(circle at top, rgba(124,58,237,.16), transparent 25%),
+        radial-gradient(circle at bottom, rgba(34,197,94,.08), transparent 30%),
+        linear-gradient(180deg, #0b0f14 0%, #111827 100%);
+      color:var(--text);
+      font-family: "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+      padding:20px;
+    }
+
+    .game-shell{
+      width:min(95vw, 920px);
+      background:rgba(13,17,23,.88);
+      border:1px solid rgba(255,255,255,.06);
+      border-radius:24px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      backdrop-filter: blur(8px);
+    }
+
+    .header{
+      padding:18px 22px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0));
+    }
+
+    .title-wrap h1{
+      margin:0;
+      font-size:24px;
+      letter-spacing:.4px;
+    }
+
+    .title-wrap p{
+      margin:6px 0 0;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    .content{
+      display:grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap:0;
+    }
+
+    .board-area{
+      padding:22px;
+      border-right:1px solid rgba(255,255,255,.06);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0));
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:640px;
+    }
+
+    .board-wrap{
+      width:100%;
+      max-width:520px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:14px;
+    }
+
+    .board{
+      display:grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      gap:6px;
+      width:min(78vw, 500px);
+      height:min(78vw, 500px);
+      max-width:500px;
+      max-height:500px;
+      padding:10px;
+      background:#0b1220;
+      border:1px solid rgba(255,255,255,.07);
+      border-radius:22px;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+    }
+
+    .cell{
+      position:relative;
+      border-radius:14px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:28px;
+      user-select:none;
+      transition:transform .14s ease, background .18s ease, opacity .18s ease, box-shadow .18s ease;
+      border:1px solid rgba(255,255,255,.04);
+      overflow:hidden;
+    }
+
+    .cell.visible{
+      background:linear-gradient(180deg, #1a2330 0%, #131b26 100%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+    }
+
+    .cell.explored{
+      background:linear-gradient(180deg, #111722 0%, #0d131d 100%);
+      opacity:.72;
+    }
+
+    .cell.hidden{
+      background:linear-gradient(180deg, #06080c 0%, #04060a 100%);
+      opacity:1;
+    }
+
+    .cell.floor::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255,255,255,.05), transparent 30%),
+        radial-gradient(circle at 70% 70%, rgba(255,255,255,.03), transparent 25%);
+      pointer-events:none;
+    }
+
+    .cell.wall.visible, .cell.wall.explored{
+      background:linear-gradient(180deg, #374151 0%, #1f2937 100%);
+    }
+
+    .cell.exit.visible{
+      box-shadow: 0 0 0 1px rgba(34,197,94,.18), 0 0 18px rgba(34,197,94,.16) inset;
+    }
+
+    .cell.player.visible{
+      box-shadow: 0 0 0 1px rgba(124,58,237,.18), 0 0 24px rgba(124,58,237,.18);
+      transform:scale(1.02);
+    }
+
+    .cell.enemy.visible{
+      box-shadow: 0 0 0 1px rgba(239,68,68,.18), 0 0 24px rgba(239,68,68,.16);
+    }
+
+    .cell.item.visible{
+      box-shadow: 0 0 0 1px rgba(245,158,11,.18), 0 0 18px rgba(245,158,11,.16);
+    }
+
+    .symbol{
+      position:relative;
+      z-index:1;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,.35));
+    }
+
+    .sidebar{
+      padding:22px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      min-height:640px;
+    }
+
+    .panel{
+      background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+      border:1px solid rgba(255,255,255,.06);
+      border-radius:18px;
+      padding:16px;
+    }
+
+    .stats{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:10px;
+    }
+
+    .stat{
+      background:var(--panel-2);
+      border:1px solid rgba(255,255,255,.05);
+      border-radius:14px;
+      padding:12px;
+    }
+
+    .stat .label{
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:6px;
+    }
+
+    .stat .value{
+      font-size:22px;
+      font-weight:700;
+    }
+
+    .hp-bar{
+      margin-top:10px;
+      height:12px;
+      border-radius:999px;
+      background:#0b1220;
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.05);
+    }
+
+    .hp-fill{
+      height:100%;
+      width:100%;
+      background:linear-gradient(90deg, #22c55e, #84cc16);
+      transition:width .2s ease;
+    }
+
+    .section-title{
+      margin:0 0 10px;
+      font-size:15px;
+      font-weight:700;
+    }
+
+    .log{
+      height:210px;
+      overflow:auto;
+      padding-right:4px;
+    }
+
+    .log-entry{
+      background:rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.05);
+      border-radius:12px;
+      padding:10px 12px;
+      font-size:13px;
+      line-height:1.45;
+      margin-bottom:8px;
+      color:#d9e0e7;
+    }
+
+    .controls{
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.7;
+    }
+
+    .legend{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:8px;
+      font-size:13px;
+      color:#d9e0e7;
+    }
+
+    .legend div{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      background:rgba(255,255,255,.03);
+      border:1px solid rgba(255,255,255,.05);
+      border-radius:12px;
+      padding:8px 10px;
+    }
+
+    .btn-row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    button{
+      border:none;
+      cursor:pointer;
+      border-radius:14px;
+      padding:12px 16px;
+      font-size:14px;
+      font-weight:700;
+      color:white;
+      transition:transform .12s ease, opacity .18s ease, filter .18s ease;
+    }
+
+    button:hover{ transform:translateY(-1px); }
+    button:active{ transform:translateY(0); }
+
+    .primary{
+      background:linear-gradient(135deg, #7c3aed, #4f46e5);
+    }
+
+    .secondary{
+      background:linear-gradient(135deg, #0f766e, #0ea5e9);
+    }
+
+    .danger{
+      background:linear-gradient(135deg, #b91c1c, #ef4444);
+    }
+
+    .overlay{
+      position:absolute;
+      inset:0;
+      background:rgba(4,8,14,.74);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+      z-index:20;
+    }
+
+    .overlay.hidden{
+      display:none;
+    }
+
+    .modal{
+      width:min(92vw, 460px);
+      background:linear-gradient(180deg, #111827, #0b1220);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:24px;
+      padding:26px;
+      text-align:center;
+      box-shadow:var(--shadow);
+    }
+
+    .modal h2{
+      margin:0 0 12px;
+      font-size:28px;
+    }
+
+    .modal p{
+      margin:0 0 18px;
+      color:var(--muted);
+      line-height:1.7;
+      font-size:14px;
+    }
+
+    .game-shell-inner{
+      position:relative;
+    }
+
+    .footer-note{
+      text-align:center;
+      font-size:12px;
+      color:var(--muted);
+      margin-top:2px;
+    }
+
+    @media (max-width: 860px){
+      .content{
+        grid-template-columns:1fr;
+      }
+      .board-area{
+        border-right:none;
+        border-bottom:1px solid rgba(255,255,255,.06);
+        min-height:auto;
+      }
+      .sidebar{
+        min-height:auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="game-shell">
+    <div class="header">
+      <div class="title-wrap">
+        <h1>🗡️ 8x8 Roguelike Dungeon</h1>
+        <p>Player is P, Enemy is E, Item is I, Exit is O</p>
+      </div>
+      <div class="btn-row">
+        <button id="startBtnTop" class="secondary">New Game</button>
+        <button id="restartBtnTop" class="primary">Restart</button>
+      </div>
+    </div>
+
+    <div class="game-shell-inner">
+      <div class="content">
+        <section class="board-area">
+          <div class="board-wrap">
+            <div id="board" class="board"></div>
+            <div class="footer-note">Move: Arrow keys or WASD</div>
+          </div>
+        </section>
+
+        <aside class="sidebar">
+          <div class="panel">
+            <h3 class="section-title">Status</h3>
+            <div class="stats">
+              <div class="stat">
+                <div class="label">Health</div>
+                <div class="value" id="hpValue">10 / 10</div>
+              </div>
+              <div class="stat">
+                <div class="label">Attack Power</div>
+                <div class="value" id="atkValue">3</div>
+              </div>
+              <div class="stat">
+                <div class="label">Enemy Health</div>
+                <div class="value" id="enemyHpValue">8 / 8</div>
+              </div>
+              <div class="stat">
+                <div class="label">Turns</div>
+                <div class="value" id="turnValue">0</div>
+              </div>
+            </div>
+            <div class="hp-bar">
+              <div id="hpFill" class="hp-fill"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3 class="section-title">Symbol</h3>
+            <div class="legend">
+              <div><span>🧙</span><span>P Player</span></div>
+              <div><span>👹</span><span>E Enemy</span></div>
+              <div><span>🧪</span><span>I Recovery Item</span></div>
+              <div><span>🚪</span><span>O Exit</span></div>
+              <div><span>🧱</span><span>Wall</span></div>
+              <div><span>·</span><span>Floor</span></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3 class="section-title">How to Play</h3>
+            <div class="controls">
+              - Limited vision applied.<br>
+              - Combat occurs upon contact with Enemy.<br>
+              - Step on items to recover Health.<br>
+              - Win by reaching the Exit even if Enemy is alive.
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3 class="section-title">Log</h3>
+            <div id="log" class="log"></div>
+          </div>
+        </aside>
+      </div>
+
+      <div id="startOverlay" class="overlay">
+        <div class="modal">
+          <h2>🕯️ Entered the dungeon</h2>
+          <p>
+            Explore 8x8 Dungeon and find the Exit.<br>
+            Outside vision is hidden, combat starts upon encountering enemies.
+          </p>
+          <div class="btn-row" style="justify-content:center;">
+            <button id="startBtn" class="primary">Start Game</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="endOverlay" class="overlay hidden">
+        <div class="modal">
+          <h2 id="endTitle">Game Over</h2>
+          <p id="endDesc">Result Message</p>
+          <div class="btn-row" style="justify-content:center;">
+            <button id="restartBtn" class="primary">Restart</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SIZE = 8;
+    const WALL = "wall";
+    const FLOOR = "floor";
+    const VIS_RADIUS = 1; // 주변만 보이도록 시야 반경 1칸
+    const MAX_WALLS = 14;
+
+    const boardEl = document.getElementById("board");
+    const logEl = document.getElementById("log");
+    const hpValueEl = document.getElementById("hpValue");
+    const atkValueEl = document.getElementById("atkValue");
+    const enemyHpValueEl = document.getElementById("enemyHpValue");
+    const turnValueEl = document.getElementById("turnValue");
+    const hpFillEl = document.getElementById("hpFill");
+
+    const startOverlay = document.getElementById("startOverlay");
+    const endOverlay = document.getElementById("endOverlay");
+    const endTitle = document.getElementById("endTitle");
+    const endDesc = document.getElementById("endDesc");
+
+    const state = {
+      map: [],
+      explored: [],
+      player: null,
+      enemy: null,
+      item: null,
+      exit: null,
+      turn: 0,
+      gameOver: false,
+      started: false
+    };
+
+    function randInt(min, max){
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function key(x, y){
+      return `${x},${y}`;
+    }
+
+    function inBounds(x, y){
+      return x >= 0 && x < SIZE && y >= 0 && y < SIZE;
+    }
+
+    function samePos(a, b){
+      return a && b && a.x === b.x && a.y === b.y;
+    }
+
+    function shuffle(arr){
+      for(let i = arr.length - 1; i > 0; i--){
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function createEmptyMap(){
+      return Array.from({ length: SIZE }, () => Array.from({ length: SIZE }, () => FLOOR));
+    }
+
+    function createExplored(){
+      return Array.from({ length: SIZE }, () => Array.from({ length: SIZE }, () => false));
+    }
+
+    function addLog(message){
+      const div = document.createElement("div");
+      div.className = "log-entry";
+      div.textContent = message;
+      logEl.prepend(div);
+    }
+
+    function clearLog(){
+      logEl.innerHTML = "";
+    }
+
+    function randomFloorPos(excluded = []){
+      const excludedKeys = new Set(excluded.map(p => key(p.x, p.y)));
+      const candidates = [];
+
+      for(let y = 0; y < SIZE; y++){
+        for(let x = 0; x < SIZE; x++){
+          if(state.map[y][x] === FLOOR && !excludedKeys.has(key(x, y))){
+            candidates.push({ x, y });
+          }
+        }
+      }
+
+      return candidates[Math.floor(Math.random() * candidates.length)];
+    }
+
+    function getNeighbors(x, y){
+      return [
+        { x: x + 1, y },
+        { x: x - 1, y },
+        { x, y: y + 1 },
+        { x, y: y - 1 }
+      ].filter(p => inBounds(p.x, p.y));
+    }
+
+    function bfsPathExists(start, goal, tempMap){
+      const queue = [start];
+      const visited = new Set([key(start.x, start.y)]);
+
+      while(queue.length){
+        const cur = queue.shift();
+        if(cur.x === goal.x && cur.y === goal.y) return true;
+
+        for(const nxt of getNeighbors(cur.x, cur.y)){
+          if(tempMap[nxt.y][nxt.x] === WALL) continue;
+          const k = key(nxt.x, nxt.y);
+          if(visited.has(k)) continue;
+          visited.add(k);
+          queue.push(nxt);
+        }
+      }
+      return false;
+    }
+
+    function manhattan(a, b){
+      return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    }
+
+    function generateMap(){
+      state.map = createEmptyMap();
+      state.explored = createExplored();
+
+      // 시작pts과 출구를 먼저 배치
+      state.player = { x: 0, y: 0, hp: 10, maxHp: 10, atk: 3 };
+      state.exit = { x: SIZE - 1, y: SIZE - 1 };
+
+      // 시작pts과 출구를 너무 붙지 않게 재배치
+      const corners = [
+        { x: 0, y: 0 },
+        { x: SIZE - 1, y: 0 },
+        { x: 0, y: SIZE - 1 },
+        { x: SIZE - 1, y: SIZE - 1 }
+      ];
+
+      state.player = corners[randInt(0, corners.length - 1)];
+      do {
+        state.exit = corners[randInt(0, corners.length - 1)];
+      } while (samePos(state.player, state.exit) || manhattan(state.player, state.exit) < 10);
+
+      state.player = { ...state.player, hp: 10, maxHp: 10, atk: 3 };
+
+      // Wall을 랜덤 배치하되 시작pts -> 출구 경로는 반드시 유지
+      let wallsPlaced = 0;
+      let attempts = 0;
+
+      while(wallsPlaced < MAX_WALLS && attempts < 500){
+        attempts++;
+        const x = randInt(0, SIZE - 1);
+        const y = randInt(0, SIZE - 1);
+
+        if((x === state.player.x && y === state.player.y) || (x === state.exit.x && y === state.exit.y)) continue;
+        if(state.map[y][x] === WALL) continue;
+
+        state.map[y][x] = WALL;
+
+        // 핵심: Wall을 놓아도 Player에서 출구까지 길이 있으면 유지
+        if(bfsPathExists({ x: state.player.x, y: state.player.y }, state.exit, state.map)){
+          wallsPlaced++;
+        } else {
+          state.map[y][x] = FLOOR;
+        }
+      }
+
+      // Enemy 배치: 시작pts과 출구에서 너무 가깝지 않은 곳
+      let enemyPos;
+      do {
+        enemyPos = randomFloorPos([state.player, state.exit]);
+      } while (manhattan(enemyPos, state.player) < 4);
+
+      state.enemy = {
+        x: enemyPos.x,
+        y: enemyPos.y,
+        hp: 8,
+        maxHp: 8,
+        atk: 2,
+        alive: true
+      };
+
+      // 아이템 배치
+      let itemPos;
+      do {
+        itemPos = randomFloorPos([state.player, state.exit, state.enemy]);
+      } while (manhattan(itemPos, state.player) < 2);
+
+      state.item = {
+        x: itemPos.x,
+        y: itemPos.y,
+        heal: 4,
+        active: true
+      };
+
+      state.turn = 0;
+      state.gameOver = false;
+      revealAroundPlayer();
+    }
+
+    function revealAroundPlayer(){
+      for(let dy = -VIS_RADIUS; dy <= VIS_RADIUS; dy++){
+        for(let dx = -VIS_RADIUS; dx <= VIS_RADIUS; dx++){
+          const nx = state.player.x + dx;
+          const ny = state.player.y + dy;
+          if(inBounds(nx, ny)){
+            state.explored[ny][nx] = true;
+          }
+        }
+      }
+    }
+
+    function isVisible(x, y){
+      return Math.abs(x - state.player.x) <= VIS_RADIUS && Math.abs(y - state.player.y) <= VIS_RADIUS;
+    }
+
+    function getSymbol(x, y, visible){
+      if(!visible) return "";
+
+      if(state.player.x === x && state.player.y === y) return "🧙";
+      if(state.enemy.alive && state.enemy.x === x && state.enemy.y === y) return "👹";
+      if(state.item.active && state.item.x === x && state.item.y === y) return "🧪";
+      if(state.exit.x === x && state.exit.y === y) return "🚪";
+      if(state.map[y][x] === WALL) return "🧱";
+      return "·";
+    }
+
+    function render(){
+      boardEl.innerHTML = "";
+
+      for(let y = 0; y < SIZE; y++){
+        for(let x = 0; x < SIZE; x++){
+          const cell = document.createElement("div");
+          const visible = isVisible(x, y);
+          const explored = state.explored[y][x];
+          const symbol = getSymbol(x, y, visible);
+
+          cell.className = "cell";
+
+          if(visible){
+            cell.classList.add("visible");
+          } else if(explored){
+            cell.classList.add("explored");
+          } else {
+            cell.classList.add("hidden");
+          }
+
+          if(explored || visible){
+            if(state.map[y][x] === WALL) cell.classList.add("wall");
+            else cell.classList.add("floor");
+          }
+
+          if(visible && state.player.x === x && state.player.y === y) cell.classList.add("player");
+          if(visible && state.enemy.alive && state.enemy.x === x && state.enemy.y === y) cell.classList.add("enemy");
+          if(visible && state.item.active && state.item.x === x && state.item.y === y) cell.classList.add("item");
+          if(visible && state.exit.x === x && state.exit.y === y) cell.classList.add("exit");
+
+          const span = document.createElement("span");
+          span.className = "symbol";
+          span.textContent = symbol;
+          cell.appendChild(span);
+
+          boardEl.appendChild(cell);
+        }
+      }
+
+      hpValueEl.textContent = `${state.player.hp} / ${state.player.maxHp}`;
+      atkValueEl.textContent = state.player.atk;
+      enemyHpValueEl.textContent = state.enemy.alive ? `${state.enemy.hp} / ${state.enemy.maxHp}` : "0 / 0";
+      turnValueEl.textContent = state.turn;
+      hpFillEl.style.width = `${(state.player.hp / state.player.maxHp) * 100}%`;
+    }
+
+    function healPlayer(){
+      if(state.item.active && samePos(state.player, state.item)){
+        const prev = state.player.hp;
+        state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.item.heal);
+        state.item.active = false;
+        addLog(`Used Recovery Item. Health ${prev} → ${state.player.hp}`);
+      }
+    }
+
+    function combat(){
+      if(state.enemy.alive && samePos(state.player, state.enemy)){
+        // 핵심: 접촉 즉시 서로 피해
+        state.enemy.hp -= state.player.atk;
+        addLog(`Enemyattacked. Enemy Health ${Math.max(state.enemy.hp, 0)}`);
+
+        if(state.enemy.hp > 0){
+          state.player.hp -= state.enemy.atk;
+          addLog(`Enemycounterattacked. My Health ${Math.max(state.player.hp, 0)}`);
+        } else {
+          state.enemy.alive = false;
+          addLog("Defeated the enemy.");
+        }
+
+        if(state.player.hp <= 0){
+          state.player.hp = 0;
+          endGame(false, "Fallen in combat with an enemy.");
+        }
+      }
+    }
+
+    function moveEnemy(){
+      if(!state.enemy.alive || state.gameOver) return;
+
+      const dirs = shuffle([
+        { x: 1, y: 0 },
+        { x: -1, y: 0 },
+        { x: 0, y: 1 },
+        { x: 0, y: -1 },
+        { x: 0, y: 0 } // 가만히 있기 포함
+      ]);
+
+      for(const d of dirs){
+        const nx = state.enemy.x + d.x;
+        const ny = state.enemy.y + d.y;
+
+        if(!inBounds(nx, ny)) continue;
+        if(state.map[ny][nx] === WALL) continue;
+        if(state.item.active && state.item.x === nx && state.item.y === ny) continue;
+        if(state.exit.x === nx && state.exit.y === ny) continue;
+
+        state.enemy.x = nx;
+        state.enemy.y = ny;
+        break;
+      }
+
+      // Enemy 이동 후 Player와 접촉 시 전투
+      if(samePos(state.enemy, state.player) && state.enemy.alive){
+        addLog("Enemy approached and combat started.");
+        combat();
+      }
+    }
+
+    function checkExit(){
+      if(samePos(state.player, state.exit)){
+        endGame(true, "Found the exit and survived the dungeon.");
+      }
+    }
+
+    function tryMove(dx, dy){
+      if(!state.started || state.gameOver) return;
+
+      const nx = state.player.x + dx;
+      const ny = state.player.y + dy;
+
+      if(!inBounds(nx, ny)){
+        addLog("Cannot go beyond the wall.");
+        return;
+      }
+
+      if(state.map[ny][nx] === WALL){
+        addLog("A wall blocks the path.");
+        return;
+      }
+
+      state.player.x = nx;
+      state.player.y = ny;
+      state.turn++;
+
+      revealAroundPlayer();
+      addLog(`Player moved to (${nx + 1}, ${ny + 1}).`);
+
+      healPlayer();
+      combat();
+      checkExit();
+
+      if(!state.gameOver){
+        moveEnemy();
+      }
+
+      revealAroundPlayer();
+      checkExit();
+      render();
+    }
+
+    function endGame(isWin, desc){
+      state.gameOver = true;
+      endTitle.textContent = isWin ? "🎉 Victory" : "💀 Defeat";
+      endDesc.textContent = desc;
+      endOverlay.classList.remove("hidden");
+    }
+
+    function startGame(){
+      generateMap();
+      clearLog();
+      addLog("Entered the dungeon.");
+      addLog("Move to find the exit.");
+      state.started = true;
+      state.gameOver = false;
+      startOverlay.classList.add("hidden");
+      endOverlay.classList.add("hidden");
+      render();
+    }
+
+    function restartGame(){
+      // 핵심: 모든 Status를 완전히 초기화
+      state.map = [];
+      state.explored = [];
+      state.player = null;
+      state.enemy = null;
+      state.item = null;
+      state.exit = null;
+      state.turn = 0;
+      state.gameOver = false;
+      state.started = false;
+      clearLog();
+      startGame();
+    }
+
+    function handleKey(e){
+      const k = e.key.toLowerCase();
+
+      if(["arrowup","arrowdown","arrowleft","arrowright","w","a","s","d"].includes(k)){
+        e.preventDefault();
+      }
+
+      if(k === "arrowup" || k === "w") tryMove(0, -1);
+      else if(k === "arrowdown" || k === "s") tryMove(0, 1);
+      else if(k === "arrowleft" || k === "a") tryMove(-1, 0);
+      else if(k === "arrowright" || k === "d") tryMove(1, 0);
+    }
+
+    document.addEventListener("keydown", handleKey);
+
+    document.getElementById("startBtn").addEventListener("click", startGame);
+    document.getElementById("startBtnTop").addEventListener("click", restartGame);
+    document.getElementById("restartBtnTop").addEventListener("click", restartGame);
+    document.getElementById("restartBtn").addEventListener("click", restartGame);
+
+    // 초기 빈 보드 렌더
+    (function initPreviewBoard(){
+      boardEl.innerHTML = "";
+      for(let i = 0; i < SIZE * SIZE; i++){
+        const cell = document.createElement("div");
+        cell.className = "cell hidden";
+        const span = document.createElement("span");
+        span.className = "symbol";
+        span.textContent = "";
+        cell.appendChild(span);
+        boardEl.appendChild(cell);
+      }
+    })();
+  </script>
+</body>
+</html>

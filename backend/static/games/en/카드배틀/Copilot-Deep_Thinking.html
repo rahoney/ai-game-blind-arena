@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Turn-Based Card Battle</title>
+<style>
+  :root{
+    --bg:#f6f8ff;
+    --panel:#ffffff;
+    --accent:#ff9db6;
+    --accent2:#9bd3ff;
+    --muted:#9aa4b2;
+    --card:#fff7f9;
+    --shadow: 0 8px 20px rgba(34,34,60,0.08);
+    --glass: rgba(255,255,255,0.6);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;font-family: "Noto Sans KR", "Segoe UI", Roboto, Arial, sans-serif}
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#f0f6ff 0%, #fff 100%);}
+  /* center game */
+  .wrap{
+    min-height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:30px;
+  }
+  .game{
+    width:920px;
+    max-width:95vw;
+    background:linear-gradient(180deg, rgba(255,255,255,0.9), rgba(250,250,255,0.95));
+    border-radius:20px;
+    box-shadow: var(--shadow);
+    padding:20px;
+    display:grid;
+    grid-template-columns: 1fr 360px;
+    gap:18px;
+    align-items:start;
+  }
+  /* left: battlefield */
+  .battle{
+    background:linear-gradient(180deg,#fff,#fbfbff);
+    border-radius:14px;
+    padding:18px;
+    min-height:520px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .row{
+    display:flex;
+    gap:12px;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .entity{
+    background:linear-gradient(180deg,#fff,#fff9fb);
+    border-radius:12px;
+    padding:12px;
+    display:flex;
+    gap:12px;
+    align-items:center;
+    box-shadow: 0 6px 18px rgba(120,120,160,0.06);
+    width:48%;
+  }
+  .avatar{
+    width:84px;height:84px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:28px;color:#fff;
+    box-shadow: 0 6px 14px rgba(0,0,0,0.06);
+  }
+  .player .avatar{background:linear-gradient(135deg,var(--accent),#ffd1e0)}
+  .monster .avatar{background:linear-gradient(135deg,var(--accent2),#cfeeff)}
+  .stats{flex:1}
+  .name{font-weight:700;font-size:18px;margin-bottom:6px}
+  .hpbar{
+    height:12px;background:#f1f4f8;border-radius:8px;overflow:hidden;
+    box-shadow: inset 0 -2px 6px rgba(0,0,0,0.03);
+  }
+  .hpfill{height:100%;background:linear-gradient(90deg,#ff7b9c,#ffb3c9);width:100%;}
+  .hptext{font-size:13px;color:var(--muted);margin-top:6px}
+  .smallstat{font-size:13px;color:var(--muted);margin-top:6px}
+  .center-area{
+    background:linear-gradient(180deg,#fff,#fcfdff);
+    border-radius:12px;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:8px;box-shadow: 0 6px 18px rgba(120,120,160,0.03);
+    min-height:160px;
+  }
+  .log{width:100%;height:84px;overflow:auto;padding:8px;border-radius:10px;background:linear-gradient(180deg,#fff,#fbfbff);font-size:13px;color:#334;}
+  /* right: controls & hand */
+  .side{
+    display:flex;flex-direction:column;gap:12px;
+  }
+  .panel{
+    background:var(--panel);border-radius:12px;padding:12px;box-shadow:var(--shadow);
+  }
+  .hud{display:flex;gap:8px;align-items:center;justify-content:space-between}
+  .hud .stat{
+    background:linear-gradient(180deg,#fff,#fff9fb);padding:10px;border-radius:10px;min-width:80px;text-align:center;
+  }
+  .stat .label{font-size:12px;color:var(--muted)}
+  .stat .value{font-weight:800;font-size:18px}
+  .hand{
+    display:flex;gap:10px;align-items:end;justify-content:center;padding:12px;min-height:160px;
+    background:linear-gradient(180deg,#fff,#fbfbff);border-radius:12px;
+  }
+  .card{
+    width:140px;height:200px;border-radius:12px;background:linear-gradient(180deg,#fff,#fff7f7);
+    box-shadow: 0 8px 18px rgba(30,30,60,0.08);padding:10px;display:flex;flex-direction:column;justify-content:space-between;
+    cursor:pointer;transition:transform .18s ease, box-shadow .18s ease, opacity .12s ease;
+    position:relative;overflow:hidden;
+  }
+  .card.locked{opacity:.5;cursor:not-allowed;transform:scale(.98)}
+  .card:hover{transform:translateY(-6px)}
+  .cost{
+    position:absolute;top:10px;left:10px;background:rgba(255,255,255,0.9);padding:6px 8px;border-radius:10px;font-weight:800;color:#333;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+  }
+  .ctype{position:absolute;top:10px;right:10px;font-size:12px;color:var(--muted)}
+  .cname{font-weight:900;font-size:16px}
+  .cdesc{font-size:13px;color:var(--muted);margin-top:6px}
+  .cvalue{font-weight:800;font-size:20px;color:#333}
+  .play-anim{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;
+    animation:playpop .6s ease forwards;
+  }
+  @keyframes playpop{
+    0%{transform:translate(-50%,-50%) scale(1);opacity:1}
+    100%{transform:translate(-50%,-160%) scale(.6);opacity:0}
+  }
+  .controls{display:flex;gap:8px;align-items:center;justify-content:space-between}
+  button{
+    background:linear-gradient(180deg,#fff,#fff9fb);border:0;padding:10px 14px;border-radius:10px;font-weight:800;cursor:pointer;
+    box-shadow: 0 8px 18px rgba(30,30,60,0.06);
+  }
+  button.primary{background:linear-gradient(180deg,var(--accent),#ffb3c9);color:#fff}
+  button.warn{background:linear-gradient(180deg,#ffd9a8,#ffb36b);color:#fff}
+  .center-controls{display:flex;gap:8px;align-items:center}
+  .footer{
+    display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:8px;
+  }
+  .big{
+    font-size:20px;font-weight:900;color:#334;
+  }
+  .muted{color:var(--muted)}
+  /* small responsive */
+  @media (max-width:880px){
+    .game{grid-template-columns:1fr;max-width:720px}
+    .side{order:2}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="game" id="gameRoot">
+    <div class="battle">
+      <div class="row">
+        <div class="entity player" id="playerPanel">
+          <div class="avatar">P</div>
+          <div class="stats">
+            <div class="name">Player <span id="playerLevel" style="font-weight:600;font-size:13px;color:var(--muted)">Lv 1</span></div>
+            <div class="hpbar"><div class="hpfill" id="playerHPFill"></div></div>
+            <div class="hptext" id="playerHPText">HP 30 / 30</div>
+            <div class="smallstat">Block <span id="playerDef">0</span> · Energy <span id="playerEnergy">3</span></div>
+          </div>
+        </div>
+
+        <div class="entity monster" id="monsterPanel">
+          <div class="avatar">M</div>
+          <div class="stats">
+            <div class="name" id="monsterName">Slime</div>
+            <div class="hpbar"><div class="hpfill" id="monsterHPFill" style="background:linear-gradient(90deg,#9bd3ff,#cfeeff)"></div></div>
+            <div class="hptext" id="monsterHPText">HP 20 / 20</div>
+            <div class="smallstat">Next Move: <span id="monsterIntent">Attack</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="center-area">
+        <div style="font-weight:900;font-size:20px;color:#334">Cute Card Battle</div>
+        <div class="log" id="log">Use a card or press End Turn to begin.</div>
+        <div class="footer" style="width:100%">
+          <div class="muted">Turn: <span id="turnCount">1</span></div>
+          <div class="muted">Wins: <span id="winCount">0</span> · Losses: <span id="loseCount">0</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div style="font-weight:800;margin-bottom:8px">Action Cards</div>
+        <div class="hand" id="handArea">
+          <!-- cards injected here -->
+        </div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="panel hud">
+        <div class="stat">
+          <div class="label">HP</div>
+          <div class="value" id="hudHP">30</div>
+        </div>
+        <div class="stat">
+          <div class="label">Energy</div>
+          <div class="value" id="hudEnergy">3</div>
+        </div>
+        <div class="stat">
+          <div class="label">Block</div>
+          <div class="value" id="hudDef">0</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div style="font-weight:800;margin-bottom:8px">Actions</div>
+        <div class="controls">
+          <div class="center-controls">
+            <button id="endTurnBtn" class="primary">End Turn</button>
+            <button id="drawBtn">Redraw Hand</button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button id="restartBtn" class="warn">Restart</button>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:13px;color:var(--muted)">
+          At the start of each turn, gain 3 energy and draw 3 cards. Block resets at the start of your next turn.
+        </div>
+      </div>
+
+      <div class="panel">
+        <div style="font-weight:800;margin-bottom:8px">Deck</div>
+        <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+          <div class="muted">Deck: <span id="deckCount">0</span></div>
+          <div class="muted">Discard: <span id="discardCount">0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ====== 게임 데이터 모델 ====== */
+const CARD_POOL = [
+  { id:'atk1', name:'Basic Strike', type:'attack', cost:1, value:6, desc:'Deal 6 damage' },
+  { id:'atk2', name:'Power Strike', type:'attack', cost:2, value:12, desc:'Deal 12 damage' },
+  { id:'def1', name:'Guard', type:'defend', cost:1, value:5, desc:'Gain 5 block' },
+  { id:'def2', name:'Iron Wall', type:'defend', cost:2, value:12, desc:'Gain 12 block' },
+  { id:'heal1', name:'Potion', type:'heal', cost:1, value:6, desc:'Restore 6 HP' },
+  { id:'heal2', name:'Greater Heal', type:'heal', cost:2, value:12, desc:'Restore 12 HP' },
+  { id:'pierce', name:'Pierce', type:'attack', cost:2, value:10, desc:'Deal 10 damage ignoring block' },
+  { id:'buff', name:'Energy Drink', type:'buff', cost:0, value:1, desc:'Gain +1 energy next turn' }
+];
+
+let state = null;
+
+/* ====== 유틸 ====== */
+function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+/* ====== 초기화 및 재시작 ====== */
+function initGame(){
+  // 기본 상태 설정
+  state = {
+    player: { maxHP:30, hp:30, energy:3, def:0, level:1, nextEnergyBonus:0 },
+    monster: { name:'Slime', maxHP:20, hp:20, intent:'Attack' },
+    deck: [],
+    discard: [],
+    hand: [],
+    turn:1,
+    wins:0,
+    loses:0,
+    inPlayerTurn:true,
+    canDrawReplace:true
+  };
+  // 덱 생성 및 섞기
+  state.deck = [];
+  // 여러 장 포함되도록 덱 구성
+  for(let i=0;i<2;i++) CARD_POOL.forEach(c=> state.deck.push({...c, uid:cryptoRandomId()}));
+  shuffle(state.deck);
+  // 초기 드로우
+  startPlayerTurn(true);
+  renderAll();
+}
+
+/* small unique id */
+function cryptoRandomId(){ return Math.random().toString(36).slice(2,9); }
+
+/* ====== 턴 흐름 ====== */
+function startPlayerTurn(isInitial=false){
+  state.inPlayerTurn = true;
+  // 방어는 플레이어 턴 시작 시 초기화
+  state.player.def = 0;
+  // 에너지 기본 3 + 보너스
+  state.player.energy = 3 + (state.player.nextEnergyBonus || 0);
+  state.player.nextEnergyBonus = 0;
+  // 드로우 3장
+  drawCards(3);
+  state.canDrawReplace = true;
+  if(!isInitial) state.turn++;
+  log(`Player turn ${state.turn} begins! Gained ${state.player.energy} energy.`);
+  renderAll();
+}
+
+function endPlayerTurn(){
+  state.inPlayerTurn = false;
+  state.canDrawReplace = false;
+  log('Player turn ended. The monster acts...');
+  // 몬스터 행동
+  setTimeout(()=> {
+    monsterAct();
+    // 체크: 게임 오버?
+    if(state.player.hp <= 0){
+      state.loses++;
+      renderAll();
+      showEnd('Defeat...');
+      return;
+    }
+    if(state.monster.hp <= 0){
+      state.wins++;
+      renderAll();
+      showEnd('Monster defeated! Victory!');
+      return;
+    }
+    // 다음 플레이어 턴 시작
+    setTimeout(()=> {
+      startPlayerTurn();
+    }, 700);
+  }, 700);
+}
+
+/* ====== 몬스터 AI ====== */
+function monsterAct(){
+  // 간단한 랜덤 attack 또는 약한 회복
+  const m = state.monster;
+  const choice = Math.random();
+  if(choice < 0.85){
+    // attack
+    const dmg = randInt(6,12);
+    // 방어 적용
+    let actual = dmg;
+    if(state.player.def > 0){
+      const reduced = Math.min(state.player.def, actual);
+      actual -= reduced;
+      state.player.def -= reduced;
+      if(state.player.def < 0) state.player.def = 0;
+    }
+    state.player.hp -= actual;
+    if(state.player.hp < 0) state.player.hp = 0;
+    log(`Monster attacks for ${dmg}! ${dmg-actual} blocked. Took ${actual} damage.`);
+  } else {
+    // 회복
+    const heal = randInt(4,8);
+    m.hp = Math.min(m.maxHP, m.hp + heal);
+    log(`Monster heals for ${heal}!`);
+  }
+  renderAll();
+}
+
+/* ====== 카드 시스템 ====== */
+function drawCards(n){
+  for(let i=0;i<n;i++){
+    if(state.deck.length === 0){
+      // 덱이 비면 버림을 섞어 덱으로
+      if(state.discard.length === 0) break;
+      state.deck = shuffle(state.discard.splice(0));
+    }
+    const card = state.deck.pop();
+    state.hand.push(card);
+  }
+  renderAll();
+}
+
+function playCard(cardUid, el){
+  if(!state.inPlayerTurn) return;
+  const idx = state.hand.findIndex(c=>c.uid===cardUid);
+  if(idx === -1) return;
+  const card = state.hand[idx];
+  if(state.player.energy < card.cost) return;
+  // 에너지 차감
+  state.player.energy -= card.cost;
+  // 카드 애니메이션
+  animateCardPlay(el, card);
+  // 효과 적용 (핵심 로직)
+  applyCardEffect(card);
+  // 버림으로 이동
+  state.discard.push(card);
+  state.hand.splice(idx,1);
+  renderAll();
+  // 자동 승리 체크
+  if(state.monster.hp <= 0){
+    state.wins++;
+    renderAll();
+    showEnd('Monster defeated! Victory!');
+  }
+  if(state.player.hp <= 0){
+    state.loses++;
+    renderAll();
+    showEnd('Defeat...');
+  }
+}
+
+/* 카드 효과 처리 */
+function applyCardEffect(card){
+  const p = state.player;
+  const m = state.monster;
+  if(card.type === 'attack'){
+    let dmg = card.value;
+    // 관통 카드는 방어 무시
+    if(card.id === 'pierce'){
+      m.hp -= dmg;
+      log(`${card.name} used! ${dmg} piercing damage.`);
+    } else {
+      // 방어 먼저 적용
+      if(m.def && m.def > 0){
+        const reduced = Math.min(m.def, dmg);
+        dmg -= reduced;
+        m.def -= reduced;
+      }
+      m.hp -= dmg;
+      log(`${card.name} used! ${dmg} damage.`);
+    }
+    if(m.hp < 0) m.hp = 0;
+  } else if(card.type === 'defend'){
+    p.def += card.value;
+    log(`${card.name} used! Gained ${card.value} block.`);
+  } else if(card.type === 'heal'){
+    p.hp = Math.min(p.maxHP, p.hp + card.value);
+    log(`${card.name} used! Restored ${card.value} HP.`);
+  } else if(card.type === 'buff'){
+    p.nextEnergyBonus += card.value;
+    log(`${card.name} used! Next turn energy +${card.value}.`);
+  }
+}
+
+/* 카드 재뽑기 (교체) */
+function replaceHand(){
+  if(!state.inPlayerTurn) return;
+  if(!state.canDrawReplace) return;
+  // 모든 손패를 버림으로
+  while(state.hand.length) state.discard.push(state.hand.pop());
+  drawCards(3);
+  state.canDrawReplace = false;
+  log('Hand redrawn.');
+  renderAll();
+}
+
+/* ====== 애니메이션 ====== */
+function animateCardPlay(el, card){
+  const anim = document.createElement('div');
+  anim.className = 'play-anim';
+  anim.style.fontWeight = 900;
+  anim.style.color = '#fff';
+  anim.style.padding = '8px 12px';
+  anim.style.borderRadius = '10px';
+  anim.style.background = 'linear-gradient(90deg,#ff9db6,#ffb3c9)';
+  anim.textContent = card.name;
+  el.appendChild(anim);
+  setTimeout(()=> anim.remove(), 600);
+}
+
+/* ====== UI 렌더링 ====== */
+function renderAll(){
+  // HUD
+  document.getElementById('hudHP').textContent = state.player.hp;
+  document.getElementById('hudEnergy').textContent = state.player.energy;
+  document.getElementById('hudDef').textContent = state.player.def;
+  // Player panel
+  document.getElementById('playerHPText').textContent = `HP ${state.player.hp} / ${state.player.maxHP}`;
+  const pFill = Math.max(0, (state.player.hp/state.player.maxHP)*100);
+  document.getElementById('playerHPFill').style.width = pFill + '%';
+  document.getElementById('playerDef').textContent = state.player.def;
+  document.getElementById('playerEnergy').textContent = state.player.energy;
+  document.getElementById('playerLevel').textContent = `Lv ${state.player.level}`;
+  // Monster
+  document.getElementById('monsterHPText').textContent = `HP ${state.monster.hp} / ${state.monster.maxHP}`;
+  const mFill = Math.max(0, (state.monster.hp/state.monster.maxHP)*100);
+  document.getElementById('monsterHPFill').style.width = mFill + '%';
+  document.getElementById('monsterIntent').textContent = state.monster.intent;
+  // Deck counts
+  document.getElementById('deckCount').textContent = state.deck.length;
+  document.getElementById('discardCount').textContent = state.discard.length;
+  // Turn and score
+  document.getElementById('turnCount').textContent = state.turn;
+  document.getElementById('winCount').textContent = state.wins;
+  document.getElementById('loseCount').textContent = state.loses;
+  // Log scroll
+  const logEl = document.getElementById('log');
+  logEl.scrollTop = logEl.scrollHeight;
+  // Hand render
+  const handArea = document.getElementById('handArea');
+  handArea.innerHTML = '';
+  state.hand.forEach(card=>{
+    const c = document.createElement('div');
+    c.className = 'card';
+    if(state.player.energy < card.cost) c.classList.add('locked');
+    c.innerHTML = `
+      <div class="cost">${card.cost}</div>
+      <div class="ctype">${card.type}</div>
+      <div>
+        <div class="cname">${card.name}</div>
+        <div class="cdesc">${card.desc}</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="muted">UID ${card.uid.slice(0,4)}</div>
+        <div class="cvalue">${card.value}</div>
+      </div>
+    `;
+    c.addEventListener('click', (e)=>{
+      if(state.player.energy < card.cost) return;
+      playCard(card.uid, c);
+    });
+    handArea.appendChild(c);
+  });
+}
+
+/* ====== 로그 및 종료 처리 ====== */
+function log(text){
+  const el = document.getElementById('log');
+  const time = new Date().toLocaleTimeString();
+  el.innerHTML += `<div>[${time}] ${text}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function showEnd(message){
+  log(message);
+  // 간단한 모달 대체: 알림과 재시작 유도
+  setTimeout(()=> {
+    alert(message);
+    // 게임을 자동으로 재시작하지 않고 플레이어가 원하면 재시작 가능
+  }, 200);
+}
+
+/* ====== 이벤트 바인딩 ====== */
+document.getElementById('endTurnBtn').addEventListener('click', ()=>{
+  if(!state.inPlayerTurn) return;
+  endPlayerTurn();
+});
+
+document.getElementById('drawBtn').addEventListener('click', ()=>{
+  replaceHand();
+});
+
+document.getElementById('restartBtn').addEventListener('click', ()=>{
+  if(confirm('Restart the game? All progress will be reset.')){
+    initGame();
+    document.getElementById('log').innerHTML = 'The game has been restarted.';
+  }
+});
+
+/* ====== 시작 ====== */
+initGame();
+renderAll();
+</script>
+</body>
+</html>
