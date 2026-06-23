@@ -13,6 +13,7 @@ import random
 import re
 import logging
 import html
+from ipaddress import ip_address, ip_network
 from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
@@ -99,7 +100,12 @@ except ImportError:
         resolve_profile_badge_key,
     )
 
-app = FastAPI(title="LLM Game Evaluator")
+app = FastAPI(
+    title="LLM Game Evaluator",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 logger = logging.getLogger("veilplays")
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -224,8 +230,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Accept-Language"],
 )
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -239,12 +245,19 @@ EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 LOGIN_ID_RE = re.compile(r"^[A-Za-z0-9]{4,15}$")
 SERVICE_BRAND_NAME = "VeilPlays"
 SERVICE_CONTEXT_NAME = "AI Game Blind Arena"
-BLIND_TOKEN_SECRET = (
-    os.getenv("BLIND_TOKEN_SECRET")
-    or os.getenv("SECRET_KEY")
-    or os.getenv("SUPABASE_JWT_SECRET")
-    or "veilplays-local-blind-token-secret"
-).encode("utf-8")
+BLIND_TOKEN_SECRET_VALUE = os.environ.get("BLIND_TOKEN_SECRET", "").strip()
+if len(BLIND_TOKEN_SECRET_VALUE.encode("utf-8")) < 32:
+    raise RuntimeError("BLIND_TOKEN_SECRET must be configured with at least 32 bytes")
+BLIND_TOKEN_SECRET = BLIND_TOKEN_SECRET_VALUE.encode("utf-8")
+TRUSTED_PROXY_NETWORKS = []
+for trusted_proxy_value in os.environ.get("TRUSTED_PROXY_IPS", "").split(","):
+    trusted_proxy_value = trusted_proxy_value.strip()
+    if not trusted_proxy_value:
+        continue
+    try:
+        TRUSTED_PROXY_NETWORKS.append(ip_network(trusted_proxy_value, strict=False))
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid TRUSTED_PROXY_IPS entry: {trusted_proxy_value}") from exc
 
 
 def _blind_digest(purpose: str, game_type: str, actual_model: str):
@@ -262,9 +275,43 @@ def _get_blind_model_token(game_type: str, actual_model: str):
     return _blind_digest("blind-token", game_type, actual_model)
 
 
+def _parse_ip_address(value: str | None):
+    try:
+        return ip_address((value or "").strip())
+    except ValueError:
+        return None
+
+
+def _is_trusted_proxy(value: str | None):
+    parsed = _parse_ip_address(value)
+    return bool(parsed and any(parsed in network for network in TRUSTED_PROXY_NETWORKS))
+
+
 def _get_client_ip(request: Request):
-    forwarded = request.headers.get("X-Forwarded-For")
-    return forwarded.split(",")[0].strip() if forwarded else request.client.host
+    peer_ip = request.client.host if request.client else ""
+    if not _is_trusted_proxy(peer_ip):
+        return peer_ip
+
+    cloudflare_ip = _parse_ip_address(request.headers.get("CF-Connecting-IP"))
+    if cloudflare_ip:
+        return str(cloudflare_ip)
+
+    forwarded_chain = [
+        parsed
+        for parsed in (
+            _parse_ip_address(value)
+            for value in request.headers.get("X-Forwarded-For", "").split(",")
+        )
+        if parsed
+    ]
+    peer_address = _parse_ip_address(peer_ip)
+    if peer_address:
+        forwarded_chain.append(peer_address)
+
+    for candidate in reversed(forwarded_chain):
+        if not any(candidate in network for network in TRUSTED_PROXY_NETWORKS):
+            return str(candidate)
+    return peer_ip
 
 
 def _invalid_recovery_input():
@@ -1352,6 +1399,14 @@ def _validate_oauth_state(provider: str, state: str, cookie_state: str | None):
 
 
 def _oauth_popup_html(payload: dict):
+    payload_json = (
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        .replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
     return HTMLResponse(
         f"""<!doctype html>
 <html lang="ko">
@@ -1359,7 +1414,7 @@ def _oauth_popup_html(payload: dict):
 <body>
 <script>
 (function() {{
-  const payload = {json.dumps(payload, ensure_ascii=False)};
+  const payload = {payload_json};
   if (window.opener && !window.opener.closed) {{
     window.opener.postMessage(payload, window.location.origin);
   }}
@@ -1389,6 +1444,18 @@ def _oauth_cancelled_html(provider: str):
 
 def _oauth_state_cookie_name(provider: str):
     return f"oauth_state_{provider}"
+
+
+def _set_oauth_state_cookie(response, provider: str, state: str):
+    response.set_cookie(
+        key=_oauth_state_cookie_name(provider),
+        value=state,
+        max_age=600,
+        path="/",
+        httponly=True,
+        secure=_provider_callback_is_secure(provider),
+        samesite="lax",
+    )
 
 
 def _post_form_json(url: str, data: dict, headers: dict | None = None):
@@ -1903,14 +1970,7 @@ def _oauth_start_redirect(provider: str, mode: str = "login", profile: dict | No
     state = _make_oauth_state(provider, mode=mode, profile=profile)
     login_url = _build_oauth_login_url(provider, state)
     response = RedirectResponse(login_url, status_code=302)
-    response.set_cookie(
-        _oauth_state_cookie_name(provider),
-        state,
-        max_age=600,
-        httponly=True,
-        secure=_provider_callback_is_secure(provider),
-        samesite="lax",
-    )
+    _set_oauth_state_cookie(response, provider, state)
     return response
 
 
@@ -1918,14 +1978,7 @@ def _oauth_link_start_response(provider: str, profile: dict):
     state = _make_oauth_state(provider, mode="link", profile=profile)
     login_url = _build_oauth_login_url(provider, state)
     response = JSONResponse({"url": login_url})
-    response.set_cookie(
-        _oauth_state_cookie_name(provider),
-        state,
-        max_age=600,
-        httponly=True,
-        secure=_provider_callback_is_secure(provider),
-        samesite="lax",
-    )
+    _set_oauth_state_cookie(response, provider, state)
     return response
 
 
@@ -2594,7 +2647,8 @@ async def serve_index():
 
 
 @app.get("/api/display-name-blocklist.csv")
-async def get_display_name_blocklist():
+async def get_display_name_blocklist(request: Request):
+    require_firebase_user(request)
     blocklist_path = BASE_DIR / "data" / "display_name_blocklist.csv"
     if not blocklist_path.exists():
         raise HTTPException(status_code=404, detail="display_name_blocklist_not_found")
@@ -3214,8 +3268,8 @@ async def get_games(lang: str = 'ko', blind_seed: str = ''):
 
 @app.post("/api/play")
 async def record_play(data: PlayEvent, request: Request):
+    actor = _get_actor_from_request(request, required=True)
     actual_model = _find_actual_model(data.game_type, data.blind_model_id, blind_model_token=data.blind_model_token)
-    actor = _get_actor_from_request(request, required=False)
             
     if actual_model:
         if LOCAL_TEST_MODE:
@@ -3226,26 +3280,23 @@ async def record_play(data: PlayEvent, request: Request):
                 "plays": LOCAL_DB["game_stats"].get(key, {}).get("plays", 0) + 1,
             }
 
-            if actor:
-                if actor.get("user_id"):
-                    LOCAL_DB["user_views"].append({
-                        "id": str(uuid4()),
-                        "user_id": actor["user_id"],
-                        "display_name": actor["display_name"],
-                        "game_type": data.game_type,
-                        "actual_model_name": actual_model,
-                        "viewed_at": _now_iso(),
-                    })
+            if actor.get("user_id"):
+                LOCAL_DB["user_views"].append({
+                    "id": str(uuid4()),
+                    "user_id": actor["user_id"],
+                    "display_name": actor["display_name"],
+                    "game_type": data.game_type,
+                    "actual_model_name": actual_model,
+                    "viewed_at": _now_iso(),
+                })
         else:
             try:
-                res = supabase.table('game_stats').select('plays').eq('game_type', data.game_type).eq('actual_model_name', actual_model).execute()
-                if res.data:
-                    current_plays = res.data[0]['plays']
-                    supabase.table('game_stats').update({"plays": current_plays + 1}).eq('game_type', data.game_type).eq('actual_model_name', actual_model).execute()
-                else:
-                    supabase.table('game_stats').insert({"game_type": data.game_type, "actual_model_name": actual_model, "plays": 1}).execute()
+                supabase.rpc("increment_game_play_count", {
+                    "p_game_type": data.game_type,
+                    "p_actual_model_name": actual_model,
+                }).execute()
 
-                if actor and actor.get("user_id"):
+                if actor.get("user_id"):
                     try:
                         supabase.table('user_views').insert({
                             "user_id": actor["user_id"],
@@ -3255,8 +3306,9 @@ async def record_play(data: PlayEvent, request: Request):
                         }).execute()
                     except Exception as exc:
                         print(f"user_views insert skipped: {exc}", flush=True)
-            except Exception as e:
-                print("Play recording error:", e)
+            except Exception as exc:
+                logger.exception("Play recording failed")
+                raise HTTPException(status_code=500, detail="play_recording_failed") from exc
         _invalidate_game_stats_cache()
             
     return {"status": "ok"}
@@ -3270,8 +3322,7 @@ async def submit_evaluation(eval: Evaluation, request: Request):
         if not is_valid_comment:
             raise HTTPException(status_code=400, detail=comment_error)
 
-        forwarded = request.headers.get("X-Forwarded-For")
-        ip = forwarded.split(",")[0] if forwarded else (request.client.host if request.client else "")
+        ip = _get_client_ip(request)
 
         actual_model = _find_actual_model(
             eval.game_type,
@@ -3391,9 +3442,9 @@ async def submit_evaluation(eval: Evaluation, request: Request):
         return {"status": "success"}
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as exc:
         logger.exception("evaluation submit failed")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="evaluation_submit_failed") from exc
 
 @app.get("/api/user_evals")
 async def get_current_user_evals(request: Request):
@@ -3496,8 +3547,9 @@ async def get_results(game_type: str, request: Request):
                 print(f"results account profile badges skipped: {exc}", flush=True)
 
         return _build_results_payload(game_type, data, reaction_rows, reply_rows, current_display_name, is_admin, user_eval_rows, user_view_rows, saved_profile_badges, actor.get("user_id") if actor else None)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        logger.exception("Results fetch failed for game_type=%s", game_type)
+        raise HTTPException(status_code=500, detail="results_fetch_failed") from exc
 
 
 @app.post("/api/comment-reaction")
@@ -3508,8 +3560,7 @@ async def toggle_comment_reaction(payload: CommentReactionToggle, request: Reque
     if payload.reaction_type not in ("like", "dislike"):
         raise HTTPException(status_code=400, detail="invalid_reaction_type")
 
-    forwarded = request.headers.get("X-Forwarded-For")
-    ip = forwarded.split(",")[0] if forwarded else request.client.host
+    ip = _get_client_ip(request)
     actor_key = actor.get("user_id") or display_name.casefold()
     allowed, wait_time = check_memory_rate_limit(COMMENT_REACTION_RATE_LIMITS, f"{ip}:{actor_key}", 30, 20)
     if not allowed:
@@ -3586,8 +3637,9 @@ async def toggle_comment_reaction(payload: CommentReactionToggle, request: Reque
             "like_count": like_count,
             "dislike_count": dislike_count,
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        logger.exception("Comment reaction update failed")
+        raise HTTPException(status_code=500, detail="comment_reaction_failed") from exc
 
 
 @app.post("/api/comment-reply")
@@ -3649,15 +3701,16 @@ async def create_comment_reply(payload: CommentReplyCreate, request: Request):
         return {"status": "success"}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        logger.exception("Comment reply creation failed")
+        raise HTTPException(status_code=500, detail="comment_reply_failed") from exc
 
 
 @app.post("/api/admin/blind")
 async def admin_toggle_blind(payload: AdminBlindToggle, request: Request):
     actor = _get_actor_from_request(request, required=True)
     if not actor.get("is_admin"):
-        raise HTTPException(status_code=401, detail="admin_auth_required")
+        raise HTTPException(status_code=403, detail="admin_auth_required")
 
     table_map = {
         "comment": "evaluations",
@@ -3696,8 +3749,9 @@ async def admin_toggle_blind(payload: AdminBlindToggle, request: Request):
         }
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        logger.exception("Admin blind update failed")
+        raise HTTPException(status_code=500, detail="admin_blind_update_failed") from exc
 
 
 @app.get("/api/mypage")
@@ -3722,8 +3776,9 @@ async def get_current_mypage(request: Request):
         view_rows = view_res.data or []
 
         return _summarize_mypage_for_profile(profile, eval_rows, view_rows)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        logger.exception("My page fetch failed")
+        raise HTTPException(status_code=500, detail="mypage_fetch_failed") from exc
 
 
 @app.post("/api/mypage/profile-badge")
@@ -3759,5 +3814,6 @@ async def update_profile_badge(payload: ProfileBadgeUpdate, request: Request):
         return {"status": "success", "profile_badge_key": resolved_badge_key}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        logger.exception("Profile badge update failed")
+        raise HTTPException(status_code=500, detail="profile_badge_update_failed") from exc

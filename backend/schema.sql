@@ -87,6 +87,27 @@ CREATE TABLE game_stats (
     PRIMARY KEY (game_type, actual_model_name)
 );
 
+CREATE OR REPLACE FUNCTION increment_game_play_count(
+    p_game_type TEXT,
+    p_actual_model_name TEXT
+)
+RETURNS INTEGER
+LANGUAGE SQL
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    INSERT INTO game_stats (game_type, actual_model_name, plays)
+    VALUES (p_game_type, p_actual_model_name, 1)
+    ON CONFLICT (game_type, actual_model_name)
+    DO UPDATE SET plays = game_stats.plays + 1
+    RETURNING plays;
+$$;
+
+REVOKE ALL ON FUNCTION increment_game_play_count(TEXT, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION increment_game_play_count(TEXT, TEXT) FROM anon;
+REVOKE ALL ON FUNCTION increment_game_play_count(TEXT, TEXT) FROM authenticated;
+GRANT EXECUTE ON FUNCTION increment_game_play_count(TEXT, TEXT) TO service_role;
+
 CREATE TABLE user_views (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
