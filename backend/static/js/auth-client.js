@@ -1,6 +1,7 @@
 let firebaseAuth = null;
 let firebaseAnalytics = null;
 let backendOAuthPopupTimerId = null;
+let backendOAuthPopupWindow = null;
 
 function getAccountDisplayName() {
     const profile = state.account?.profile || {};
@@ -1141,10 +1142,14 @@ function watchBackendOAuthPopup(popup, isLinking) {
         clearInterval(backendOAuthPopupTimerId);
         backendOAuthPopupTimerId = null;
     }
+    backendOAuthPopupWindow = popup;
     backendOAuthPopupTimerId = setInterval(() => {
         if (!popup || !popup.closed) return;
         clearInterval(backendOAuthPopupTimerId);
         backendOAuthPopupTimerId = null;
+        if (backendOAuthPopupWindow === popup) {
+            backendOAuthPopupWindow = null;
+        }
         if (isLinking && state.isLoginSubmitting) {
             setAuthBusyState(false);
             renderMyPage();
@@ -1154,6 +1159,7 @@ function watchBackendOAuthPopup(popup, isLinking) {
 
 async function handleBackendOAuthMessage(event) {
     if (event.origin !== window.location.origin) return;
+    if (!backendOAuthPopupWindow || event.source !== backendOAuthPopupWindow) return;
     const data = event.data || {};
     if (!data || typeof data !== 'object') return;
 
@@ -1163,6 +1169,7 @@ async function handleBackendOAuthMessage(event) {
             clearInterval(backendOAuthPopupTimerId);
             backendOAuthPopupTimerId = null;
         }
+        backendOAuthPopupWindow = null;
         setAuthBusyState(false);
         if (isLinking) renderMyPage();
         return;
@@ -1174,6 +1181,7 @@ async function handleBackendOAuthMessage(event) {
             clearInterval(backendOAuthPopupTimerId);
             backendOAuthPopupTimerId = null;
         }
+        backendOAuthPopupWindow = null;
         console.error('OAuth popup error', data.provider, data.detail);
         const knownDetailKeys = ['oauth_provider_already_in_use'];
         let errorMessage;
@@ -1195,6 +1203,7 @@ async function handleBackendOAuthMessage(event) {
             clearInterval(backendOAuthPopupTimerId);
             backendOAuthPopupTimerId = null;
         }
+        backendOAuthPopupWindow = null;
         try {
             await refreshAccountFromFirebaseUser();
             showAppMessage(t('auth_social_link_success'), { tone: 'success' });
@@ -1218,6 +1227,7 @@ async function handleBackendOAuthMessage(event) {
             clearInterval(backendOAuthPopupTimerId);
             backendOAuthPopupTimerId = null;
         }
+        backendOAuthPopupWindow = null;
         await refreshAccountFromFirebaseUser({ renderNavigation: false });
         if (state.account?.profile && !state.account.profile.display_name_set) {
             state.authMode = 'display_name';
@@ -1853,7 +1863,7 @@ async function handleFindId() {
             : '';
         state.lastLoginIdRecoveryPayload = payload;
         showAppMessage(
-            `${t('auth_find_id_result', { login_id: data.masked_login_id })}${mailButton}`,
+            `${t('auth_find_id_result', { login_id: escapeHtml(data.masked_login_id) })}${mailButton}`,
             { tone: 'success', allowHtml: true }
         );
     } catch (e) {

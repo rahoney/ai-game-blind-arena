@@ -152,8 +152,8 @@ function syncBlindSeedForAuthUser(uid) {
 
 // HTML Escaping function to prevent XSS attacks
 function escapeHtml(unsafe) {
-    if (!unsafe) return "";
-    return unsafe
+    if (unsafe === null || typeof unsafe === 'undefined') return "";
+    return String(unsafe)
          .replace(/&/g, "&amp;")
          .replace(/</g, "&lt;")
          .replace(/>/g, "&gt;")
