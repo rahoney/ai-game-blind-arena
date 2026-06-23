@@ -94,7 +94,7 @@ def verify_firebase_id_token(token: str):
         from firebase_admin import auth as firebase_auth
 
         get_firebase_app()
-        return firebase_auth.verify_id_token(token)
+        return firebase_auth.verify_id_token(token, check_revoked=True)
     except FirebaseAuthConfigurationError:
         raise
     except Exception as exc:

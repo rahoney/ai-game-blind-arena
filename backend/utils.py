@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import csv
 import re
+import unicodedata
 from collections import defaultdict
 import os
 
@@ -26,6 +27,10 @@ load_dotenv(BASE_DIR / ".env.local", override=True)
 BLOCKLIST_CSV_PATH = BASE_DIR / "data" / "display_name_blocklist.csv"
 
 
+def _normalize_for_validation(value: str | None):
+    return unicodedata.normalize("NFKC", value or "")
+
+
 def has_supabase_config():
     return bool(
         os.environ.get("SUPABASE_URL")
@@ -38,8 +43,8 @@ def has_supabase_config():
 
 
 def _load_display_name_blocklist():
-    banned_terms = set(DEFAULT_BANNED_DISPLAY_NAME_TERMS)
-    reserved_terms = set(DEFAULT_RESERVED_DISPLAY_NAME_TERMS)
+    banned_terms = {_normalize_for_validation(term) for term in DEFAULT_BANNED_DISPLAY_NAME_TERMS}
+    reserved_terms = {_normalize_for_validation(term) for term in DEFAULT_RESERVED_DISPLAY_NAME_TERMS}
 
     if BLOCKLIST_CSV_PATH.exists():
         with BLOCKLIST_CSV_PATH.open("r", encoding="utf-8-sig", newline="") as csv_file:
@@ -49,9 +54,9 @@ def _load_display_name_blocklist():
                 banned = row[0].strip() if len(row) > 0 and row[0] else ""
                 reserved = row[1].strip() if len(row) > 1 and row[1] else ""
                 if banned:
-                    banned_terms.add(banned)
+                    banned_terms.add(_normalize_for_validation(banned))
                 if reserved:
-                    reserved_terms.add(reserved)
+                    reserved_terms.add(_normalize_for_validation(reserved))
 
     return tuple(sorted(reserved_terms)), tuple(sorted(banned_terms))
 
@@ -103,15 +108,16 @@ def validate_display_name(display_name: str):
     if not display_name:
         return False, "display_name_required"
 
-    lowered = display_name.casefold()
+    normalized = _normalize_for_validation(display_name)
+    lowered = normalized.casefold()
     if any(term in lowered for term in RESERVED_DISPLAY_NAME_TERMS if term.isascii()):
         return False, "display_name_reserved"
-    if any(term in display_name for term in RESERVED_DISPLAY_NAME_TERMS if not term.isascii()):
+    if any(term in normalized for term in RESERVED_DISPLAY_NAME_TERMS if not term.isascii()):
         return False, "display_name_reserved"
 
     if any(term in lowered for term in BANNED_DISPLAY_NAME_TERMS if term.isascii()):
         return False, "display_name_banned"
-    if any(term in display_name for term in BANNED_DISPLAY_NAME_TERMS if not term.isascii()):
+    if any(term in normalized for term in BANNED_DISPLAY_NAME_TERMS if not term.isascii()):
         return False, "display_name_banned"
 
     if JAMO_RE.search(display_name):
@@ -146,14 +152,15 @@ def validate_comment_text(comment: str | None):
     if not text:
         return False, "comment_required"
 
-    lowered = text.casefold()
+    normalized = _normalize_for_validation(text)
+    lowered = normalized.casefold()
     if any(term in lowered for term in BANNED_DISPLAY_NAME_TERMS if term.isascii()):
         return False, "comment_banned"
-    if any(term in text for term in BANNED_DISPLAY_NAME_TERMS if not term.isascii()):
+    if any(term in normalized for term in BANNED_DISPLAY_NAME_TERMS if not term.isascii()):
         return False, "comment_banned"
 
-    complete_hangul_count = len(re.findall(r"[가-힣]", text))
-    effective_english_count = get_effective_english_letter_count(text)
+    complete_hangul_count = len(re.findall(r"[가-힣]", normalized))
+    effective_english_count = get_effective_english_letter_count(normalized)
 
     if complete_hangul_count >= 3 or effective_english_count >= 4:
         return True, None
