@@ -151,7 +151,7 @@ function renderPlayModelCommentsContent() {
     const comments = [...(modelResult?.comments || [])]
         .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     const title = modelResult?.actual_model_name
-        ? t('play_comments_title_with_model', { model: modelResult.actual_model_name })
+        ? t('play_comments_title_with_model', { model: escapeHtml(modelResult.actual_model_name) })
         : t('play_comments_title');
 
     if (!comments.length) {
@@ -289,7 +289,7 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
                 <tr style="${rowStyle}">
                     <td style="padding: 1.2rem 0.5rem; text-align: center; font-weight: 700;">${rankHtml}</td>
                     <td style="padding: 1.2rem 0.8rem; text-align: left; min-width: 150px;">
-                        <strong style="font-size: 1.05rem; display: block; line-height: 1.2;">${r.actual_model_name}</strong>
+                        <strong style="font-size: 1.05rem; display: block; line-height: 1.2;">${escapeHtml(r.actual_model_name)}</strong>
                         ${medal}
                     </td>
                     <td style="padding: 1rem 0.5rem; text-align: center; font-weight: 900; color: var(--primary); font-size: 1.1rem; background: rgba(99, 102, 241, 0.05);">${r.avg_total}</td>
