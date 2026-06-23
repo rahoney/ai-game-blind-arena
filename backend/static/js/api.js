@@ -372,15 +372,21 @@ async function apiFetchUserEvals() {
 
 async function apiRecordPlay(gameType, blindId, blindModelToken = '') {
     const headers = await getCurrentAuthHeaders(true);
-    await fetch(`${API_BASE}/play`, {
+    if (!headers.Authorization) return false;
+    const res = await fetch(`${API_BASE}/play`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ game_type: gameType, blind_model_id: blindId, blind_model_token: blindModelToken })
     });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.detail || 'play_recording_failed');
+    }
     const model = state.games?.[gameType]?.find((item) => item.blind_id === blindId);
     if (model) {
         model.play_count = Number(model.play_count || 0) + 1;
     }
+    return true;
 }
 
 async function apiSubmitEvaluation(payload) {
