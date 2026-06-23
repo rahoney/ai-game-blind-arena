@@ -73,19 +73,19 @@ const SOCIAL_AUTH_PROVIDERS = {
 
 const BACKEND_OAUTH_PROVIDERS = {
     kakao: {
-        startUrl: '/api/auth/oauth/kakao/start',
+        startUrl: `${API_BASE}/auth/oauth/kakao/start`,
     },
     naver: {
-        startUrl: '/api/auth/oauth/naver/start',
+        startUrl: `${API_BASE}/auth/oauth/naver/start`,
     },
     github: {
-        startUrl: '/api/auth/oauth/github/start',
+        startUrl: `${API_BASE}/auth/oauth/github/start`,
     },
     discord: {
-        startUrl: '/api/auth/oauth/discord/start',
+        startUrl: `${API_BASE}/auth/oauth/discord/start`,
     },
     steam: {
-        startUrl: '/api/auth/oauth/steam/start',
+        startUrl: `${API_BASE}/auth/oauth/steam/start`,
     },
 };
 
@@ -625,7 +625,7 @@ async function initializeFirebaseAuth() {
         }
 
         firebaseAuth = firebase.auth();
-        if (config.measurementId && firebase.analytics) {
+        if (!RUNTIME_CONFIG.gaMeasurementId && config.measurementId && firebase.analytics) {
             firebaseAnalytics = firebase.analytics();
         }
 
@@ -1158,7 +1158,7 @@ function watchBackendOAuthPopup(popup, isLinking) {
 }
 
 async function handleBackendOAuthMessage(event) {
-    if (event.origin !== window.location.origin) return;
+    if (event.origin !== API_ORIGIN) return;
     if (!backendOAuthPopupWindow || event.source !== backendOAuthPopupWindow) return;
     const data = event.data || {};
     if (!data || typeof data !== 'object') return;

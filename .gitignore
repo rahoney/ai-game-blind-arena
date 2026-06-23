@@ -12,6 +12,7 @@ backend/__pycache__/
 .DS_Store
 Thumbs.db
 .codex
+dist/
 
 # Local working materials and legacy/reference docs
 temp/
