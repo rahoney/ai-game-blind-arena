@@ -181,11 +181,11 @@ function setAuthMode(mode) {
 }
 
 function getFriendlyAuthError(error, mode = 'login') {
-    const code = error?.code || '';
+    const code = error?.code || error?.message || '';
     const messages = {
         ko: {
             invalidEmail: mode === 'signup' ? '회원가입 입력 정보가 올바르지 않습니다.' : '로그인 정보가 올바르지 않습니다.',
-            wrongCredentials: '로그인 정보가 올바르지 않습니다.',
+            wrongCredentials: '계정을 다시 확인해주세요.',
             weakPassword: '비밀번호는 6자 이상으로 입력하세요.',
             emailInUse: '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용하세요.',
             emailTaken: '사용중인 이메일입니다. 다른 이메일을 입력해주세요.',
@@ -194,7 +194,7 @@ function getFriendlyAuthError(error, mode = 'login') {
             resetSent: '비밀번호 재설정 메일을 보냈습니다.',
             resetEmailRequired: '비밀번호를 찾을 이메일을 입력하세요.',
             resetEmailInvalid: '이메일 주소를 올바르게 입력하세요.',
-            invalidRecoveryInput: '입력이 잘못되었습니다.',
+            invalidRecoveryInput: mode === 'login' ? '계정을 다시 확인해주세요.' : '입력이 잘못되었습니다.',
             recoveryRateLimited: '입력 오류가 너무 많습니다. 잠시 후 다시 시도하세요.',
             mailServiceNotConfigured: '메일 발송 기능이 아직 설정되지 않았습니다.',
             mailSendFailed: '메일 발송 중 문제가 발생했습니다.',
@@ -207,7 +207,7 @@ function getFriendlyAuthError(error, mode = 'login') {
         },
         en: {
             invalidEmail: mode === 'signup' ? 'The sign-up information is not valid.' : 'The login information is not valid.',
-            wrongCredentials: 'The login information is not valid.',
+            wrongCredentials: 'Check your account information and try again.',
             weakPassword: 'Enter a password with at least 6 characters.',
             emailInUse: 'This email is already registered. Log in or reset your password.',
             emailTaken: 'This email is already in use. Enter a different email address.',
@@ -216,7 +216,7 @@ function getFriendlyAuthError(error, mode = 'login') {
             resetSent: 'Password reset email sent.',
             resetEmailRequired: 'Enter your email to reset your password.',
             resetEmailInvalid: 'Enter a valid email address.',
-            invalidRecoveryInput: 'The information is not valid.',
+            invalidRecoveryInput: mode === 'login' ? 'Check your account information and try again.' : 'The information is not valid.',
             recoveryRateLimited: 'Too many failed attempts. Try again later.',
             mailServiceNotConfigured: 'Email delivery is not configured yet.',
             mailSendFailed: 'Failed to send email.',
