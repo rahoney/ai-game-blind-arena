@@ -80,6 +80,22 @@ body.theme-model-list {
     background: linear-gradient(165deg, #263d5e 0%, #1d304c 28%, #17263d 62%, #131c2e 100%);
 }
 
+body.theme-auth {
+    --bg-color: var(--app-bg);
+    --surface-bg: rgba(29, 47, 75, 0.72);
+    --card-bg: rgba(24, 40, 65, 0.88);
+    --primary: var(--app-cyan);
+    --primary-hover: #78d3f8;
+    --border-color: var(--app-border);
+    --text-color: var(--app-text);
+    --text-muted: var(--app-text-muted);
+    background:
+        radial-gradient(circle at 12% 18%, rgba(173, 223, 255, 0.14), transparent 26%),
+        radial-gradient(circle at 84% 14%, rgba(179, 164, 255, 0.14), transparent 30%),
+        radial-gradient(circle at 72% 82%, rgba(83, 165, 214, 0.12), transparent 28%),
+        linear-gradient(165deg, #283f61 0%, #213553 28%, #17263d 62%, #131c2e 100%);
+}
+
 body.theme-home .hamburger {
     color: rgba(236, 245, 255, 0.92);
 }
