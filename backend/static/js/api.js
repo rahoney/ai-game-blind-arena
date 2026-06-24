@@ -349,15 +349,28 @@ async function apiUnlinkAuthProvider(providerKey) {
 }
 
 async function apiDeleteAccount(idToken) {
-    const res = await fetch(`${API_BASE}/profile/account`, {
-        method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({ confirm: true })
-    });
-    const data = await res.json();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    let res;
+    try {
+        res = await fetch(`${API_BASE}/profile/account`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({ confirm: true }),
+            signal: controller.signal
+        });
+    } catch (error) {
+        if (error?.name === 'AbortError') {
+            throw new Error('account_delete_timeout');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
         throw new Error(data?.detail || 'account_delete_failed');
     }

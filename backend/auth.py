@@ -127,6 +127,9 @@ def delete_firebase_user(uid: str):
 
         get_firebase_app()
         firebase_auth.delete_user(uid)
+        return True
+    except firebase_auth.UserNotFoundError:
+        return False
     except FirebaseAuthConfigurationError:
         raise
     except Exception as exc:

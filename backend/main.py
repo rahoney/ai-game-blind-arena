@@ -3253,8 +3253,8 @@ async def delete_profile_account(payload: AccountDeletionRequest, request: Reque
     provider_accounts = _get_provider_accounts_for_profile(profile.get("id"))
     _revoke_provider_accounts(provider_accounts)
     _anonymize_deleted_account(profile)
-    delete_firebase_user(user.get("uid", ""))
-    return {"deleted": True}
+    firebase_deleted = delete_firebase_user(user.get("uid", ""))
+    return {"deleted": True, "firebase_deleted": firebase_deleted}
 
 
 @app.get("/api/games")
