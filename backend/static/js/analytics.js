@@ -42,6 +42,7 @@ function getAnalyticsPath(viewId) {
         login: '/login',
         about: '/about',
         mypage: '/mypage',
+        terms: '/terms',
         privacy: '/privacy',
         list: `/games/${categorySlug}`,
         play: `/play/${categorySlug}/${blindId || 'unknown'}`,

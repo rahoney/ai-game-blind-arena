@@ -28,8 +28,21 @@ async function initApp() {
         navigateTo('login', renderLogin);
         return;
     }
+    const initialRoute = getInitialStaticRoute();
+    if (initialRoute) {
+        navigateTo(initialRoute.id, initialRoute.render);
+        return;
+    }
     navigateTo('home', renderLanding);
     void initialUserEvalPromise;
+}
+
+function getInitialStaticRoute() {
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    if (path === '/about') return { id: 'about', render: renderAbout };
+    if (path === '/terms') return { id: 'terms', render: renderTermsPolicy };
+    if (path === '/privacy') return { id: 'privacy', render: renderPrivacyPolicy };
+    return null;
 }
 
 function detectDefaultLanguage() {
@@ -71,7 +84,7 @@ function applyAnimationVars(element, vars) {
 
 function navigateTo(viewId, renderFunction, ...args) {
     const onboardingViews = ['login'];
-    const contentViews = ['home', 'list', 'play', 'about', 'results', 'mypage', 'privacy'];
+    const contentViews = ['home', 'list', 'play', 'about', 'results', 'mypage', 'terms', 'privacy'];
     if (viewId !== 'login' && typeof requiresDisplayNameSetup === 'function' && requiresDisplayNameSetup()) {
         state.authMode = 'display_name';
         viewId = 'login';
@@ -88,7 +101,7 @@ function navigateTo(viewId, renderFunction, ...args) {
     document.body.classList.toggle('theme-home', viewId === 'home');
     document.body.classList.toggle('theme-model-list', viewId === 'list');
     document.body.classList.toggle('theme-auth', viewId === 'login');
-    document.body.classList.toggle('theme-app', ['play', 'results', 'mypage', 'about', 'privacy'].includes(viewId));
+    document.body.classList.toggle('theme-app', ['play', 'results', 'mypage', 'about', 'terms', 'privacy'].includes(viewId));
 
     state.currentView = { id: viewId, func: renderFunction, args: args };
     renderFunction(...args);

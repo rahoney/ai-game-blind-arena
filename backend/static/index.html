@@ -80,6 +80,7 @@
             <section id="view-play" class="content-section"></section>
             <section id="view-results" class="content-section"></section>
             <section id="view-mypage" class="content-section"></section>
+            <section id="view-terms" class="content-section"></section>
             <section id="view-privacy" class="content-section"></section>
         </div>
     </main>
@@ -89,9 +90,11 @@
             <div class="footer-spacer" aria-hidden="true"></div>
             <div class="footer-legal">
                 <p>&copy; 2026 WikiHoney. All rights reserved.</p>
-                <button id="footer-privacy-link" type="button" class="footer-text-link" onclick="openPrivacyPolicy()">
-                개인정보처리방침
-                </button>
+                <div class="footer-policy-links">
+                    <a id="footer-terms-link" class="footer-text-link" href="/terms" onclick="openTermsPolicy(event)">이용약관</a>
+                    <span aria-hidden="true">/</span>
+                    <a id="footer-privacy-link" class="footer-text-link" href="/privacy" onclick="openPrivacyPolicy(event)">개인정보처리방침</a>
+                </div>
             </div>
             <div class="footer-utilities">
                 <div class="footer-support">

@@ -589,11 +589,13 @@ function renderFooter() {
     const supportKr = document.getElementById('footer-support-kr');
     const supportGlobal = document.getElementById('footer-support-global');
     const projectsLabel = document.getElementById('footer-projects-label');
+    const termsLink = document.getElementById('footer-terms-link');
     const privacyLink = document.getElementById('footer-privacy-link');
     if (supportText) supportText.textContent = t('footer_support_text');
     if (supportKr) supportKr.textContent = t('support_kr');
     if (supportGlobal) supportGlobal.textContent = t('support_global');
     if (projectsLabel) projectsLabel.textContent = t('footer_other_projects');
+    if (termsLink) termsLink.textContent = t('terms_policy_title');
     if (privacyLink) privacyLink.textContent = t('privacy_policy_title');
 }
 

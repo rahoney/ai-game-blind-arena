@@ -77,6 +77,7 @@ let state = {
     myPageData: null,
     myPageLoading: false,
     myPageReturnView: null,
+    termsReturnView: null,
     mypageAccountManagementOpen: false,
     resultsData: [],
     playModelCommentsResult: null,
