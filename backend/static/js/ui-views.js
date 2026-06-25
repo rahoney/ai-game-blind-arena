@@ -910,8 +910,11 @@ function renderAbout() {
             <section class="about-extra-section">
                 <h3>${t('footer_other_projects')}</h3>
                 <a class="about-project-link" href="https://www.hrmz.today" target="_blank" rel="noopener noreferrer">
-                    <strong>Hormuz Monitor</strong>
-                    <span>https://www.hrmz.today</span>
+                    <span class="about-project-main">
+                        <img class="about-project-logo" src="/external-projects/hormuz-monitor-logo.jpg" alt="" aria-hidden="true">
+                        <strong>Hormuz Monitor</strong>
+                    </span>
+                    <span class="about-project-url">https://www.hrmz.today</span>
                 </a>
             </section>
         </div>

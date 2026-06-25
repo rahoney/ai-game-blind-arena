@@ -8,17 +8,29 @@ async function initApp() {
     }
     applyDocumentLanguage();
     initializeVeilPlaysAnalytics();
-    await initializeFirebaseAuth();
-    const initialGamePromise = refreshGameCatalog({ rerender: false }).catch((e) => {
+
+    const initialRoute = getInitialStaticRoute();
+    if (initialRoute) {
+        navigateTo(initialRoute.id, initialRoute.render);
+    } else {
+        navigateTo('home', renderLanding);
+    }
+
+    const authPromise = initializeFirebaseAuth().catch((e) => {
+        console.error("Firebase auth initialization failed", e);
+    });
+    const gamePromise = refreshGameCatalog({ rerender: true }).catch((e) => {
         console.error("Game data load failed", e);
     });
-    let initialUserEvalPromise = Promise.resolve();
+
+    await authPromise;
+
     if (state.authUser) {
-        initialUserEvalPromise = refreshUserEvaluations({ rerender: false }).catch((e) => {
+        refreshUserEvaluations({ rerender: true }).catch((e) => {
             console.error("User evaluation load failed", e);
         });
     }
-    await initialGamePromise;
+
     if (state.authMode === 'verify_email') {
         navigateTo('login', renderLogin);
         return;
@@ -28,13 +40,8 @@ async function initApp() {
         navigateTo('login', renderLogin);
         return;
     }
-    const initialRoute = getInitialStaticRoute();
-    if (initialRoute) {
-        navigateTo(initialRoute.id, initialRoute.render);
-        return;
-    }
-    navigateTo('home', renderLanding);
-    void initialUserEvalPromise;
+
+    void gamePromise;
 }
 
 function getInitialStaticRoute() {

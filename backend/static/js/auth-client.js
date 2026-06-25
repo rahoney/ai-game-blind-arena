@@ -663,7 +663,9 @@ async function initializeFirebaseAuth() {
 }
 
 function rerenderPostAuthDataViews() {
-    if (state.currentView?.id === 'list') {
+    if (state.currentView?.id === 'home') {
+        renderLanding();
+    } else if (state.currentView?.id === 'list') {
         renderGameList();
     } else if (state.currentView?.id === 'play') {
         if (typeof rerenderPlayInteractionPanels === 'function') {
