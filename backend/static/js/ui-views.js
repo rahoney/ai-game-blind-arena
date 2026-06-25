@@ -455,7 +455,6 @@ function initLandingCategoryCarousel(root) {
 
 function renderLanding() {
     const el = document.getElementById('view-home');
-    const isSignedIn = !!state.account?.profile;
     const categoryCount = state.categories?.length || 0;
     const variantsPerCategory = Math.max(
         0,
@@ -570,7 +569,6 @@ function renderLanding() {
                         <p class="landing-hero-lead">${t('landing_hero_copy')}</p>
                         <div class="landing-hero-actions">
                             <button type="button" class="primary-action landing-primary" onclick="scrollLandingToCategories()">${t('landing_cta_browse')}</button>
-                            ${isSignedIn ? `<button type="button" class="secondary landing-secondary" onclick="openMyPage()">${t('menu_mypage')}</button>` : ''}
                         </div>
                         <div class="landing-metrics">
                             <div class="landing-metric">
@@ -784,6 +782,7 @@ function renderGameList() {
 function renderPlayArea() {
     const el = document.getElementById('view-play');
     const game = state.selectedGame;
+    state.evaluationTouchedScores = new Set();
     el.innerHTML = `
         <div class="play-page-shell">
             <div class="play-toolbar">
@@ -820,14 +819,14 @@ function renderPlayEvaluationForm() {
             <div class="play-evaluation-content" style="width:100%; opacity:${participationLocked ? '0.28' : '1'}; pointer-events:${participationLocked ? 'none' : 'auto'};">
                 <h3 style="margin-bottom: 2rem; color: var(--primary); font-size: 1.8rem; border-left: 6px solid var(--primary); padding-left: 1.5rem; align-self: flex-start; width: 100%;">${t('eval_submit')} - Model ${game.blind_id}</h3>
                 <div class="play-eval-grid" style="margin-top: 0; width: 100%;">
-                    ${['control', 'structure', 'presentation', 'difficulty', 'fun', 'overall'].map((key) => `
+                    ${EVALUATION_SCORE_KEYS.map((key) => `
                         <div class="slider-group play-eval-item">
                             <label class="play-eval-label" style="font-size: 1.1rem; margin-bottom: 1rem; font-weight: 600;">
                                 <span class="play-eval-label-text">${formatEvaluationLabel(t('eval_' + key))}</span>
-                                <span id="val-${key}" style="color: var(--primary); font-size: 1.3rem; flex-shrink:0;">5</span>
+                                <span id="val-${key}" class="play-eval-score-value" style="color: var(--primary); font-size: 1.3rem; flex-shrink:0;">-</span>
                             </label>
-                            <div class="liquid-range" data-progress="44.44" style="--range-progress: 44.44%;">
-                                <input type="range" id="score-${key}" min="1" max="10" value="5" oninput="updateScore('${key}')" ${participationLocked ? 'disabled' : ''}>
+                            <div class="liquid-range is-unrated" data-progress="44.44" style="--range-progress: 44.44%;">
+                                <input type="range" id="score-${key}" min="1" max="10" value="5" onpointerdown="markScoreTouched('${key}')" onkeydown="markScoreTouchedFromKey(event, '${key}')" oninput="updateScore('${key}')" ${participationLocked ? 'disabled' : ''}>
                                 <span class="liquid-range-glass" aria-hidden="true"></span>
                             </div>
                         </div>
@@ -938,6 +937,7 @@ function navigateToInquiry() {
 }
 
 function updateScore(key) {
+    markScoreTouched(key);
     const valEl = document.getElementById(`val-${key}`);
     const slider = document.getElementById(`score-${key}`);
     if (!slider) return;
@@ -966,6 +966,23 @@ function updateScore(key) {
         range.style.setProperty('--range-glass-stretch', '1');
         range.style.setProperty('--range-glass-shift', '0px');
     }, 140)}`;
+}
+
+function markScoreTouched(key) {
+    if (!EVALUATION_SCORE_KEYS.includes(key)) return;
+    state.evaluationTouchedScores.add(key);
+    const valEl = document.getElementById(`val-${key}`);
+    const slider = document.getElementById(`score-${key}`);
+    const range = slider?.closest('.liquid-range');
+    if (!slider) return;
+    if (valEl) valEl.innerText = slider.value;
+    if (range) range.classList.remove('is-unrated');
+}
+
+function markScoreTouchedFromKey(event, key) {
+    const scoringKeys = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown', ' ', 'Enter']);
+    if (!scoringKeys.has(event?.key)) return;
+    markScoreTouched(key);
 }
 
 function toggleFullScreen() {
