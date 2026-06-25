@@ -339,6 +339,7 @@ function renderMyPage() {
     const loginId = accountProfile.login_id || '';
     const data = state.myPageData || {
         display_name: displayName,
+        profile_badge_key: accountProfile.profile_badge_key || '',
         unique_eval_model_count: 0,
         evaluations_by_game_type: [],
         top_game_type: null,
@@ -370,13 +371,13 @@ function renderMyPage() {
         ? `${escapeHtml(getCategoryDisplayName(data.top_game_type.game_type))} (${data.top_game_type.views})`
         : t('mypage_empty_top_game');
     const badge = data.badge || {
-        stage_key: 'badge_egg',
+        stage_key: data.profile_badge_key || accountProfile.profile_badge_key || '',
         current_count: data.unique_eval_model_count || 0,
         next_threshold: 5,
         is_max_stage: false,
     };
-    const currentProfileBadgeKey = data.profile_badge_key || badge.stage_key || 'badge_egg';
-    const badgeLabel = t(currentProfileBadgeKey);
+    const currentProfileBadgeKey = data.profile_badge_key || accountProfile.profile_badge_key || badge.stage_key || '';
+    const badgeLabel = currentProfileBadgeKey ? t(currentProfileBadgeKey) : '';
     const unlockedBadgeKeys = data.unlocked_badge_keys || ['badge_egg'];
     const unlockedBadgeCountText = String(data.unlocked_badge_count || unlockedBadgeKeys.length).padStart(2, '0');
     const selectedBadgeKey = state.profileBadgeSelection || currentProfileBadgeKey;
@@ -395,10 +396,10 @@ function renderMyPage() {
 
             <div class="mypage-profile-shell">
                 <div class="mypage-badge-column">
-                    <div class="mypage-badge-preview">${renderBadgeSvg(currentProfileBadgeKey)}</div>
+                    <div class="mypage-badge-preview">${currentProfileBadgeKey ? renderBadgeSvg(currentProfileBadgeKey) : ''}</div>
                     <div class="mypage-badge-summary">
                         <div>${t('mypage_badge_title')}</div>
-                        <strong>${badgeLabel}</strong>
+                        <strong>${badgeLabel || '-'}</strong>
                     </div>
                 </div>
                 <div class="mypage-profile-main">

@@ -1484,14 +1484,16 @@ html.auth-dialog-open .onboarding-section {
 
 .auth-dialog-close {
     position: absolute;
-    top: 0.9rem;
-    right: 0.9rem;
-    width: 42px;
-    height: 42px;
-    min-width: 42px;
+    top: 0.65rem;
+    right: 0.65rem;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    aspect-ratio: 1 / 1;
     border-radius: 999px;
     padding: 0;
-    font-size: 1.45rem;
+    font-size: 1.1rem;
     line-height: 1;
     z-index: 2;
 }
@@ -1731,11 +1733,22 @@ body.theme-model-list .footer button.secondary {
 }
 
 .footer-projects-menu a {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.48rem;
     padding: 0.55rem 0.65rem;
     border-radius: 6px;
     color: var(--app-text);
     white-space: nowrap;
+}
+
+.footer-project-logo {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    border-radius: 5px;
+    object-fit: cover;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.14);
 }
 
 .footer-projects-menu a:hover,
