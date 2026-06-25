@@ -101,7 +101,10 @@ function setSignedOutState() {
 }
 
 function canParticipateWithAccount() {
-    return !!state.authUser && !!state.account?.profile && state.account.profile.display_name_set !== false;
+    return !!state.authUser
+        && !!state.account?.profile
+        && state.account.profile.display_name_set !== false
+        && state.account.profile.account_status !== 'admin_disabled';
 }
 
 function syncAuthDialogVisibility() {
@@ -249,6 +252,8 @@ function getFriendlyAuthError(error, mode = 'login') {
     if (code === 'login_id_taken') return bucket.loginIdTaken;
     if (code === 'display_name_taken') return bucket.displayNameTaken;
     if (code === 'login_id_format') return bucket.loginIdFormat;
+    if (code === 'login_id_reserved') return t('login_id_reserved');
+    if (code === 'account_suspended') return t('account_suspended');
     return bucket.generic;
 }
 
@@ -459,7 +464,7 @@ async function handleLoginIdAvailabilityCheck() {
     } catch (e) {
         state.loginIdAvailability = { value: loginId, status: 'error', message: e?.message || 'login_id_check_failed' };
         if (message) {
-            message.textContent = t('auth_login_id_check_failed');
+            message.textContent = e?.message === 'login_id_reserved' ? t('login_id_reserved') : t('auth_login_id_check_failed');
             message.className = 'auth-field-message invalid';
         }
     } finally {
@@ -676,6 +681,8 @@ function rerenderPostAuthDataViews() {
         rerenderCurrentCommentsView();
     } else if (state.currentView?.id === 'mypage') {
         renderMyPage();
+    } else if (state.currentView?.id === 'admin') {
+        renderAdminPage();
     }
     renderGlobalNavigation();
 }
@@ -1497,7 +1504,7 @@ async function handleAccountLoginIdAvailabilityCheck() {
     } catch (e) {
         state.loginIdAvailability = { value: loginId, status: 'error', message: e?.message || 'login_id_check_failed' };
         if (message) {
-            message.textContent = t('auth_login_id_check_failed');
+            message.textContent = e?.message === 'login_id_reserved' ? t('login_id_reserved') : t('auth_login_id_check_failed');
             message.className = 'auth-field-message invalid';
         }
     } finally {

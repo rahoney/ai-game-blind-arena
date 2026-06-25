@@ -91,7 +91,7 @@ function applyAnimationVars(element, vars) {
 
 function navigateTo(viewId, renderFunction, ...args) {
     const onboardingViews = ['login'];
-    const contentViews = ['home', 'list', 'play', 'about', 'results', 'mypage', 'terms', 'privacy'];
+    const contentViews = ['home', 'list', 'play', 'about', 'results', 'mypage', 'admin', 'terms', 'privacy'];
     if (viewId !== 'login' && typeof requiresDisplayNameSetup === 'function' && requiresDisplayNameSetup()) {
         state.authMode = 'display_name';
         viewId = 'login';
@@ -104,11 +104,11 @@ function navigateTo(viewId, renderFunction, ...args) {
     const contentLayer = document.getElementById('content-layer');
     const header = document.getElementById('main-header');
     if (typeof closeHeaderMenus === 'function') closeHeaderMenus();
-    document.body.classList.toggle('theme-mypage', viewId === 'mypage');
+    document.body.classList.toggle('theme-mypage', viewId === 'mypage' || viewId === 'admin');
     document.body.classList.toggle('theme-home', viewId === 'home');
     document.body.classList.toggle('theme-model-list', viewId === 'list');
     document.body.classList.toggle('theme-auth', viewId === 'login');
-    document.body.classList.toggle('theme-app', ['play', 'results', 'mypage', 'about', 'terms', 'privacy'].includes(viewId));
+    document.body.classList.toggle('theme-app', ['play', 'results', 'mypage', 'admin', 'about', 'terms', 'privacy'].includes(viewId));
 
     state.currentView = { id: viewId, func: renderFunction, args: args };
     renderFunction(...args);

@@ -167,6 +167,15 @@ class AdminBlindToggle(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
+class AdminUserModerationAction(BaseModel):
+    reason: Optional[str] = Field(default=None, max_length=200)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def strip_reason(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
 class ProfileBadgeUpdate(BaseModel):
     badge_key: str = Field(min_length=1, max_length=100)
 
