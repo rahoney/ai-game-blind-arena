@@ -458,7 +458,7 @@ function getHeaderProfileBadgeKey() {
     return state.myPageData?.profile_badge_key
         || state.account?.profile?.profile_badge_key
         || state.account?.profile_badge_key
-        || 'badge_egg';
+        || '';
 }
 
 function getHeaderDisplayName() {
@@ -511,7 +511,8 @@ function renderGlobalNavigation() {
     if (!publicRoot || !accountRoot || !mobileRoot) return;
 
     const isSignedIn = !!state.account?.profile;
-    const badgeMarkup = renderBadgeSvg(getHeaderProfileBadgeKey(), 30);
+    const headerBadgeKey = getHeaderProfileBadgeKey();
+    const badgeMarkup = headerBadgeKey ? renderBadgeSvg(headerBadgeKey, 30) : '';
     const accountLabel = escapeHtml(getHeaderAccountLabel());
 
     publicRoot.innerHTML = `
@@ -588,10 +589,14 @@ function renderFooter() {
     const supportKr = document.getElementById('footer-support-kr');
     const supportGlobal = document.getElementById('footer-support-global');
     const projectsLabel = document.getElementById('footer-projects-label');
+    const termsLink = document.getElementById('footer-terms-link');
+    const privacyLink = document.getElementById('footer-privacy-link');
     if (supportText) supportText.textContent = t('footer_support_text');
     if (supportKr) supportKr.textContent = t('support_kr');
     if (supportGlobal) supportGlobal.textContent = t('support_global');
     if (projectsLabel) projectsLabel.textContent = t('footer_other_projects');
+    if (termsLink) termsLink.textContent = t('terms_policy_title');
+    if (privacyLink) privacyLink.textContent = t('privacy_policy_title');
 }
 
 function renderHeaderActions() {

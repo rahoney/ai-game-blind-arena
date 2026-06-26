@@ -224,6 +224,11 @@ async function submitEvaluation() {
         openAuthDialog('login');
         return;
     }
+    const missingScoreKeys = EVALUATION_SCORE_KEYS.filter((key) => !state.evaluationTouchedScores.has(key));
+    if (missingScoreKeys.length) {
+        showAppMessage(t('evaluation_scores_required'), { tone: 'error' });
+        return;
+    }
     const commentInput = document.getElementById('comment').value.trim();
     const commentValidationError = validateCommentInput(commentInput);
     if (commentValidationError) {

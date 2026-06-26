@@ -8,17 +8,29 @@ async function initApp() {
     }
     applyDocumentLanguage();
     initializeVeilPlaysAnalytics();
-    await initializeFirebaseAuth();
-    const initialGamePromise = refreshGameCatalog({ rerender: false }).catch((e) => {
+
+    const initialRoute = getInitialStaticRoute();
+    if (initialRoute) {
+        navigateTo(initialRoute.id, initialRoute.render);
+    } else {
+        navigateTo('home', renderLanding);
+    }
+
+    const authPromise = initializeFirebaseAuth().catch((e) => {
+        console.error("Firebase auth initialization failed", e);
+    });
+    const gamePromise = refreshGameCatalog({ rerender: true }).catch((e) => {
         console.error("Game data load failed", e);
     });
-    let initialUserEvalPromise = Promise.resolve();
+
+    await authPromise;
+
     if (state.authUser) {
-        initialUserEvalPromise = refreshUserEvaluations({ rerender: false }).catch((e) => {
+        refreshUserEvaluations({ rerender: true }).catch((e) => {
             console.error("User evaluation load failed", e);
         });
     }
-    await initialGamePromise;
+
     if (state.authMode === 'verify_email') {
         navigateTo('login', renderLogin);
         return;
@@ -28,8 +40,16 @@ async function initApp() {
         navigateTo('login', renderLogin);
         return;
     }
-    navigateTo('home', renderLanding);
-    void initialUserEvalPromise;
+
+    void gamePromise;
+}
+
+function getInitialStaticRoute() {
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    if (path === '/about') return { id: 'about', render: renderAbout };
+    if (path === '/terms') return { id: 'terms', render: renderTermsPolicy };
+    if (path === '/privacy') return { id: 'privacy', render: renderPrivacyPolicy };
+    return null;
 }
 
 function detectDefaultLanguage() {
@@ -71,7 +91,7 @@ function applyAnimationVars(element, vars) {
 
 function navigateTo(viewId, renderFunction, ...args) {
     const onboardingViews = ['login'];
-    const contentViews = ['home', 'list', 'play', 'about', 'results', 'mypage', 'privacy'];
+    const contentViews = ['home', 'list', 'play', 'about', 'results', 'mypage', 'admin', 'terms', 'privacy'];
     if (viewId !== 'login' && typeof requiresDisplayNameSetup === 'function' && requiresDisplayNameSetup()) {
         state.authMode = 'display_name';
         viewId = 'login';
@@ -84,11 +104,11 @@ function navigateTo(viewId, renderFunction, ...args) {
     const contentLayer = document.getElementById('content-layer');
     const header = document.getElementById('main-header');
     if (typeof closeHeaderMenus === 'function') closeHeaderMenus();
-    document.body.classList.toggle('theme-mypage', viewId === 'mypage');
+    document.body.classList.toggle('theme-mypage', viewId === 'mypage' || viewId === 'admin');
     document.body.classList.toggle('theme-home', viewId === 'home');
     document.body.classList.toggle('theme-model-list', viewId === 'list');
     document.body.classList.toggle('theme-auth', viewId === 'login');
-    document.body.classList.toggle('theme-app', ['play', 'results', 'mypage', 'about', 'privacy'].includes(viewId));
+    document.body.classList.toggle('theme-app', ['play', 'results', 'mypage', 'admin', 'about', 'terms', 'privacy'].includes(viewId));
 
     state.currentView = { id: viewId, func: renderFunction, args: args };
     renderFunction(...args);

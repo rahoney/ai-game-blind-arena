@@ -41,6 +41,7 @@ try:
         CommentReactionToggle,
         CommentReplyCreate,
         AdminBlindToggle,
+        AdminUserModerationAction,
         ProfileBadgeUpdate,
         AccountDisplayNameChange,
     )
@@ -80,6 +81,7 @@ except ImportError:
         CommentReactionToggle,
         CommentReplyCreate,
         AdminBlindToggle,
+        AdminUserModerationAction,
         ProfileBadgeUpdate,
         AccountDisplayNameChange,
     )
@@ -126,8 +128,10 @@ LOCAL_DB = {
     "auth_provider_accounts": [],
     "account_recovery_attempts": [],
     "signup_email_verifications": [],
+    "admin_audit_logs": [],
 }
 GAME_STATS_CACHE_TTL_SECONDS = 20
+RESERVED_LOGIN_IDS = {"admin", "administrator", "moderator", "operator", "staff", "manager", "veilplays", "veilplay"}
 PROFILE_ACTIVITY_TOUCH_INTERVAL_SECONDS = 300
 GAME_STATS_CACHE = {
     "expires_at": 0.0,
@@ -289,6 +293,9 @@ EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 LOGIN_ID_RE = re.compile(r"^[A-Za-z0-9]{4,15}$")
 SERVICE_BRAND_NAME = "VeilPlays"
 SERVICE_CONTEXT_NAME = "AI Game Blind Arena"
+ADMIN_TOKEN_SECRET_VALUE = os.environ.get("ADMIN_TOKEN_SECRET", "").strip()
+if ENVIRONMENT == "production" and len(ADMIN_TOKEN_SECRET_VALUE.encode("utf-8")) < 32:
+    raise RuntimeError("ADMIN_TOKEN_SECRET must be configured with at least 32 bytes in production")
 BLIND_TOKEN_SECRET_VALUE = os.environ.get("BLIND_TOKEN_SECRET", "").strip()
 if len(BLIND_TOKEN_SECRET_VALUE.encode("utf-8")) < 32:
     raise RuntimeError("BLIND_TOKEN_SECRET must be configured with at least 32 bytes")
@@ -367,19 +374,19 @@ def _normalize_email(email: str):
 
 
 def _hash_recovery_identifier(*parts: str):
-    secret = os.environ.get("ADMIN_TOKEN_SECRET") or os.environ.get("FIREBASE_PROJECT_ID") or "local"
+    secret = ADMIN_TOKEN_SECRET_VALUE or os.environ.get("FIREBASE_PROJECT_ID") or "local"
     raw = "|".join(part.strip().casefold() for part in parts)
     return hashlib.sha256(f"{secret}:{raw}".encode("utf-8")).hexdigest()
 
 
 def _hash_signup_verification_code(email: str, code: str):
-    secret = os.environ.get("ADMIN_TOKEN_SECRET") or os.environ.get("FIREBASE_PROJECT_ID") or "local"
+    secret = ADMIN_TOKEN_SECRET_VALUE or os.environ.get("FIREBASE_PROJECT_ID") or "local"
     raw = f"{_normalize_email(email)}:{code.strip()}"
     return hashlib.sha256(f"{secret}:{raw}".encode("utf-8")).hexdigest()
 
 
 def _token_secret():
-    return (os.environ.get("ADMIN_TOKEN_SECRET") or os.environ.get("FIREBASE_PROJECT_ID") or "local").encode("utf-8")
+    return (ADMIN_TOKEN_SECRET_VALUE or os.environ.get("FIREBASE_PROJECT_ID") or "local").encode("utf-8")
 
 
 def _b64url_encode(data: bytes):
@@ -782,6 +789,8 @@ def _confirm_signup_email_verification(email: str, code: str):
 def _validate_identity_fields(login_id: str, real_name: str, display_name: str, language: str | None = "ko"):
     if not LOGIN_ID_RE.fullmatch(login_id):
         raise HTTPException(status_code=400, detail="login_id_format")
+    if _is_reserved_login_id(login_id):
+        raise HTTPException(status_code=400, detail="login_id_reserved")
     if not _is_valid_real_name(real_name, language):
         raise HTTPException(status_code=400, detail="real_name_format")
     is_valid, error_key = validate_display_name(display_name)
@@ -792,6 +801,8 @@ def _validate_identity_fields(login_id: str, real_name: str, display_name: str, 
 def _is_login_id_taken(login_id: str, current_uid: str | None = None):
     if not LOGIN_ID_RE.fullmatch(login_id):
         raise HTTPException(status_code=400, detail="login_id_format")
+    if _is_reserved_login_id(login_id):
+        raise HTTPException(status_code=400, detail="login_id_reserved")
 
     if LOCAL_TEST_MODE:
         for existing_uid, existing in LOCAL_DB["profiles"].items():
@@ -815,6 +826,11 @@ def _is_login_id_taken(login_id: str, current_uid: str | None = None):
     if not duplicate:
         return False
     return not current_uid or duplicate.get("firebase_uid") != current_uid
+
+
+def _is_reserved_login_id(login_id: str | None):
+    normalized = (login_id or "").strip().casefold()
+    return normalized in RESERVED_LOGIN_IDS
 
 
 def _is_display_name_taken(display_name: str, current_uid: str | None = None):
@@ -929,6 +945,8 @@ def _resolve_profile_for_firebase_user(user: dict):
             update_payload = dict(payload)
             update_payload.pop("display_name", None)
             update_payload.pop("display_name_set", None)
+            if existing.get("account_status") == "admin_disabled":
+                update_payload.pop("account_status", None)
             if not payload.get("email"):
                 update_payload.pop("email", None)
                 update_payload.pop("email_verified", None)
@@ -970,6 +988,8 @@ def _resolve_profile_for_firebase_user(user: dict):
             update_payload = dict(payload)
             update_payload.pop("display_name", None)
             update_payload.pop("display_name_set", None)
+            if existing.get("account_status") == "admin_disabled":
+                update_payload.pop("account_status", None)
             if not payload.get("email"):
                 update_payload.pop("email", None)
                 update_payload.pop("email_verified", None)
@@ -1047,7 +1067,83 @@ def _get_actor_from_request(request: Request, required: bool = True):
     return None
 
 
+def _ensure_account_not_disabled(profile: dict | None):
+    if (profile or {}).get("account_status") == "admin_disabled":
+        raise HTTPException(status_code=403, detail="account_suspended")
+
+
+def _require_admin_actor(request: Request):
+    actor = _get_actor_from_request(request, required=True)
+    if not actor.get("is_admin"):
+        raise HTTPException(status_code=403, detail="admin_auth_required")
+    return actor
+
+
+def _get_profile_by_id(profile_id: str):
+    if LOCAL_TEST_MODE:
+        return next((profile for profile in LOCAL_DB["profiles"].values() if profile.get("id") == profile_id), None)
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+    res = supabase.table("profiles").select("*").eq("id", profile_id).limit(1).execute()
+    return (res.data or [None])[0]
+
+
+def _make_temporary_display_name():
+    alphabet = "abcdefghijklmnopqrstuvwxyz"
+    for _ in range(25):
+        candidate = f"user_{secrets.randbelow(9000) + 1000}{secrets.choice(alphabet)}"
+        if not _is_display_name_taken(candidate):
+            return candidate
+    raise HTTPException(status_code=500, detail="temporary_display_name_failed")
+
+
+def _public_admin_profile(profile: dict):
+    return {
+        "id": profile.get("id"),
+        "firebase_uid": profile.get("firebase_uid"),
+        "login_id": profile.get("login_id"),
+        "display_name": profile.get("display_name"),
+        "email": profile.get("email"),
+        "role": profile.get("role"),
+        "account_status": profile.get("account_status"),
+        "display_name_set": profile.get("display_name_set"),
+        "created_at": profile.get("created_at"),
+        "last_active_at": profile.get("last_active_at"),
+    }
+
+
+def _write_admin_audit_log(
+    actor: dict,
+    action: str,
+    target_type: str,
+    target_id: str | None,
+    request: Request,
+    reason: str | None = None,
+    metadata: dict | None = None,
+):
+    row = {
+        "actor_profile_id": actor.get("user_id"),
+        "actor_firebase_uid": (actor.get("profile") or {}).get("firebase_uid"),
+        "action": action,
+        "target_type": target_type,
+        "target_id": target_id,
+        "reason": (reason or "").strip()[:500] or None,
+        "metadata": metadata or {},
+        "ip_address": _get_client_ip(request),
+        "user_agent": (request.headers.get("user-agent") or "")[:500],
+        "created_at": _now_iso(),
+    }
+    try:
+        if LOCAL_TEST_MODE:
+            LOCAL_DB["admin_audit_logs"].append(row)
+        elif supabase:
+            supabase.table("admin_audit_logs").insert(row).execute()
+    except Exception:
+        logger.exception("Admin audit log write failed")
+
+
 def _update_profile_display_name(profile: dict, display_name: str):
+    _ensure_account_not_disabled(profile)
     is_valid, error_key = validate_display_name(display_name)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_key)
@@ -1085,6 +1181,7 @@ def _update_profile_display_name(profile: dict, display_name: str):
 
 
 def _update_profile_identity(profile: dict, payload: ProfileIdentityUpdate):
+    _ensure_account_not_disabled(profile)
     _validate_identity_fields(payload.login_id, payload.real_name, payload.display_name, payload.language)
     uid = profile.get("firebase_uid")
 
@@ -1135,6 +1232,7 @@ def _update_profile_identity(profile: dict, payload: ProfileIdentityUpdate):
 
 
 def _create_profile_login_id(profile: dict, payload: AccountLoginIdCreate, email: str):
+    _ensure_account_not_disabled(profile)
     if profile.get("login_id"):
         raise HTTPException(status_code=409, detail="login_id_already_set")
     if not LOGIN_ID_RE.fullmatch(payload.login_id):
@@ -3312,6 +3410,7 @@ async def get_games(lang: str = 'ko', blind_seed: str = ''):
 @app.post("/api/play")
 async def record_play(data: PlayEvent, request: Request):
     actor = _get_actor_from_request(request, required=True)
+    _ensure_account_not_disabled(actor.get("profile"))
     actual_model = _find_actual_model(data.game_type, data.blind_model_id, blind_model_token=data.blind_model_token)
             
     if actual_model:
@@ -3360,6 +3459,7 @@ async def record_play(data: PlayEvent, request: Request):
 async def submit_evaluation(eval: Evaluation, request: Request):
     try:
         actor = _get_actor_from_request(request, required=True)
+        _ensure_account_not_disabled(actor.get("profile"))
         display_name = actor["display_name"]
         is_valid_comment, comment_error = validate_comment_text(eval.comment)
         if not is_valid_comment:
@@ -3598,6 +3698,7 @@ async def get_results(game_type: str, request: Request):
 @app.post("/api/comment-reaction")
 async def toggle_comment_reaction(payload: CommentReactionToggle, request: Request):
     actor = _get_actor_from_request(request, required=True)
+    _ensure_account_not_disabled(actor.get("profile"))
     display_name = actor["display_name"]
 
     if payload.reaction_type not in ("like", "dislike"):
@@ -3688,6 +3789,7 @@ async def toggle_comment_reaction(payload: CommentReactionToggle, request: Reque
 @app.post("/api/comment-reply")
 async def create_comment_reply(payload: CommentReplyCreate, request: Request):
     actor = _get_actor_from_request(request, required=True)
+    _ensure_account_not_disabled(actor.get("profile"))
     display_name = actor["display_name"]
 
     is_valid_reply, reply_error = validate_comment_text(payload.reply)
@@ -3751,9 +3853,7 @@ async def create_comment_reply(payload: CommentReplyCreate, request: Request):
 
 @app.post("/api/admin/blind")
 async def admin_toggle_blind(payload: AdminBlindToggle, request: Request):
-    actor = _get_actor_from_request(request, required=True)
-    if not actor.get("is_admin"):
-        raise HTTPException(status_code=403, detail="admin_auth_required")
+    actor = _require_admin_actor(request)
 
     table_map = {
         "comment": "evaluations",
@@ -3784,6 +3884,14 @@ async def admin_toggle_blind(payload: AdminBlindToggle, request: Request):
             }
 
             supabase.table(table_name).update(update_data).eq('id', payload.target_id).execute()
+        _write_admin_audit_log(
+            actor,
+            "comment_blind_toggle",
+            payload.target_type,
+            payload.target_id,
+            request,
+            metadata={"is_blinded": payload.is_blinded},
+        )
         return {
             "status": "success",
             "target_type": payload.target_type,
@@ -3795,6 +3903,183 @@ async def admin_toggle_blind(payload: AdminBlindToggle, request: Request):
     except Exception as exc:
         logger.exception("Admin blind update failed")
         raise HTTPException(status_code=500, detail="admin_blind_update_failed") from exc
+
+
+@app.get("/api/admin/overview")
+async def admin_overview(request: Request, query: str = "", limit: int = 30):
+    _require_admin_actor(request)
+    limit = max(1, min(int(limit or 30), 80))
+    normalized_query = (query or "").strip()
+
+    try:
+        if LOCAL_TEST_MODE:
+            profiles = list(LOCAL_DB["profiles"].values())
+            if normalized_query:
+                q = normalized_query.casefold()
+                profiles = [
+                    profile for profile in profiles
+                    if q in str(profile.get("display_name") or "").casefold()
+                    or q in str(profile.get("login_id") or "").casefold()
+                    or q in str(profile.get("email") or "").casefold()
+                    or q in str(profile.get("firebase_uid") or "").casefold()
+                ]
+            comments = sorted(
+                [row for row in LOCAL_DB["evaluations"] if row.get("comment")],
+                key=lambda row: row.get("updated_at") or row.get("created_at") or "",
+                reverse=True,
+            )[:limit]
+            replies = sorted(
+                LOCAL_DB["comment_replies"],
+                key=lambda row: row.get("updated_at") or row.get("created_at") or "",
+                reverse=True,
+            )[:limit]
+            return {
+                "profiles": [_public_admin_profile(profile) for profile in profiles[:limit]],
+                "comments": comments,
+                "replies": replies,
+            }
+
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+        profile_query = supabase.table("profiles").select(
+            "id, firebase_uid, login_id, display_name, email, role, account_status, display_name_set, created_at, last_active_at"
+        ).order("updated_at", desc=True).limit(limit)
+        if normalized_query:
+            escaped = normalized_query.replace("%", "\\%").replace("_", "\\_")
+            profile_query = profile_query.or_(
+                f"display_name.ilike.%{escaped}%,login_id.ilike.%{escaped}%,email.ilike.%{escaped}%,firebase_uid.ilike.%{escaped}%"
+            )
+        profiles = profile_query.execute().data or []
+        comments = (
+            supabase.table("evaluations")
+            .select("id, user_id, profile_display_name, game_type, actual_model_name, comment, is_blinded, created_at, updated_at")
+            .order("updated_at", desc=True)
+            .limit(limit * 3)
+            .execute()
+            .data
+            or []
+        )
+        comments = [row for row in comments if row.get("comment")][:limit]
+        replies = (
+            supabase.table("comment_replies")
+            .select("id, evaluation_id, user_id, profile_display_name, reply, is_blinded, created_at, updated_at")
+            .order("updated_at", desc=True)
+            .limit(limit)
+            .execute()
+            .data
+            or []
+        )
+        return {"profiles": profiles, "comments": comments, "replies": replies}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Admin overview failed")
+        raise HTTPException(status_code=500, detail="admin_overview_failed") from exc
+
+
+@app.post("/api/admin/users/{profile_id}/suspend")
+async def admin_suspend_user(profile_id: str, payload: AdminUserModerationAction, request: Request):
+    actor = _require_admin_actor(request)
+    profile = _get_profile_by_id(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="admin_user_not_found")
+    if profile.get("role") in ("admin", "super_admin") or profile.get("id") == actor.get("user_id"):
+        raise HTTPException(status_code=403, detail="admin_cannot_modify_admin")
+    update_payload = {
+        "account_status": "admin_disabled",
+        "updated_at": _now_iso(),
+    }
+    if LOCAL_TEST_MODE:
+        profile.update(update_payload)
+        _write_admin_audit_log(actor, "user_suspend", "profile", profile_id, request, payload.reason)
+        return {"profile": _public_admin_profile(profile)}
+    updated = supabase.table("profiles").update(update_payload).eq("id", profile_id).execute().data
+    _write_admin_audit_log(actor, "user_suspend", "profile", profile_id, request, payload.reason)
+    return {"profile": (updated or [None])[0] or {**profile, **update_payload}}
+
+
+@app.post("/api/admin/users/{profile_id}/unsuspend")
+async def admin_unsuspend_user(profile_id: str, payload: AdminUserModerationAction, request: Request):
+    actor = _require_admin_actor(request)
+    profile = _get_profile_by_id(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="admin_user_not_found")
+    update_payload = {
+        "account_status": "active" if profile.get("email_verified") else "email_unverified",
+        "updated_at": _now_iso(),
+    }
+    if LOCAL_TEST_MODE:
+        profile.update(update_payload)
+        _write_admin_audit_log(actor, "user_unsuspend", "profile", profile_id, request, payload.reason)
+        return {"profile": _public_admin_profile(profile)}
+    updated = supabase.table("profiles").update(update_payload).eq("id", profile_id).execute().data
+    _write_admin_audit_log(actor, "user_unsuspend", "profile", profile_id, request, payload.reason)
+    return {"profile": (updated or [None])[0] or {**profile, **update_payload}}
+
+
+@app.post("/api/admin/users/{profile_id}/reset-display-name")
+async def admin_reset_user_display_name(profile_id: str, payload: AdminUserModerationAction, request: Request):
+    actor = _require_admin_actor(request)
+    profile = _get_profile_by_id(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="admin_user_not_found")
+    if profile.get("role") in ("admin", "super_admin") or profile.get("id") == actor.get("user_id"):
+        raise HTTPException(status_code=403, detail="admin_cannot_modify_admin")
+    temporary_display_name = _make_temporary_display_name()
+    update_payload = {
+        "display_name": temporary_display_name,
+        "display_name_set": False,
+        "updated_at": _now_iso(),
+    }
+    if LOCAL_TEST_MODE:
+        profile.update(update_payload)
+        _write_admin_audit_log(
+            actor,
+            "user_reset_display_name",
+            "profile",
+            profile_id,
+            request,
+            payload.reason,
+            {"temporary_display_name": temporary_display_name},
+        )
+        return {"profile": _public_admin_profile(profile)}
+    updated = supabase.table("profiles").update(update_payload).eq("id", profile_id).execute().data
+    _write_admin_audit_log(
+        actor,
+        "user_reset_display_name",
+        "profile",
+        profile_id,
+        request,
+        payload.reason,
+        {"temporary_display_name": temporary_display_name},
+    )
+    return {"profile": (updated or [None])[0] or {**profile, **update_payload}}
+
+
+@app.delete("/api/admin/users/{profile_id}")
+async def admin_delete_user(profile_id: str, payload: AdminUserModerationAction, request: Request):
+    actor = _require_admin_actor(request)
+    profile = _get_profile_by_id(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="admin_user_not_found")
+    if profile.get("role") in ("admin", "super_admin") or profile.get("id") == actor.get("user_id"):
+        raise HTTPException(status_code=403, detail="admin_cannot_modify_admin")
+    provider_accounts = _get_provider_accounts_for_profile(profile.get("id"))
+    _revoke_provider_accounts(provider_accounts)
+    firebase_uid = profile.get("firebase_uid", "")
+    _anonymize_deleted_account(profile)
+    firebase_deleted = delete_firebase_user(firebase_uid)
+    _write_admin_audit_log(
+        actor,
+        "user_delete",
+        "profile",
+        profile_id,
+        request,
+        payload.reason,
+        {"firebase_deleted": firebase_deleted, "provider_count": len(provider_accounts)},
+    )
+    return {"deleted": True, "firebase_deleted": firebase_deleted}
 
 
 @app.get("/api/mypage")

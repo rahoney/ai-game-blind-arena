@@ -475,3 +475,30 @@ async function apiAdminToggleBlind(targetType, targetId, isBlinded) {
         })
     });
 }
+
+async function apiFetchAdminOverview(query = '') {
+    const headers = await getCurrentAuthHeaders(true);
+    const params = new URLSearchParams();
+    if (query) params.set('query', query);
+    const res = await fetch(`${API_BASE}/admin/overview?${params.toString()}`, { headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.detail || 'admin_overview_failed');
+    state.adminOverview = data;
+    return data;
+}
+
+async function apiAdminUserAction(profileId, action, reason = '') {
+    const headers = await getCurrentAuthHeaders(true);
+    const method = action === 'delete' ? 'DELETE' : 'POST';
+    const endpoint = action === 'delete'
+        ? `${API_BASE}/admin/users/${encodeURIComponent(profileId)}`
+        : `${API_BASE}/admin/users/${encodeURIComponent(profileId)}/${action}`;
+    const res = await fetch(endpoint, {
+        method,
+        headers,
+        body: JSON.stringify({ reason })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.detail || 'admin_user_action_failed');
+    return data;
+}
