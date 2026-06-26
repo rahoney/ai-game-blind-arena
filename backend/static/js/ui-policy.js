@@ -2,7 +2,7 @@ function getPrivacyPolicyContent() {
     if (state.language === 'en') {
         return {
             title: 'Privacy Policy',
-            effectiveDate: 'Effective date: April 17, 2026',
+            effectiveDate: 'Effective date: June 26, 2026',
             intro: 'VeilPlays provides an account-based AI game evaluation service. This page explains what data may be processed, why it may be processed, how long it may be retained, what third-party services may be involved, and what disclosures apply if Google AdSense is enabled.',
             sections: [
                 {
@@ -86,7 +86,7 @@ function getPrivacyPolicyContent() {
 
     return {
         title: '개인정보처리방침',
-        effectiveDate: '시행일: 2026년 4월 17일',
+        effectiveDate: '시행일: 2026년 6월 26일',
         intro: 'VeilPlays는 계정 기반의 AI 게임 평가 서비스를 제공합니다. 본 페이지는 어떤 정보가 처리될 수 있는지, 왜 처리되는지, 얼마나 보관될 수 있는지, 어떤 제3자 서비스가 관여할 수 있는지, 그리고 향후 Google AdSense가 도입될 경우 어떤 고지가 적용되는지를 설명합니다.',
         sections: [
             {
@@ -172,7 +172,7 @@ function getTermsPolicyContent() {
     if (state.language === 'en') {
         return {
             title: 'Terms',
-            effectiveDate: 'Effective date: June 25, 2026',
+            effectiveDate: 'Effective date: June 26, 2026',
             intro: 'These terms describe the basic rules for using VeilPlays. The service is an experimental game-based AI model benchmark where users can play, evaluate, and comment on AI-generated games.',
             sections: [
                 {
@@ -231,7 +231,7 @@ function getTermsPolicyContent() {
 
     return {
         title: '이용약관',
-        effectiveDate: '시행일: 2026년 6월 25일',
+        effectiveDate: '시행일: 2026년 6월 26일',
         intro: '본 약관은 VeilPlays 이용을 위한 기본 규칙을 설명합니다. VeilPlays는 사용자가 AI 생성 게임을 플레이하고 평가하며 댓글을 남길 수 있는 실험형 게임 기반 AI 모델 벤치마크 서비스입니다.',
         sections: [
             {

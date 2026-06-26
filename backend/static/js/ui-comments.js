@@ -12,15 +12,20 @@ const COMMENT_REPLY_SECTION_BG = 'var(--surface-elevated)';
 const COMMENT_TEXTAREA_BG = 'var(--surface-bg)';
 const COMMENT_TEXTAREA_BORDER = 'var(--border-color)';
 
+function isMobileCommentLayout() {
+    return typeof window !== 'undefined' && window.matchMedia?.('(max-width: 640px)').matches;
+}
+
 function renderCommentReactionButton(comment, reactionType, symbol, count, activeColor) {
     const canInteract = canParticipateWithAccount();
     const isActive = comment.user_reaction === reactionType;
     const isPending = state.pendingReactionIds.has(`${comment.id}:${reactionType}`);
+    const isMobile = isMobileCommentLayout();
     return `
         <button type="button" ${canInteract ? `onclick="toggleCommentReaction('${comment.id}', '${reactionType}')"` : '' }
             ${(!canInteract || isPending) ? 'disabled' : ''}
-            style="display:inline-flex; align-items:center; gap:0.28rem; padding:0; border:none; background:transparent; color:${isActive ? activeColor : COMMENT_CONTENT_TEXT}; cursor:${(!canInteract || isPending) ? 'not-allowed' : 'pointer'}; font-weight:800; opacity:${(!canInteract || isPending) ? '0.45' : '1'}; width:auto; min-width:auto; box-shadow:none;">
-            <span style="font-size:1.12rem; line-height:1;">${symbol}</span>
+            style="display:inline-flex; align-items:center; gap:${isMobile ? '0.12rem' : '0.28rem'}; padding:0; border:none; background:transparent; color:${isActive ? activeColor : COMMENT_CONTENT_TEXT}; cursor:${(!canInteract || isPending) ? 'not-allowed' : 'pointer'}; font-weight:800; opacity:${(!canInteract || isPending) ? '0.45' : '1'}; width:auto; min-width:auto; box-shadow:none; font-size:${isMobile ? '0.72rem' : '1rem'};">
+            <span style="font-size:${isMobile ? '0.74rem' : '1.12rem'}; line-height:1;">${symbol}</span>
             <span>${count}</span>
         </button>
     `;
@@ -29,28 +34,31 @@ function renderCommentReactionButton(comment, reactionType, symbol, count, activ
 function renderReplyCard(reply) {
     const blindKey = `reply:${reply.id}`;
     const isPendingBlind = state.pendingBlindIds.has(blindKey);
+    const isMobile = isMobileCommentLayout();
+    const replyProfileWidth = isMobile ? 44 : 72;
+    const replyBadgeSize = isMobile ? 28 : 44;
     const blindButton = state.isAdmin ? `
         <button type="button" onclick="toggleBlindTarget('reply', '${reply.id}', ${reply.is_blinded ? 'false' : 'true'})"
             ${isPendingBlind ? 'disabled' : ''}
-            style="width:auto; padding:0.45rem 0.7rem; font-size:0.8rem; border-radius:999px; opacity:${isPendingBlind ? '0.6' : '1'}; cursor:${isPendingBlind ? 'not-allowed' : 'pointer'};">
+            style="width:auto; padding:${isMobile ? '0.25rem 0.42rem' : '0.45rem 0.7rem'}; font-size:${isMobile ? '0.66rem' : '0.8rem'}; border-radius:999px; opacity:${isPendingBlind ? '0.6' : '1'}; cursor:${isPendingBlind ? 'not-allowed' : 'pointer'};">
             ${reply.is_blinded ? t('admin_unblind') : t('admin_blind')}
         </button>
     ` : '';
 
     return `
-        <div style="display:grid; grid-template-columns:72px 1fr; gap:0.9rem; padding:0.85rem 0; border-top:1px solid var(--border-color);">
-            <div style="display:flex; flex-direction:column; align-items:center; gap:0.35rem; background:${COMMENT_PROFILE_PANEL_BG}; padding:0.55rem 0.45rem; border-radius:16px; color:${COMMENT_PROFILE_PANEL_TEXT}; box-shadow:0 10px 24px rgba(0, 0, 0, 0.16); border:1px solid var(--border-color);">
-                <div style="width:44px; height:44px;">${renderBadgeSvg(reply.badge?.stage_key || 'badge_egg', 44)}</div>
-                <div style="font-size:0.78rem; font-weight:700; text-align:center; line-height:1.35; word-break:break-word;">${escapeHtml(reply.display_name)}</div>
+        <div style="display:grid; grid-template-columns:${replyProfileWidth}px minmax(0, 1fr); gap:${isMobile ? '0.45rem' : '0.9rem'}; padding:${isMobile ? '0.45rem 0' : '0.85rem 0'}; border-top:1px solid var(--border-color); min-width:0;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:${isMobile ? '0.18rem' : '0.35rem'}; background:${COMMENT_PROFILE_PANEL_BG}; padding:${isMobile ? '0.32rem 0.2rem' : '0.55rem 0.45rem'}; border-radius:${isMobile ? '10px' : '16px'}; color:${COMMENT_PROFILE_PANEL_TEXT}; box-shadow:0 10px 24px rgba(0, 0, 0, 0.16); border:1px solid var(--border-color); min-width:0;">
+                <div style="width:${replyBadgeSize}px; height:${replyBadgeSize}px;">${renderBadgeSvg(reply.badge?.stage_key || 'badge_egg', replyBadgeSize)}</div>
+                <div style="font-size:${isMobile ? '0.58rem' : '0.78rem'}; font-weight:700; text-align:center; line-height:1.25; word-break:break-word; max-width:100%;">${escapeHtml(reply.display_name)}</div>
             </div>
-            <div style="border:1px solid ${COMMENT_CONTENT_PANEL_BORDER}; border-radius:14px; padding:0.8rem 0.9rem; background:${COMMENT_CONTENT_PANEL_BG}; box-shadow:0 8px 24px rgba(0, 0, 0, 0.16);">
-                <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin-bottom:0.25rem;">
-                    <div style="font-size:0.8rem; color:${COMMENT_CONTENT_MUTED};">${formatCommentDate(reply.created_at)}</div>
-                    <div style="display:flex; align-items:center; gap:0.6rem;">
+            <div style="border:1px solid ${COMMENT_CONTENT_PANEL_BORDER}; border-radius:${isMobile ? '10px' : '14px'}; padding:${isMobile ? '0.48rem 0.55rem' : '0.8rem 0.9rem'}; background:${COMMENT_CONTENT_PANEL_BG}; box-shadow:0 8px 24px rgba(0, 0, 0, 0.16); min-width:0;">
+                <div style="display:flex; justify-content:space-between; gap:${isMobile ? '0.35rem' : '1rem'}; align-items:flex-start; margin-bottom:0.25rem;">
+                    <div style="font-size:${isMobile ? '0.58rem' : '0.8rem'}; color:${COMMENT_CONTENT_MUTED};">${formatCommentDate(reply.created_at)}</div>
+                    <div style="display:flex; align-items:center; gap:${isMobile ? '0.3rem' : '0.6rem'};">
                         ${blindButton}
                     </div>
                 </div>
-                <div style="font-size:0.95rem; line-height:1.55; white-space:pre-wrap; color:${reply.is_blinded ? COMMENT_CONTENT_MUTED : COMMENT_CONTENT_TEXT};">${reply.is_blinded && !state.isAdmin ? t('blinded_message') : escapeHtml(reply.reply)}</div>
+                <div style="font-size:${isMobile ? '0.72rem' : '0.95rem'}; line-height:${isMobile ? '1.4' : '1.55'}; white-space:pre-wrap; overflow-wrap:anywhere; color:${reply.is_blinded ? COMMENT_CONTENT_MUTED : COMMENT_CONTENT_TEXT};">${reply.is_blinded && !state.isAdmin ? t('blinded_message') : escapeHtml(reply.reply)}</div>
             </div>
         </div>
     `;
@@ -68,63 +76,66 @@ function renderCommentCard(comment, options = {}) {
     const replies = comment.replies || [];
     const blindKey = `comment:${comment.id}`;
     const isPendingBlind = state.pendingBlindIds.has(blindKey);
-    const badgeSize = compact ? 64 : 72;
-    const profileColumnWidth = compact ? 92 : 100;
-    const profileBoxPadding = compact ? '0.8rem 0.5rem' : '0.9rem 0.6rem';
-    const profileRadius = compact ? '18px' : '20px';
-    const contentPadding = compact ? '1rem 1.05rem' : '1rem 1.1rem';
+    const isMobile = isMobileCommentLayout();
+    const badgeSize = isMobile ? 36 : (compact ? 64 : 72);
+    const profileColumnWidth = isMobile ? 58 : (compact ? 92 : 100);
+    const profileBoxPadding = isMobile ? '0.38rem 0.24rem' : (compact ? '0.8rem 0.5rem' : '0.9rem 0.6rem');
+    const profileRadius = isMobile ? '10px' : (compact ? '18px' : '20px');
+    const contentPadding = isMobile ? '0.58rem 0.65rem' : (compact ? '1rem 1.05rem' : '1rem 1.1rem');
+    const commentGap = isMobile ? '0.5rem' : (compact ? '1rem' : '1.2rem');
+    const panelRadius = isMobile ? '12px' : '18px';
 
     const repliesHtml = isExpanded
         ? `
-            <div style="margin-top:1rem; padding:0.9rem 1rem; border-radius:14px; background:${COMMENT_REPLY_SECTION_BG}; border:1px solid var(--border-color);">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:0.75rem;">
-                    <div style="font-size:0.95rem; font-weight:700; color:${COMMENT_CONTENT_MUTED};">${t('replies_count', { count: replies.length })}</div>
-                    <button type="button" class="secondary" onclick="toggleReplies('${comment.id}')" ${canInteract ? '' : 'disabled'} style="width:auto; padding:0.55rem 0.9rem; opacity:${canInteract ? '1' : '0.55'}; cursor:${canInteract ? 'pointer' : 'not-allowed'};">${t('replies_toggle_close')}</button>
+            <div style="margin-top:${isMobile ? '0.55rem' : '1rem'}; padding:${isMobile ? '0.55rem' : '0.9rem 1rem'}; border-radius:${isMobile ? '10px' : '14px'}; background:${COMMENT_REPLY_SECTION_BG}; border:1px solid var(--border-color); min-width:0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:${isMobile ? '0.4rem' : '1rem'}; margin-bottom:${isMobile ? '0.45rem' : '0.75rem'};">
+                    <div style="font-size:${isMobile ? '0.68rem' : '0.95rem'}; font-weight:700; color:${COMMENT_CONTENT_MUTED};">${t('replies_count', { count: replies.length })}</div>
+                    <button type="button" class="secondary" onclick="toggleReplies('${comment.id}')" ${canInteract ? '' : 'disabled'} style="width:auto; padding:${isMobile ? '0.28rem 0.45rem' : '0.55rem 0.9rem'}; font-size:${isMobile ? '0.66rem' : '0.95rem'}; opacity:${canInteract ? '1' : '0.55'}; cursor:${canInteract ? 'pointer' : 'not-allowed'};">${t('replies_toggle_close')}</button>
                 </div>
-                <div style="margin-bottom:0.9rem;">
+                <div style="margin-bottom:${isMobile ? '0.5rem' : '0.9rem'};">
                     ${replies.length ? replies.map(renderReplyCard).join('') : `<div style="padding:0.35rem 0; color:${COMMENT_CONTENT_MUTED};">${t('replies_empty')}</div>`}
                 </div>
-                <div style="display:grid; gap:0.65rem;">
-                    <textarea id="reply-input-${comment.id}" rows="3" maxlength="150" placeholder="${t('reply_placeholder')}" style="width:100%; padding:1rem; font-size:0.98rem; border-radius:12px; background:${COMMENT_TEXTAREA_BG}; color:${COMMENT_CONTENT_TEXT}; border:1px solid ${COMMENT_TEXTAREA_BORDER}; line-height:1.5;"></textarea>
+                <div style="display:grid; gap:${isMobile ? '0.45rem' : '0.65rem'};">
+                    <textarea id="reply-input-${comment.id}" rows="3" maxlength="150" placeholder="${t('reply_placeholder')}" style="width:100%; padding:${isMobile ? '0.62rem' : '1rem'}; font-size:${isMobile ? '0.78rem' : '0.98rem'}; border-radius:${isMobile ? '9px' : '12px'}; background:${COMMENT_TEXTAREA_BG}; color:${COMMENT_CONTENT_TEXT}; border:1px solid ${COMMENT_TEXTAREA_BORDER}; line-height:1.5;"></textarea>
                     <div style="display:flex; justify-content:flex-end;">
-                        <button type="button" onclick="submitCommentReply('${comment.id}')" ${isPendingReply ? 'disabled' : ''} style="width:auto; padding:0.75rem 1rem; opacity:${isPendingReply ? '0.65' : '1'}; cursor:${isPendingReply ? 'not-allowed' : 'pointer'};">${t('reply_submit')}</button>
+                        <button type="button" onclick="submitCommentReply('${comment.id}')" ${isPendingReply ? 'disabled' : ''} style="width:auto; padding:${isMobile ? '0.38rem 0.6rem' : '0.75rem 1rem'}; font-size:${isMobile ? '0.72rem' : '0.95rem'}; opacity:${isPendingReply ? '0.65' : '1'}; cursor:${isPendingReply ? 'not-allowed' : 'pointer'};">${t('reply_submit')}</button>
                     </div>
                 </div>
             </div>
         `
         : `
-            <div style="display:flex; align-items:center; gap:0.8rem; margin-top:1rem;">
-                <div style="font-size:0.95rem; font-weight:700; color:${COMMENT_CONTENT_MUTED};">${t('replies_count', { count: replies.length })}</div>
-                <button type="button" class="secondary" onclick="toggleReplies('${comment.id}')" ${canInteract ? '' : 'disabled'} style="width:auto; padding:0.55rem 0.9rem; opacity:${canInteract ? '1' : '0.55'}; cursor:${canInteract ? 'pointer' : 'not-allowed'};">${t('replies_toggle_open')}</button>
+            <div style="display:flex; align-items:center; gap:${isMobile ? '0.4rem' : '0.8rem'}; margin-top:${isMobile ? '0.55rem' : '1rem'};">
+                <div style="font-size:${isMobile ? '0.68rem' : '0.95rem'}; font-weight:700; color:${COMMENT_CONTENT_MUTED};">${t('replies_count', { count: replies.length })}</div>
+                <button type="button" class="secondary" onclick="toggleReplies('${comment.id}')" ${canInteract ? '' : 'disabled'} style="width:auto; padding:${isMobile ? '0.28rem 0.45rem' : '0.55rem 0.9rem'}; font-size:${isMobile ? '0.66rem' : '0.95rem'}; opacity:${canInteract ? '1' : '0.55'}; cursor:${canInteract ? 'pointer' : 'not-allowed'};">${t('replies_toggle_open')}</button>
             </div>
         `;
 
     return `
-        <div style="max-width:1100px; margin:0 auto 1.2rem;">
-            <div style="display:grid; grid-template-columns:${profileColumnWidth}px 1fr; gap:${compact ? '1rem' : '1.2rem'}; align-items:start; width:100%;">
-                <div style="display:flex; flex-direction:column; align-items:center; gap:0.55rem; background:${COMMENT_PROFILE_PANEL_BG}; padding:${profileBoxPadding}; border-radius:${profileRadius}; color:${COMMENT_PROFILE_PANEL_TEXT}; box-shadow:0 14px 32px rgba(0, 0, 0, 0.18); border:1px solid var(--border-color);">
+        <div class="comment-card-wrap" style="max-width:1100px; margin:0 auto ${isMobile ? '0.65rem' : '1.2rem'}; min-width:0;">
+            <div style="display:grid; grid-template-columns:${profileColumnWidth}px minmax(0, 1fr); gap:${commentGap}; align-items:start; width:100%; min-width:0;">
+                <div style="display:flex; flex-direction:column; align-items:center; gap:${isMobile ? '0.22rem' : '0.55rem'}; background:${COMMENT_PROFILE_PANEL_BG}; padding:${profileBoxPadding}; border-radius:${profileRadius}; color:${COMMENT_PROFILE_PANEL_TEXT}; box-shadow:0 14px 32px rgba(0, 0, 0, 0.18); border:1px solid var(--border-color); min-width:0;">
                     <div style="width:${badgeSize}px; height:${badgeSize}px;">${renderBadgeSvg(comment.badge?.stage_key || 'badge_egg', badgeSize)}</div>
-                    <div style="font-size:0.84rem; font-weight:800; text-align:center; line-height:1.3; word-break:break-word;">${escapeHtml(comment.display_name)}</div>
+                    <div style="font-size:${isMobile ? '0.58rem' : '0.84rem'}; font-weight:800; text-align:center; line-height:1.25; word-break:break-word; max-width:100%;">${escapeHtml(comment.display_name)}</div>
                 </div>
-                <div style="border:1px solid ${COMMENT_CONTENT_PANEL_BORDER}; border-radius:18px; background:${COMMENT_CONTENT_PANEL_BG}; padding:${contentPadding}; box-shadow:0 14px 32px rgba(0, 0, 0, 0.18);">
-                    <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; margin-bottom:0.55rem;">
+                <div style="border:1px solid ${COMMENT_CONTENT_PANEL_BORDER}; border-radius:${panelRadius}; background:${COMMENT_CONTENT_PANEL_BG}; padding:${contentPadding}; box-shadow:0 14px 32px rgba(0, 0, 0, 0.18); min-width:0; overflow:hidden;">
+                    <div style="display:flex; justify-content:space-between; gap:${isMobile ? '0.4rem' : '1rem'}; align-items:flex-start; margin-bottom:${isMobile ? '0.35rem' : '0.55rem'};">
                         <div>
-                            <div style="font-size:0.82rem; color:${COMMENT_CONTENT_MUTED};">${formatCommentDate(comment.created_at)}</div>
-                            ${includeModelName ? `<div style="font-size:0.94rem; font-weight:800; color:${COMMENT_CONTENT_TEXT}; margin-top:0.18rem;">${escapeHtml(actual_model_name)}</div>` : ''}
+                            <div style="font-size:${isMobile ? '0.58rem' : '0.82rem'}; color:${COMMENT_CONTENT_MUTED};">${formatCommentDate(comment.created_at)}</div>
+                            ${includeModelName ? `<div style="font-size:${isMobile ? '0.72rem' : '0.94rem'}; font-weight:800; color:${COMMENT_CONTENT_TEXT}; margin-top:0.18rem;">${escapeHtml(actual_model_name)}</div>` : ''}
                         </div>
-                        <div style="display:flex; gap:0.8rem; flex-wrap:nowrap; align-items:center; justify-content:flex-end;">
+                        <div style="display:flex; gap:${isMobile ? '0.34rem' : '0.8rem'}; flex-wrap:nowrap; align-items:center; justify-content:flex-end;">
                             ${renderCommentReactionButton(comment, 'like', '👍', comment.like_count || 0, '#ef4444')}
                             ${renderCommentReactionButton(comment, 'dislike', '👎', comment.dislike_count || 0, 'var(--text-muted)')}
                             ${state.isAdmin ? `
                                 <button type="button" onclick="toggleBlindTarget('comment', '${comment.id}', ${comment.is_blinded ? 'false' : 'true'})"
                                     ${isPendingBlind ? 'disabled' : ''}
-                                    style="width:auto; padding:0.45rem 0.7rem; font-size:0.8rem; border-radius:999px; opacity:${isPendingBlind ? '0.6' : '1'}; cursor:${isPendingBlind ? 'not-allowed' : 'pointer'};">
+                                    style="width:auto; padding:${isMobile ? '0.25rem 0.42rem' : '0.45rem 0.7rem'}; font-size:${isMobile ? '0.66rem' : '0.8rem'}; border-radius:999px; opacity:${isPendingBlind ? '0.6' : '1'}; cursor:${isPendingBlind ? 'not-allowed' : 'pointer'};">
                                     ${comment.is_blinded ? t('admin_unblind') : t('admin_blind')}
                                 </button>
                             ` : ''}
                         </div>
                     </div>
-                    <div style="font-size:1rem; line-height:1.65; white-space:pre-wrap; color:${comment.is_blinded ? COMMENT_CONTENT_MUTED : COMMENT_CONTENT_TEXT};">${comment.is_blinded && !state.isAdmin ? t('blinded_message') : escapeHtml(comment.comment)}</div>
+                    <div style="font-size:${isMobile ? '0.78rem' : '1rem'}; line-height:${isMobile ? '1.45' : '1.65'}; white-space:pre-wrap; overflow-wrap:anywhere; color:${comment.is_blinded ? COMMENT_CONTENT_MUTED : COMMENT_CONTENT_TEXT};">${comment.is_blinded && !state.isAdmin ? t('blinded_message') : escapeHtml(comment.comment)}</div>
                     ${repliesHtml}
                 </div>
             </div>
@@ -177,7 +188,7 @@ function renderPlayModelCommentsContent() {
 
 function renderPlayModelCommentsSection() {
     return `
-        <div class="card" style="max-width:1100px; margin:0 auto;">
+        <div class="card play-comments-card" style="max-width:1100px; margin:0 auto;">
             <div id="play-comments-content">
                 ${renderPlayModelCommentsContent()}
             </div>
@@ -205,7 +216,7 @@ function getSortedCommentEntries(results = state.resultsData || []) {
 function renderResultsCommentsSection(results = state.resultsData || []) {
     const sortedCommentEntries = getSortedCommentEntries(results);
     const commentsSectionsHtml = sortedCommentEntries.length ? `
-        <div class="card" style="margin-top: 1.5rem; padding:1.5rem 1.25rem; max-width:100%;">
+        <div class="card results-comments-card" style="margin-top: 1.5rem; padding:1.5rem 1.25rem; max-width:100%;">
             ${sortedCommentEntries.map((entry) => renderCommentCard(entry.comment, {
                 actual_model_name: entry.actual_model_name,
                 includeModelName: true,
