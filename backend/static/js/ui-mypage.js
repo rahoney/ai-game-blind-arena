@@ -401,7 +401,7 @@ function renderMyPage() {
 
             <div class="mypage-profile-shell">
                 <div class="mypage-badge-column">
-                    <div class="mypage-badge-preview">${currentProfileBadgeKey ? renderBadgeSvg(currentProfileBadgeKey, 38) : ''}</div>
+                    <div class="mypage-badge-preview">${currentProfileBadgeKey ? renderBadgeSvg(currentProfileBadgeKey) : ''}</div>
                     <div class="mypage-badge-summary">
                         <div>${t('mypage_badge_title')}</div>
                         <strong>${badgeLabel || '-'}</strong>
