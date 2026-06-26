@@ -237,15 +237,24 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
     state.resultsSort = sortKey;
     const contentLayer = document.getElementById('content-layer');
     const previousScrollTop = preserveScroll && contentLayer ? contentLayer.scrollTop : 0;
+    const cachedResultsData = getCachedResultsData(state.selectedCategory);
 
-    el.innerHTML = `
-        <div style="width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
-            <div style="font-size: 1.5rem; color: var(--text-muted);">Loading results...</div>
-        </div>
-    `;
+    if (!cachedResultsData) {
+        el.innerHTML = `
+            <div style="width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%;">
+                <div style="font-size: 1.5rem; color: var(--text-muted);">Loading results...</div>
+            </div>
+        `;
+    }
 
     try {
-        const data = await apiFetchResults(state.selectedCategory);
+        let data = cachedResultsData;
+        if (!data && state.resultsRefreshPromises?.[state.selectedCategory]) {
+            data = await state.resultsRefreshPromises[state.selectedCategory];
+        }
+        if (!data) {
+            data = await apiFetchResults(state.selectedCategory);
+        }
         state.isAdmin = !!data.is_admin;
         const results = data.results || [];
 

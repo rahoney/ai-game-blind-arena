@@ -81,6 +81,12 @@ let state = {
     adminOverview: null,
     adminLoading: false,
     adminQuery: '',
+    adminActiveTab: 'profiles',
+    adminPageByTab: {
+        profiles: 1,
+        comments: 1,
+        replies: 1,
+    },
     termsReturnView: null,
     mypageAccountManagementOpen: false,
     resultsData: [],
