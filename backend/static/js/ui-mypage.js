@@ -390,9 +390,6 @@ function renderMyPage() {
     const unlockedBadgeKeys = data.unlocked_badge_keys || ['badge_egg'];
     const unlockedBadgeCountText = String(data.unlocked_badge_count || unlockedBadgeKeys.length).padStart(2, '0');
     const selectedBadgeKey = state.profileBadgeSelection || currentProfileBadgeKey;
-    const loadingNotice = state.myPageLoading
-        ? `<p class="auth-inline-status" style="margin: 0 0 1rem 0;">${t('auth_login_processing')}</p>`
-        : '';
 
     el.innerHTML = `
         <div class="card mypage-card">
@@ -401,7 +398,6 @@ function renderMyPage() {
                 <h2>${t('menu_mypage')}</h2>
                 <div class="mypage-header-spacer"></div>
             </div>
-            ${loadingNotice}
 
             <div class="mypage-profile-shell">
                 <div class="mypage-badge-column">
@@ -496,6 +492,11 @@ async function refreshAdminOverview(query = state.adminQuery || '') {
     try {
         state.adminLoading = true;
         state.adminQuery = query;
+        state.adminPageByTab = {
+            profiles: 1,
+            comments: 1,
+            replies: 1,
+        };
         renderAdminPage();
         await apiFetchAdminOverview(query);
     } catch (e) {
@@ -504,6 +505,96 @@ async function refreshAdminOverview(query = state.adminQuery || '') {
         state.adminLoading = false;
         renderAdminPage();
     }
+}
+
+function getAdminTabConfig() {
+    return {
+        profiles: {
+            titleKey: 'admin_users_title',
+            items: state.adminOverview?.profiles || [],
+            render: renderAdminProfileRow,
+        },
+        comments: {
+            titleKey: 'admin_comments_title',
+            items: state.adminOverview?.comments || [],
+            render: (item) => renderAdminContentRow(item, 'comment'),
+        },
+        replies: {
+            titleKey: 'admin_replies_title',
+            items: state.adminOverview?.replies || [],
+            render: (item) => renderAdminContentRow(item, 'reply'),
+        },
+    };
+}
+
+function setAdminTab(tabKey) {
+    const tabs = getAdminTabConfig();
+    if (!tabs[tabKey]) return;
+    state.adminActiveTab = tabKey;
+    state.adminPageByTab = {
+        ...(state.adminPageByTab || {}),
+        [tabKey]: 1,
+    };
+    renderAdminPage();
+}
+
+function setAdminPage(page) {
+    const activeTab = state.adminActiveTab || 'profiles';
+    const nextPage = Math.max(1, Number(page) || 1);
+    state.adminPageByTab = {
+        ...(state.adminPageByTab || {}),
+        [activeTab]: nextPage,
+    };
+    renderAdminPage();
+}
+
+function renderAdminTabs(tabs, activeTab) {
+    return `
+        <div class="admin-tabs" role="tablist" aria-label="${t('admin_page_title')}">
+            ${Object.entries(tabs).map(([key, config]) => {
+                const count = config.items.length;
+                return `
+                    <button
+                        type="button"
+                        class="admin-tab ${activeTab === key ? 'active' : ''}"
+                        role="tab"
+                        aria-selected="${activeTab === key ? 'true' : 'false'}"
+                        onclick="setAdminTab('${key}')"
+                    >
+                        <span>${t(config.titleKey)}</span>
+                        <strong>${count}</strong>
+                    </button>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function renderAdminPagination(totalItems, currentPage) {
+    const pageSize = 30;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    if (totalPages <= 1) return '';
+    const maxVisiblePages = 7;
+    const halfWindow = Math.floor(maxVisiblePages / 2);
+    let startPage = Math.max(1, currentPage - halfWindow);
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    const pages = [];
+    for (let page = startPage; page <= endPage; page += 1) {
+        pages.push(page);
+    }
+
+    return `
+        <nav class="admin-pagination" aria-label="${t('admin_page_title')}">
+            <button type="button" class="secondary" onclick="setAdminPage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>‹</button>
+            ${startPage > 1 ? `<button type="button" class="secondary" onclick="setAdminPage(1)">1</button>${startPage > 2 ? '<span>...</span>' : ''}` : ''}
+            ${pages.map((page) => `
+                <button type="button" class="secondary ${page === currentPage ? 'active' : ''}" onclick="setAdminPage(${page})">${page}</button>
+            `).join('')}
+            ${endPage < totalPages ? `${endPage < totalPages - 1 ? '<span>...</span>' : ''}<button type="button" class="secondary" onclick="setAdminPage(${totalPages})">${totalPages}</button>` : ''}
+            <button type="button" class="secondary" onclick="setAdminPage(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}>›</button>
+        </nav>
+    `;
 }
 
 function renderAdminPage() {
@@ -523,15 +614,22 @@ function renderAdminPage() {
         return;
     }
 
-    const overview = state.adminOverview || { profiles: [], comments: [], replies: [] };
-    const profilesHtml = (overview.profiles || []).length
-        ? overview.profiles.map(renderAdminProfileRow).join('')
-        : `<div class="admin-empty">${t('admin_empty')}</div>`;
-    const commentsHtml = (overview.comments || []).length
-        ? overview.comments.map((item) => renderAdminContentRow(item, 'comment')).join('')
-        : `<div class="admin-empty">${t('admin_empty')}</div>`;
-    const repliesHtml = (overview.replies || []).length
-        ? overview.replies.map((item) => renderAdminContentRow(item, 'reply')).join('')
+    const tabs = getAdminTabConfig();
+    const activeTab = tabs[state.adminActiveTab] ? state.adminActiveTab : 'profiles';
+    state.adminActiveTab = activeTab;
+    const activeConfig = tabs[activeTab];
+    const pageSize = 30;
+    const totalItems = activeConfig.items.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const currentPage = Math.min(Math.max(1, state.adminPageByTab?.[activeTab] || 1), totalPages);
+    state.adminPageByTab = {
+        ...(state.adminPageByTab || {}),
+        [activeTab]: currentPage,
+    };
+    const startIndex = (currentPage - 1) * pageSize;
+    const pageItems = activeConfig.items.slice(startIndex, startIndex + pageSize);
+    const activeListHtml = pageItems.length
+        ? pageItems.map(activeConfig.render).join('')
         : `<div class="admin-empty">${t('admin_empty')}</div>`;
 
     el.innerHTML = `
@@ -545,17 +643,14 @@ function renderAdminPage() {
                 <input id="admin-search-input" type="text" value="${escapeHtml(state.adminQuery || '')}" placeholder="${t('admin_search_placeholder')}" onkeypress="if(event.keyCode===13) refreshAdminOverview(this.value.trim())">
                 <button type="button" class="primary-action" onclick="refreshAdminOverview(document.getElementById('admin-search-input')?.value.trim() || '')">${state.adminLoading ? t('auth_login_processing') : t('admin_refresh')}</button>
             </div>
-            <section class="admin-section">
-                <h3>${t('admin_users_title')}</h3>
-                <div class="admin-list">${profilesHtml}</div>
-            </section>
-            <section class="admin-section">
-                <h3>${t('admin_comments_title')}</h3>
-                <div class="admin-list">${commentsHtml}</div>
-            </section>
-            <section class="admin-section">
-                <h3>${t('admin_replies_title')}</h3>
-                <div class="admin-list">${repliesHtml}</div>
+            ${renderAdminTabs(tabs, activeTab)}
+            <section class="admin-section" role="tabpanel">
+                <div class="admin-section-header">
+                    <h3>${t(activeConfig.titleKey)}</h3>
+                    <span>${totalItems ? `${startIndex + 1}-${Math.min(startIndex + pageSize, totalItems)} / ${totalItems}` : '0 / 0'}</span>
+                </div>
+                <div class="admin-list">${activeListHtml}</div>
+                ${renderAdminPagination(totalItems, currentPage)}
             </section>
         </div>
     `;
