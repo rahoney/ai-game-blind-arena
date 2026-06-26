@@ -1049,17 +1049,19 @@ def _get_actor_from_request(request: Request, required: bool = True):
     if profile:
         display_name = _get_profile_display_name(profile)
         profile_id = _get_profile_id(profile)
+        is_admin = profile.get("role") in ("admin", "super_admin")
         if not profile_id:
             raise HTTPException(status_code=500, detail="profile_id_missing")
-        is_valid, error_key = validate_display_name(display_name)
-        if not is_valid:
-            raise HTTPException(status_code=400, detail=error_key)
+        if not is_admin:
+            is_valid, error_key = validate_display_name(display_name)
+            if not is_valid:
+                raise HTTPException(status_code=400, detail=error_key)
         return {
             "user": user,
             "profile": profile,
             "user_id": profile_id,
             "display_name": display_name,
-            "is_admin": profile.get("role") in ("admin", "super_admin"),
+            "is_admin": is_admin,
         }
 
     if required:

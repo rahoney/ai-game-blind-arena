@@ -33,7 +33,6 @@ function renderMyPageAdminTile() {
     return `
         <button type="button" class="mypage-info-tile mypage-admin-tile" onclick="openAdminPage()">
             <span>${t('admin_page_title')}</span>
-            <strong>${t('admin_page_open')}</strong>
         </button>
     `;
 }
