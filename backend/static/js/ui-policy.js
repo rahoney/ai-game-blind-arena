@@ -168,16 +168,143 @@ function getPrivacyPolicyContent() {
     };
 }
 
-function openPrivacyPolicy() {
-    if (state.currentView?.id !== 'privacy') {
-        state.privacyReturnView = state.currentView ? { ...state.currentView } : null;
+function getTermsPolicyContent() {
+    if (state.language === 'en') {
+        return {
+            title: 'Terms',
+            effectiveDate: 'Effective date: June 25, 2026',
+            intro: 'These terms describe the basic rules for using VeilPlays. The service is an experimental game-based AI model benchmark where users can play, evaluate, and comment on AI-generated games.',
+            sections: [
+                {
+                    heading: '1. Service Purpose',
+                    body: [
+                        'VeilPlays provides blind play and comparison of AI-generated games created from the same prompt.',
+                        'Scores, comments, rankings, and model comparisons are provided for entertainment, research, and reference purposes and are not official performance certifications.',
+                    ],
+                },
+                {
+                    heading: '2. Accounts and Login',
+                    body: [
+                        'Users are responsible for maintaining access to their own login methods.',
+                        'Abusive account creation, impersonation, or attempts to bypass service restrictions may result in moderation or account limitation.',
+                    ],
+                },
+                {
+                    heading: '3. Evaluations and Comments',
+                    body: [
+                        'Users may submit game evaluations, comments, replies, and reactions.',
+                        'Submitted public content may be shown in rankings, model result pages, comments, statistics, and related service views.',
+                        'Do not post spam, abusive language, personal information, illegal content, or content unrelated to the service.',
+                    ],
+                },
+                {
+                    heading: '4. Moderation',
+                    body: [
+                        'Content, display names, or activity that disrupts the service may be hidden, blinded, edited for safety, or removed.',
+                        'Repeated abuse may lead to account restrictions or deletion where reasonably necessary to operate the service.',
+                    ],
+                },
+                {
+                    heading: '5. Account Deletion',
+                    body: [
+                        'Users may delete their account from My Page.',
+                        'When an account is deleted, account identity information is removed or anonymized. Evaluations, comments, replies, reactions, and related public records may remain as deleted-user content to preserve the public evaluation dataset.',
+                    ],
+                },
+                {
+                    heading: '6. Service Changes',
+                    body: [
+                        'The service is experimental and may change, pause, or discontinue features, game categories, evaluation rules, login methods, or data displays.',
+                        'Operational rules may be updated as the service evolves.',
+                    ],
+                },
+                {
+                    heading: '7. Contact',
+                    body: [
+                        'For inquiries, moderation review requests, or policy questions, use the Contact Us link on the About page.',
+                    ],
+                },
+            ],
+            notice: 'These terms are intentionally lightweight service rules. They may be revised if the service expands or if additional legal requirements apply.',
+        };
     }
-    navigateTo('privacy', renderPrivacyPolicy);
+
+    return {
+        title: '이용약관',
+        effectiveDate: '시행일: 2026년 6월 25일',
+        intro: '본 약관은 VeilPlays 이용을 위한 기본 규칙을 설명합니다. VeilPlays는 사용자가 AI 생성 게임을 플레이하고 평가하며 댓글을 남길 수 있는 실험형 게임 기반 AI 모델 벤치마크 서비스입니다.',
+        sections: [
+            {
+                heading: '1. 서비스 목적',
+                body: [
+                    'VeilPlays는 동일한 프롬프트로 생성된 AI 게임을 블라인드 방식으로 플레이하고 비교 평가할 수 있는 기능을 제공합니다.',
+                    '점수, 댓글, 순위, 모델 비교 결과는 오락, 실험, 참고 목적의 정보이며 공식 성능 인증이나 보증으로 해석되지 않습니다.',
+                ],
+            },
+            {
+                heading: '2. 계정과 로그인',
+                body: [
+                    '이용자는 본인의 로그인 수단을 직접 관리해야 합니다.',
+                    '부정한 계정 생성, 타인 사칭, 서비스 제한 우회 시도는 제한 또는 조치 대상이 될 수 있습니다.',
+                ],
+            },
+            {
+                heading: '3. 평가와 댓글',
+                body: [
+                    '이용자는 게임 평가, 코멘트, 댓글, 반응을 제출할 수 있습니다.',
+                    '공개 제출 콘텐츠는 랭킹, 모델 결과, 댓글, 통계 및 관련 서비스 화면에 표시될 수 있습니다.',
+                    '스팸, 욕설, 혐오 표현, 개인정보, 불법 콘텐츠, 서비스와 무관한 내용은 작성하지 않아야 합니다.',
+                ],
+            },
+            {
+                heading: '4. 운영 및 관리',
+                body: [
+                    '서비스 운영을 방해하거나 부적절한 콘텐츠, 닉네임, 활동은 숨김, 블라인드, 안전한 표현으로의 조정 또는 삭제 대상이 될 수 있습니다.',
+                    '반복적인 오남용이 확인되면 서비스 운영에 필요한 범위에서 계정 이용 제한 또는 삭제 조치가 이루어질 수 있습니다.',
+                ],
+            },
+            {
+                heading: '5. 회원 탈퇴',
+                body: [
+                    '이용자는 마이페이지에서 회원 탈퇴를 진행할 수 있습니다.',
+                    '탈퇴 시 계정 식별 정보는 삭제 또는 익명화됩니다. 다만 이미 등록한 평가, 코멘트, 댓글, 반응 및 관련 공개 기록은 공개 평가 데이터 보존을 위해 탈퇴한 사용자 콘텐츠로 남을 수 있습니다.',
+                ],
+            },
+            {
+                heading: '6. 서비스 변경',
+                body: [
+                    'VeilPlays는 실험형 서비스이므로 기능, 게임 종류, 평가 방식, 로그인 수단, 데이터 표시 방식이 변경되거나 일시 중단될 수 있습니다.',
+                    '서비스 운영 상황에 따라 이용 규칙은 변경될 수 있습니다.',
+                ],
+            },
+            {
+                heading: '7. 문의',
+                body: [
+                    '문의, 블라인드 검토 요청, 정책 관련 질문은 About 페이지의 문의하기 링크를 통해 접수할 수 있습니다.',
+                ],
+            },
+        ],
+        notice: '본 약관은 서비스 이용을 위한 최소한의 운영 규칙입니다. 서비스 범위가 확대되거나 추가 법적 요구사항이 생기면 개정될 수 있습니다.',
+    };
 }
 
-function closePrivacyPolicy() {
-    const previous = state.privacyReturnView;
-    state.privacyReturnView = null;
+function setBrowserPath(path) {
+    if (window.location.pathname === path) return;
+    window.history.pushState({}, '', path);
+}
+
+function openTermsPolicy(event) {
+    event?.preventDefault();
+    if (state.currentView?.id !== 'terms') {
+        state.termsReturnView = state.currentView ? { ...state.currentView } : null;
+    }
+    setBrowserPath('/terms');
+    navigateTo('terms', renderTermsPolicy);
+}
+
+function closeTermsPolicy() {
+    const previous = state.termsReturnView;
+    state.termsReturnView = null;
     if (previous?.func) {
         navigateTo(previous.id, previous.func, ...(previous.args || []));
         return;
@@ -185,13 +312,12 @@ function closePrivacyPolicy() {
     navigateTo(state.selectedCategory ? 'list' : 'home', state.selectedCategory ? renderGameList : renderLanding);
 }
 
-function renderPrivacyPolicy() {
-    const el = document.getElementById('view-privacy');
-    const content = getPrivacyPolicyContent();
+function renderPolicyContent(targetId, content, closeFunctionName) {
+    const el = document.getElementById(targetId);
     el.innerHTML = `
         <div class="card" style="max-width: 980px; margin-top: 2rem; line-height: 1.75;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1.75rem;">
-                <button class="secondary" style="width:auto;" onclick="closePrivacyPolicy()">← ${t('btn_back')}</button>
+                <button class="secondary" style="width:auto;" onclick="${closeFunctionName}()">← ${t('btn_back')}</button>
                 <h2 style="margin:0; color:var(--primary); font-size:2rem; text-align:center;">${content.title}</h2>
                 <div style="width:90px;"></div>
             </div>
@@ -214,4 +340,31 @@ function renderPrivacyPolicy() {
             </div>
         </div>
     `;
+}
+
+function renderTermsPolicy() {
+    renderPolicyContent('view-terms', getTermsPolicyContent(), 'closeTermsPolicy');
+}
+
+function openPrivacyPolicy(event) {
+    event?.preventDefault();
+    if (state.currentView?.id !== 'privacy') {
+        state.privacyReturnView = state.currentView ? { ...state.currentView } : null;
+    }
+    setBrowserPath('/privacy');
+    navigateTo('privacy', renderPrivacyPolicy);
+}
+
+function closePrivacyPolicy() {
+    const previous = state.privacyReturnView;
+    state.privacyReturnView = null;
+    if (previous?.func) {
+        navigateTo(previous.id, previous.func, ...(previous.args || []));
+        return;
+    }
+    navigateTo(state.selectedCategory ? 'list' : 'home', state.selectedCategory ? renderGameList : renderLanding);
+}
+
+function renderPrivacyPolicy() {
+    renderPolicyContent('view-privacy', getPrivacyPolicyContent(), 'closePrivacyPolicy');
 }

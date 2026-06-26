@@ -13,6 +13,7 @@ JAMO_RE = re.compile(r"[\u1100-\u11FF\u3130-\u318F\uA960-\uA97F\uD7B0-\uD7FF]")
 
 DEFAULT_RESERVED_DISPLAY_NAME_TERMS = (
     "admin", "administrator", "moderator", "operator", "staff", "manager",
+    "veilplays", "veilplay",
     "관리자", "운영자", "매니저", "스태프", "공식", "마스터",
 )
 

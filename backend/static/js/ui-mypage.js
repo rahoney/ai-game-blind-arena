@@ -28,6 +28,16 @@ function renderMyPageAccountManageTile() {
     `;
 }
 
+function renderMyPageAdminTile() {
+    if (!state.isAdmin) return '';
+    return `
+        <button type="button" class="mypage-info-tile mypage-admin-tile" onclick="openAdminPage()">
+            <span>${t('admin_page_title')}</span>
+            <strong>${t('admin_page_open')}</strong>
+        </button>
+    `;
+}
+
 function renderMyPageProviderIcon(provider) {
     if (provider.icon === 'google') {
         return `
@@ -339,6 +349,7 @@ function renderMyPage() {
     const loginId = accountProfile.login_id || '';
     const data = state.myPageData || {
         display_name: displayName,
+        profile_badge_key: accountProfile.profile_badge_key || '',
         unique_eval_model_count: 0,
         evaluations_by_game_type: [],
         top_game_type: null,
@@ -370,13 +381,13 @@ function renderMyPage() {
         ? `${escapeHtml(getCategoryDisplayName(data.top_game_type.game_type))} (${data.top_game_type.views})`
         : t('mypage_empty_top_game');
     const badge = data.badge || {
-        stage_key: 'badge_egg',
+        stage_key: data.profile_badge_key || accountProfile.profile_badge_key || '',
         current_count: data.unique_eval_model_count || 0,
         next_threshold: 5,
         is_max_stage: false,
     };
-    const currentProfileBadgeKey = data.profile_badge_key || badge.stage_key || 'badge_egg';
-    const badgeLabel = t(currentProfileBadgeKey);
+    const currentProfileBadgeKey = data.profile_badge_key || accountProfile.profile_badge_key || badge.stage_key || '';
+    const badgeLabel = currentProfileBadgeKey ? t(currentProfileBadgeKey) : '';
     const unlockedBadgeKeys = data.unlocked_badge_keys || ['badge_egg'];
     const unlockedBadgeCountText = String(data.unlocked_badge_count || unlockedBadgeKeys.length).padStart(2, '0');
     const selectedBadgeKey = state.profileBadgeSelection || currentProfileBadgeKey;
@@ -395,10 +406,10 @@ function renderMyPage() {
 
             <div class="mypage-profile-shell">
                 <div class="mypage-badge-column">
-                    <div class="mypage-badge-preview">${renderBadgeSvg(currentProfileBadgeKey)}</div>
+                    <div class="mypage-badge-preview">${currentProfileBadgeKey ? renderBadgeSvg(currentProfileBadgeKey) : ''}</div>
                     <div class="mypage-badge-summary">
                         <div>${t('mypage_badge_title')}</div>
-                        <strong>${badgeLabel}</strong>
+                        <strong>${badgeLabel || '-'}</strong>
                     </div>
                 </div>
                 <div class="mypage-profile-main">
@@ -406,6 +417,7 @@ function renderMyPage() {
                         ${renderMyPageInfoTile('display_name_label', data.display_name || displayName || '-')}
                         ${renderMyPageInfoTile('mypage_login_id_label', loginId || '-')}
                         ${renderMyPageAccountManageTile()}
+                        ${renderMyPageAdminTile()}
                     </div>
                     ${renderMyPageAccountManagementPanel()}
                     <div class="mypage-metrics-grid">
@@ -468,5 +480,147 @@ function renderMyPage() {
 
     if (state.accountEmailChange?.open && state.accountEmailChange?.codeSent) {
         startAccountEmailChangeCountdown();
+    }
+}
+
+async function openAdminPage() {
+    if (!state.isAdmin) {
+        showAppMessage(t('admin_auth_required'), { tone: 'error' });
+        return;
+    }
+    navigateTo('admin', renderAdminPage);
+    await refreshAdminOverview();
+}
+
+async function refreshAdminOverview(query = state.adminQuery || '') {
+    if (!state.isAdmin || state.adminLoading) return;
+    try {
+        state.adminLoading = true;
+        state.adminQuery = query;
+        renderAdminPage();
+        await apiFetchAdminOverview(query);
+    } catch (e) {
+        showAppMessage(t(e?.message || 'admin_overview_failed'), { tone: 'error' });
+    } finally {
+        state.adminLoading = false;
+        renderAdminPage();
+    }
+}
+
+function renderAdminPage() {
+    const el = document.getElementById('view-admin');
+    if (!el) return;
+    if (!state.isAdmin) {
+        el.innerHTML = `
+            <div class="card mypage-card admin-card">
+                <div class="mypage-header">
+                    <button class="secondary mypage-back-button" onclick="navigateTo('mypage', renderMyPage)">← ${t('btn_back')}</button>
+                    <h2>${t('admin_page_title')}</h2>
+                    <div class="mypage-header-spacer"></div>
+                </div>
+                <p>${t('admin_auth_required')}</p>
+            </div>
+        `;
+        return;
+    }
+
+    const overview = state.adminOverview || { profiles: [], comments: [], replies: [] };
+    const profilesHtml = (overview.profiles || []).length
+        ? overview.profiles.map(renderAdminProfileRow).join('')
+        : `<div class="admin-empty">${t('admin_empty')}</div>`;
+    const commentsHtml = (overview.comments || []).length
+        ? overview.comments.map((item) => renderAdminContentRow(item, 'comment')).join('')
+        : `<div class="admin-empty">${t('admin_empty')}</div>`;
+    const repliesHtml = (overview.replies || []).length
+        ? overview.replies.map((item) => renderAdminContentRow(item, 'reply')).join('')
+        : `<div class="admin-empty">${t('admin_empty')}</div>`;
+
+    el.innerHTML = `
+        <div class="card mypage-card admin-card">
+            <div class="mypage-header">
+                <button class="secondary mypage-back-button" onclick="navigateTo('mypage', renderMyPage)">← ${t('btn_back')}</button>
+                <h2>${t('admin_page_title')}</h2>
+                <div class="mypage-header-spacer"></div>
+            </div>
+            <div class="admin-toolbar">
+                <input id="admin-search-input" type="text" value="${escapeHtml(state.adminQuery || '')}" placeholder="${t('admin_search_placeholder')}" onkeypress="if(event.keyCode===13) refreshAdminOverview(this.value.trim())">
+                <button type="button" class="primary-action" onclick="refreshAdminOverview(document.getElementById('admin-search-input')?.value.trim() || '')">${state.adminLoading ? t('auth_login_processing') : t('admin_refresh')}</button>
+            </div>
+            <section class="admin-section">
+                <h3>${t('admin_users_title')}</h3>
+                <div class="admin-list">${profilesHtml}</div>
+            </section>
+            <section class="admin-section">
+                <h3>${t('admin_comments_title')}</h3>
+                <div class="admin-list">${commentsHtml}</div>
+            </section>
+            <section class="admin-section">
+                <h3>${t('admin_replies_title')}</h3>
+                <div class="admin-list">${repliesHtml}</div>
+            </section>
+        </div>
+    `;
+}
+
+function renderAdminProfileRow(profile) {
+    const isProtected = ['admin', 'super_admin'].includes(profile.role) || profile.id === state.account?.profile?.id;
+    return `
+        <article class="admin-row">
+            <div class="admin-row-main">
+                <strong>${escapeHtml(profile.display_name || '-')}</strong>
+                <span>${escapeHtml(profile.login_id || '-')} · ${escapeHtml(profile.email || '-')}</span>
+                <small>${escapeHtml(profile.account_status || '-')} · ${escapeHtml(profile.role || 'user')}</small>
+            </div>
+            <div class="admin-actions">
+                <button type="button" class="secondary" onclick="handleAdminUserAction('${profile.id}', 'reset-display-name')" ${isProtected ? 'disabled' : ''}>${t('admin_reset_display_name')}</button>
+                ${profile.account_status === 'admin_disabled'
+                    ? `<button type="button" class="secondary" onclick="handleAdminUserAction('${profile.id}', 'unsuspend')" ${isProtected ? 'disabled' : ''}>${t('admin_unsuspend_user')}</button>`
+                    : `<button type="button" class="secondary" onclick="handleAdminUserAction('${profile.id}', 'suspend')" ${isProtected ? 'disabled' : ''}>${t('admin_suspend_user')}</button>`
+                }
+                <button type="button" class="secondary mypage-delete-button" onclick="handleAdminUserAction('${profile.id}', 'delete')" ${isProtected ? 'disabled' : ''}>${t('admin_delete_user')}</button>
+            </div>
+        </article>
+    `;
+}
+
+function renderAdminContentRow(item, targetType) {
+    const text = targetType === 'reply' ? item.reply : item.comment;
+    return `
+        <article class="admin-row">
+            <div class="admin-row-main">
+                <strong>${escapeHtml(item.profile_display_name || '-')}</strong>
+                <span>${escapeHtml(text || '')}</span>
+                <small>${escapeHtml(item.game_type || '')}${item.actual_model_name ? ` · ${escapeHtml(item.actual_model_name)}` : ''} · ${escapeHtml(item.created_at || '')}</small>
+            </div>
+            <div class="admin-actions">
+                <button type="button" class="secondary" onclick="handleAdminBlindAction('${targetType}', '${item.id}', ${item.is_blinded ? 'false' : 'true'})">
+                    ${item.is_blinded ? t('admin_unblind') : t('admin_blind')}
+                </button>
+            </div>
+        </article>
+    `;
+}
+
+async function handleAdminBlindAction(targetType, targetId, isBlinded) {
+    try {
+        const res = await apiAdminToggleBlind(targetType, targetId, isBlinded);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.detail || 'admin_blind_update_failed');
+        showAppMessage(t('admin_action_success'), { tone: 'success' });
+        await refreshAdminOverview();
+    } catch (e) {
+        showAppMessage(t(e?.message || 'admin_blind_error'), { tone: 'error' });
+    }
+}
+
+async function handleAdminUserAction(profileId, action) {
+    const confirmKey = action === 'delete' ? 'admin_delete_confirm' : 'admin_action_confirm';
+    if (!window.confirm(t(confirmKey))) return;
+    try {
+        await apiAdminUserAction(profileId, action);
+        showAppMessage(t('admin_action_success'), { tone: 'success' });
+        await refreshAdminOverview();
+    } catch (e) {
+        showAppMessage(t(e?.message || 'admin_user_action_failed'), { tone: 'error' });
     }
 }

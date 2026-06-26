@@ -16,6 +16,7 @@ function resolveRuntimeOrigin(value, fallbackOrigin) {
 const FRONTEND_ORIGIN = resolveRuntimeOrigin(RUNTIME_CONFIG.frontendOrigin, window.location.origin);
 const API_ORIGIN = resolveRuntimeOrigin(RUNTIME_CONFIG.apiOrigin, window.location.origin);
 const API_BASE = `${API_ORIGIN}/api`;
+const EVALUATION_SCORE_KEYS = Object.freeze(['control', 'structure', 'presentation', 'difficulty', 'fun', 'overall']);
 
 let state = {
     authUser: null,
@@ -77,6 +78,10 @@ let state = {
     myPageData: null,
     myPageLoading: false,
     myPageReturnView: null,
+    adminOverview: null,
+    adminLoading: false,
+    adminQuery: '',
+    termsReturnView: null,
     mypageAccountManagementOpen: false,
     resultsData: [],
     playModelCommentsResult: null,
@@ -86,6 +91,7 @@ let state = {
     profileBadgeSelection: '',
     isLoginSubmitting: false,
     isEvaluationSubmitting: false,
+    evaluationTouchedScores: new Set(),
     isAdmin: false,
     authBusyContext: '',
     authPerformance: [],
