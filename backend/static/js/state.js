@@ -84,6 +84,8 @@ let state = {
     termsReturnView: null,
     mypageAccountManagementOpen: false,
     resultsData: [],
+    resultsCache: {},
+    resultsRefreshPromises: {},
     playModelCommentsResult: null,
     playCommentsLoading: false,
     resultsSort: 'avg_total',

@@ -304,6 +304,7 @@ async function submitCommentReply(evaluationId) {
         }
 
         state.expandedCommentIds.add(evaluationId);
+        invalidateResultsCache(state.selectedCategory);
         await refreshCurrentCommentsView();
     } catch (e) {
         showAppMessage(t('reply_submit_network_error'), { tone: 'error' });
