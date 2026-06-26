@@ -20,9 +20,9 @@ function renderPolicyAcceptanceControl(disabled) {
             >
             <span>
                 ${t('auth_policy_acceptance_text')}
-                <a href="/terms" onclick="openTermsPolicy(event)">${t('terms_policy_title')}</a>
+                <a href="/terms" onclick="openAuthPolicyModal(event, 'terms')">${t('terms_policy_title')}</a>
                 <span aria-hidden="true">/</span>
-                <a href="/privacy" onclick="openPrivacyPolicy(event)">${t('privacy_policy_title')}</a>
+                <a href="/privacy" onclick="openAuthPolicyModal(event, 'privacy')">${t('privacy_policy_title')}</a>
             </span>
         </label>
         <p class="auth-policy-summary">${t('auth_policy_acceptance_summary')}</p>
