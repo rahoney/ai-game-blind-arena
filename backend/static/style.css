@@ -1447,9 +1447,21 @@ body.theme-home .header-brand:active {
         width: 100%;
         height: 2.5px;
         border-radius: 999px;
-        background: #ffffff !important;
+        background-color: #ffffff !important;
+        background-image: none !important;
+        border: 0 !important;
         box-shadow: 0 0 10px rgba(255,255,255,0.62);
+        opacity: 1 !important;
+        filter: none !important;
         transition: transform 0.18s ease, opacity 0.18s ease;
+    }
+
+    .header .header-mobile-trigger > span,
+    body.theme-home .header .header-mobile-trigger > span,
+    body.theme-app .header .header-mobile-trigger > span {
+        background-color: #fff !important;
+        background: #fff !important;
+        color: #fff !important;
     }
 
     .header-mobile-trigger.open span:nth-child(1) {

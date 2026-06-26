@@ -92,7 +92,7 @@ function renderCommentCard(comment, options = {}) {
             <div style="margin-top:${isMobile ? '0.55rem' : '1rem'}; padding:${isMobile ? '0.55rem' : '0.9rem 1rem'}; border-radius:${isMobile ? '10px' : '14px'}; background:${COMMENT_REPLY_SECTION_BG}; border:1px solid var(--border-color); min-width:0;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:${isMobile ? '0.4rem' : '1rem'}; margin-bottom:${isMobile ? '0.45rem' : '0.75rem'};">
                     <div style="font-size:${isMobile ? '0.68rem' : '0.95rem'}; font-weight:700; color:${COMMENT_CONTENT_MUTED};">${t('replies_count', { count: replies.length })}</div>
-                    <button type="button" class="secondary" onclick="toggleReplies('${comment.id}')" ${canInteract ? '' : 'disabled'} style="width:auto; padding:${isMobile ? '0.28rem 0.45rem' : '0.55rem 0.9rem'}; font-size:${isMobile ? '0.66rem' : '0.95rem'}; opacity:${canInteract ? '1' : '0.55'}; cursor:${canInteract ? 'pointer' : 'not-allowed'};">${t('replies_toggle_close')}</button>
+                    <button type="button" class="secondary" onclick="toggleReplies('${comment.id}')" ${canInteract ? '' : 'disabled'} style="width:auto; min-height:0; height:auto; padding:${isMobile ? '0.18rem 0.45rem' : '0.55rem 0.9rem'}; font-size:${isMobile ? '0.66rem' : '0.95rem'}; line-height:1.15; opacity:${canInteract ? '1' : '0.55'}; cursor:${canInteract ? 'pointer' : 'not-allowed'};">${t('replies_toggle_close')}</button>
                 </div>
                 <div style="margin-bottom:${isMobile ? '0.5rem' : '0.9rem'};">
                     ${replies.length ? replies.map(renderReplyCard).join('') : `<div style="padding:0.35rem 0; color:${COMMENT_CONTENT_MUTED};">${t('replies_empty')}</div>`}
@@ -100,7 +100,7 @@ function renderCommentCard(comment, options = {}) {
                 <div style="display:grid; gap:${isMobile ? '0.45rem' : '0.65rem'};">
                     <textarea id="reply-input-${comment.id}" rows="3" maxlength="150" placeholder="${t('reply_placeholder')}" style="width:100%; padding:${isMobile ? '0.62rem' : '1rem'}; font-size:${isMobile ? '0.78rem' : '0.98rem'}; border-radius:${isMobile ? '9px' : '12px'}; background:${COMMENT_TEXTAREA_BG}; color:${COMMENT_CONTENT_TEXT}; border:1px solid ${COMMENT_TEXTAREA_BORDER}; line-height:1.5;"></textarea>
                     <div style="display:flex; justify-content:flex-end;">
-                        <button type="button" onclick="submitCommentReply('${comment.id}')" ${isPendingReply ? 'disabled' : ''} style="width:auto; padding:${isMobile ? '0.38rem 0.6rem' : '0.75rem 1rem'}; font-size:${isMobile ? '0.72rem' : '0.95rem'}; opacity:${isPendingReply ? '0.65' : '1'}; cursor:${isPendingReply ? 'not-allowed' : 'pointer'};">${t('reply_submit')}</button>
+                        <button type="button" onclick="submitCommentReply('${comment.id}')" ${isPendingReply ? 'disabled' : ''} style="width:auto; min-height:0; height:auto; padding:${isMobile ? '0.22rem 0.6rem' : '0.75rem 1rem'}; font-size:${isMobile ? '0.72rem' : '0.95rem'}; line-height:1.15; opacity:${isPendingReply ? '0.65' : '1'}; cursor:${isPendingReply ? 'not-allowed' : 'pointer'};">${t('reply_submit')}</button>
                     </div>
                 </div>
             </div>
@@ -108,7 +108,7 @@ function renderCommentCard(comment, options = {}) {
         : `
             <div style="display:flex; align-items:center; gap:${isMobile ? '0.4rem' : '0.8rem'}; margin-top:${isMobile ? '0.55rem' : '1rem'};">
                 <div style="font-size:${isMobile ? '0.68rem' : '0.95rem'}; font-weight:700; color:${COMMENT_CONTENT_MUTED};">${t('replies_count', { count: replies.length })}</div>
-                <button type="button" class="secondary" onclick="toggleReplies('${comment.id}')" ${canInteract ? '' : 'disabled'} style="width:auto; padding:${isMobile ? '0.28rem 0.45rem' : '0.55rem 0.9rem'}; font-size:${isMobile ? '0.66rem' : '0.95rem'}; opacity:${canInteract ? '1' : '0.55'}; cursor:${canInteract ? 'pointer' : 'not-allowed'};">${t('replies_toggle_open')}</button>
+                <button type="button" class="secondary" onclick="toggleReplies('${comment.id}')" ${canInteract ? '' : 'disabled'} style="width:auto; min-height:0; height:auto; padding:${isMobile ? '0.18rem 0.45rem' : '0.55rem 0.9rem'}; font-size:${isMobile ? '0.66rem' : '0.95rem'}; line-height:1.15; opacity:${canInteract ? '1' : '0.55'}; cursor:${canInteract ? 'pointer' : 'not-allowed'};">${t('replies_toggle_open')}</button>
             </div>
         `;
 
