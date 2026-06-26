@@ -3,11 +3,14 @@ from typing import List, Optional
 
 class ProfileDisplayNameUpdate(BaseModel):
     display_name: str = Field(min_length=1, max_length=20)
+    terms_accepted: bool = False
+    privacy_accepted: bool = False
+    policy_version: Optional[str] = Field(default=None, max_length=50)
 
-    @field_validator("display_name")
+    @field_validator("display_name", "policy_version", mode="before")
     @classmethod
     def strip_display_name(cls, value: str):
-        return value.strip()
+        return value.strip() if isinstance(value, str) else value
 
 
 class ProfileIdentityUpdate(BaseModel):
@@ -16,8 +19,11 @@ class ProfileIdentityUpdate(BaseModel):
     display_name: str = Field(min_length=1, max_length=20)
     email_verification_token: Optional[str] = Field(default=None, max_length=500)
     language: Optional[str] = Field(default="ko", max_length=5)
+    terms_accepted: bool = False
+    privacy_accepted: bool = False
+    policy_version: Optional[str] = Field(default=None, max_length=50)
 
-    @field_validator("login_id", "real_name", "display_name", "email_verification_token", "language", mode="before")
+    @field_validator("login_id", "real_name", "display_name", "email_verification_token", "language", "policy_version", mode="before")
     @classmethod
     def strip_identity_fields(cls, value):
         return value.strip() if isinstance(value, str) else value
