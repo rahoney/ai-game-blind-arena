@@ -77,13 +77,15 @@ function renderCommentCard(comment, options = {}) {
     const blindKey = `comment:${comment.id}`;
     const isPendingBlind = state.pendingBlindIds.has(blindKey);
     const isMobile = isMobileCommentLayout();
-    const badgeSize = isMobile ? 36 : (compact ? 64 : 72);
-    const profileColumnWidth = isMobile ? 58 : (compact ? 92 : 100);
-    const profileBoxPadding = isMobile ? '0.38rem 0.24rem' : (compact ? '0.8rem 0.5rem' : '0.9rem 0.6rem');
-    const profileRadius = isMobile ? '10px' : (compact ? '18px' : '20px');
+    const badgeSize = isMobile ? 24 : (compact ? 64 : 72);
+    const profileColumnWidth = compact ? 92 : 100;
+    const profileBoxPadding = isMobile ? '0.18rem 0.3rem' : (compact ? '0.8rem 0.5rem' : '0.9rem 0.6rem');
+    const profileRadius = isMobile ? '8px' : (compact ? '18px' : '20px');
     const contentPadding = isMobile ? '0.58rem 0.65rem' : (compact ? '1rem 1.05rem' : '1rem 1.1rem');
-    const commentGap = isMobile ? '0.5rem' : (compact ? '1rem' : '1.2rem');
+    const commentGap = isMobile ? '0.28rem' : (compact ? '1rem' : '1.2rem');
     const panelRadius = isMobile ? '12px' : '18px';
+    const mobileCommentGrid = isMobile ? 'minmax(0, 1fr)' : `${profileColumnWidth}px minmax(0, 1fr)`;
+    const profileDirection = isMobile ? 'row' : 'column';
 
     const repliesHtml = isExpanded
         ? `
@@ -112,10 +114,10 @@ function renderCommentCard(comment, options = {}) {
 
     return `
         <div class="comment-card-wrap" style="max-width:1100px; margin:0 auto ${isMobile ? '0.65rem' : '1.2rem'}; min-width:0;">
-            <div style="display:grid; grid-template-columns:${profileColumnWidth}px minmax(0, 1fr); gap:${commentGap}; align-items:start; width:100%; min-width:0;">
-                <div style="display:flex; flex-direction:column; align-items:center; gap:${isMobile ? '0.22rem' : '0.55rem'}; background:${COMMENT_PROFILE_PANEL_BG}; padding:${profileBoxPadding}; border-radius:${profileRadius}; color:${COMMENT_PROFILE_PANEL_TEXT}; box-shadow:0 14px 32px rgba(0, 0, 0, 0.18); border:1px solid var(--border-color); min-width:0;">
+            <div style="display:grid; grid-template-columns:${mobileCommentGrid}; gap:${commentGap}; align-items:start; width:100%; min-width:0;">
+                <div style="display:flex; flex-direction:${profileDirection}; align-items:center; justify-content:${isMobile ? 'flex-start' : 'center'}; gap:${isMobile ? '0.32rem' : '0.55rem'}; background:${COMMENT_PROFILE_PANEL_BG}; padding:${profileBoxPadding}; border-radius:${profileRadius}; color:${COMMENT_PROFILE_PANEL_TEXT}; box-shadow:0 14px 32px rgba(0, 0, 0, 0.18); border:1px solid var(--border-color); min-width:0; width:${isMobile ? 'fit-content' : 'auto'}; max-width:100%;">
                     <div style="width:${badgeSize}px; height:${badgeSize}px;">${renderBadgeSvg(comment.badge?.stage_key || 'badge_egg', badgeSize)}</div>
-                    <div style="font-size:${isMobile ? '0.58rem' : '0.84rem'}; font-weight:800; text-align:center; line-height:1.25; word-break:break-word; max-width:100%;">${escapeHtml(comment.display_name)}</div>
+                    <div style="font-size:${isMobile ? '0.64rem' : '0.84rem'}; font-weight:800; text-align:${isMobile ? 'left' : 'center'}; line-height:1.2; word-break:break-word; max-width:100%;">${escapeHtml(comment.display_name)}</div>
                 </div>
                 <div style="border:1px solid ${COMMENT_CONTENT_PANEL_BORDER}; border-radius:${panelRadius}; background:${COMMENT_CONTENT_PANEL_BG}; padding:${contentPadding}; box-shadow:0 14px 32px rgba(0, 0, 0, 0.18); min-width:0; overflow:hidden;">
                     <div style="display:flex; justify-content:space-between; gap:${isMobile ? '0.4rem' : '1rem'}; align-items:flex-start; margin-bottom:${isMobile ? '0.35rem' : '0.55rem'};">
