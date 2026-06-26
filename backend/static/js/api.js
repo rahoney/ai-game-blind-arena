@@ -413,10 +413,58 @@ async function apiSubmitEvaluation(payload) {
     });
 }
 
+function getCachedResultsData(gameType) {
+    return state.resultsCache?.[gameType] || null;
+}
+
+function setCachedResultsData(gameType, data) {
+    if (!gameType || !data) return data;
+    state.resultsCache = {
+        ...(state.resultsCache || {}),
+        [gameType]: data,
+    };
+    return data;
+}
+
+function invalidateResultsCache(gameType) {
+    if (!gameType || !state.resultsCache?.[gameType]) return;
+    const nextCache = { ...state.resultsCache };
+    delete nextCache[gameType];
+    state.resultsCache = nextCache;
+}
+
 async function apiFetchResults(gameType) {
     const headers = await getCurrentAuthHeaders();
-    const res = await fetch(`${API_BASE}/results/${gameType}`, { headers });
-    return await res.json();
+    const res = await fetch(`${API_BASE}/results/${encodeURIComponent(gameType)}`, { headers });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        throw new Error(data?.detail || 'results_fetch_failed');
+    }
+    return setCachedResultsData(gameType, data);
+}
+
+function apiPrefetchResults(gameType) {
+    if (!gameType) return Promise.resolve(null);
+    const cached = getCachedResultsData(gameType);
+    if (cached) return Promise.resolve(cached);
+    if (state.resultsRefreshPromises?.[gameType]) return state.resultsRefreshPromises[gameType];
+
+    const promise = apiFetchResults(gameType)
+        .catch((error) => {
+            console.error('Results prefetch failed', error);
+            return null;
+        })
+        .finally(() => {
+            const nextPromises = { ...(state.resultsRefreshPromises || {}) };
+            delete nextPromises[gameType];
+            state.resultsRefreshPromises = nextPromises;
+        });
+
+    state.resultsRefreshPromises = {
+        ...(state.resultsRefreshPromises || {}),
+        [gameType]: promise,
+    };
+    return promise;
 }
 
 async function apiFetchMyPage() {

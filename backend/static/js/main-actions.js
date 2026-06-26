@@ -2,6 +2,7 @@ async function selectCategory(category) {
     if (!ensureDisplayNameSetupComplete()) return;
     state.selectedCategory = category;
     navigateTo('list', renderGameList);
+    apiPrefetchResults(category);
     refreshUserEvaluations({ minFreshMs: 10000 })
         .catch((e) => {
             console.error('User evaluation load failed', e);
@@ -22,6 +23,8 @@ async function handleLogout() {
     state.playCommentsLoading = false;
     state.profileBadgeSelection = '';
     state.isAdmin = false;
+    state.resultsCache = {};
+    state.resultsRefreshPromises = {};
     navigateTo('home', renderLanding);
 }
 
@@ -83,6 +86,9 @@ async function saveProfileBadge() {
             stage_key: data.profile_badge_key,
         };
     }
+    if (state.account?.profile) {
+        state.account.profile.profile_badge_key = data.profile_badge_key;
+    }
     state.profileBadgeSelection = data.profile_badge_key;
     showAppMessage(t('profile_badge_save_success'), { tone: 'success' });
     renderMyPage();
@@ -110,6 +116,7 @@ async function toggleCommentReaction(evaluationId, reactionType) {
             showAppMessage(getDisplayNameErrorMessage(data.detail || 'comment_reaction_error'), { tone: 'error' });
             return;
         }
+        invalidateResultsCache(state.selectedCategory);
         await refreshCurrentCommentsView();
     } catch (e) {
         showAppMessage(t('comment_reaction_network_error'), { tone: 'error' });
@@ -132,6 +139,7 @@ async function toggleBlindTarget(targetType, targetId, nextBlindState) {
             showAppMessage(t('admin_blind_error', { detail: translatedDetail || data?.detail || 'Unknown error' }), { tone: 'error' });
             return;
         }
+        invalidateResultsCache(state.selectedCategory);
         await refreshCurrentCommentsView();
     } catch (e) {
         showAppMessage(t('admin_blind_network_error'), { tone: 'error' });
@@ -147,7 +155,11 @@ async function playGame(blindId) {
     if (!state.selectedGame) return;
     state.isPlayLaunching = true;
     state.playModelCommentsResult = null;
-    state.playCommentsLoading = true;
+    const cachedResultsData = getCachedResultsData(state.selectedCategory);
+    if (cachedResultsData) {
+        applySelectedModelCommentsFromResults(cachedResultsData);
+    }
+    state.playCommentsLoading = !cachedResultsData;
     navigateTo('play', renderPlayArea);
 
     const selectedCategory = state.selectedCategory;
@@ -177,24 +189,40 @@ async function playGame(blindId) {
     }
 }
 
+function applySelectedModelCommentsFromResults(data) {
+    if (!data) return null;
+    state.isAdmin = !!data.is_admin;
+    const modelResult = (data.results || []).find(result => (
+        (state.selectedGame.model_key && result.model_key === state.selectedGame.model_key)
+        || (!state.selectedGame.model_key && result.blind_id === state.selectedGame.blind_id)
+    )) || null;
+    state.playModelCommentsResult = modelResult;
+    return modelResult;
+}
+
 async function loadSelectedModelComments(options = {}) {
     const { showLoading = false } = options;
     if (!state.selectedCategory || !state.selectedGame) return;
 
-    state.playCommentsLoading = !!showLoading;
-    if (showLoading) {
+    const cachedData = getCachedResultsData(state.selectedCategory);
+    if (cachedData) {
+        applySelectedModelCommentsFromResults(cachedData);
+        state.playCommentsLoading = false;
+    } else {
+        state.playCommentsLoading = !!showLoading;
+    }
+
+    if (showLoading && state.currentView?.id === 'play') {
         rerenderCurrentCommentsView();
     }
 
     try {
         const data = await apiFetchResults(state.selectedCategory);
-        const modelResult = (data.results || []).find(result => (
-            (state.selectedGame.model_key && result.model_key === state.selectedGame.model_key)
-            || (!state.selectedGame.model_key && result.blind_id === state.selectedGame.blind_id)
-        )) || null;
-        state.playModelCommentsResult = modelResult;
+        applySelectedModelCommentsFromResults(data);
     } catch (e) {
-        state.playModelCommentsResult = null;
+        if (!cachedData) {
+            state.playModelCommentsResult = null;
+        }
     } finally {
         state.playCommentsLoading = false;
         if (state.currentView?.id === 'play') {
@@ -299,6 +327,7 @@ async function submitEvaluation() {
         }
 
         try {
+            invalidateResultsCache(state.selectedCategory);
             await loadSelectedModelComments({ showLoading: false });
         } catch (e) {
             console.error('Comment refresh failed after submit', e);

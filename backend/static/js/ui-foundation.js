@@ -458,7 +458,7 @@ function getHeaderProfileBadgeKey() {
     return state.myPageData?.profile_badge_key
         || state.account?.profile?.profile_badge_key
         || state.account?.profile_badge_key
-        || '';
+        || 'badge_egg';
 }
 
 function getHeaderDisplayName() {
