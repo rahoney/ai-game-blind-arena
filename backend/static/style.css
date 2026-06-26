@@ -246,6 +246,108 @@ html.sidebar-open {
     text-align: left;
 }
 
+.auth-policy-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    background: rgba(5, 11, 21, 0.84);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.auth-policy-modal {
+    width: min(760px, 100%);
+    max-height: min(86vh, 780px);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+    border: 1px solid rgba(124, 198, 255, 0.28);
+    border-radius: 12px;
+    color: var(--text-primary);
+    background: rgba(16, 32, 54, 0.98);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+}
+
+.auth-policy-modal-header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid rgba(124, 198, 255, 0.2);
+}
+
+.auth-policy-modal-header h2 {
+    margin: 0;
+    color: var(--primary);
+    font-size: 1.25rem;
+    text-align: center;
+}
+
+.auth-policy-modal-close {
+    width: auto;
+    min-width: 76px;
+    padding: 0.58rem 0.8rem;
+}
+
+.auth-policy-modal-x {
+    position: static;
+}
+
+.auth-policy-modal-body {
+    min-height: 0;
+    overflow: auto;
+    padding: 1rem;
+}
+
+.policy-text-head,
+.policy-text-sections section,
+.policy-text-notice {
+    padding: 1rem;
+    border: 1px solid rgba(124, 198, 255, 0.16);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.policy-effective-date {
+    margin-bottom: 0.45rem;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    font-weight: 800;
+}
+
+.policy-text-head p,
+.policy-text-notice {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.65;
+}
+
+.policy-text-sections {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0.75rem 0;
+}
+
+.policy-text-sections h3 {
+    margin: 0 0 0.65rem;
+    color: var(--primary);
+    font-size: 1rem;
+}
+
+.policy-text-sections ul {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0;
+    padding-left: 1.15rem;
+    color: var(--text-primary);
+    line-height: 1.62;
+}
+
 .auth-progress-status {
     display: flex;
     align-items: center;

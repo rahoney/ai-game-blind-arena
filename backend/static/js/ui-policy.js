@@ -342,6 +342,55 @@ function renderPolicyContent(targetId, content, closeFunctionName) {
     `;
 }
 
+function renderPolicyTextBody(content) {
+    return `
+        <div class="policy-text-head">
+            <div class="policy-effective-date">${content.effectiveDate}</div>
+            <p>${content.intro}</p>
+        </div>
+        <div class="policy-text-sections">
+            ${content.sections.map((section) => `
+                <section>
+                    <h3>${section.heading}</h3>
+                    <ul>
+                        ${section.body.map((item) => `<li>${item}</li>`).join('')}
+                    </ul>
+                </section>
+            `).join('')}
+        </div>
+        <p class="policy-text-notice">${content.notice}</p>
+    `;
+}
+
+function openAuthPolicyModal(event, policyType) {
+    event?.preventDefault();
+    const modalRoot = document.getElementById('global-modal-root');
+    if (!modalRoot) return;
+    const content = policyType === 'terms' ? getTermsPolicyContent() : getPrivacyPolicyContent();
+    modalRoot.innerHTML = `
+        <div class="auth-policy-modal-backdrop" role="presentation" onclick="closeAuthPolicyModal(event)">
+            <div class="auth-policy-modal" role="dialog" aria-modal="true" aria-labelledby="auth-policy-modal-title" onclick="event.stopPropagation()">
+                <div class="auth-policy-modal-header">
+                    <button type="button" class="secondary auth-policy-modal-close" onclick="closeAuthPolicyModal()">← ${t('btn_back')}</button>
+                    <h2 id="auth-policy-modal-title">${content.title}</h2>
+                    <button type="button" class="auth-dialog-close auth-policy-modal-x" onclick="closeAuthPolicyModal()" aria-label="${t('dialog_close')}">×</button>
+                </div>
+                <div class="auth-policy-modal-body">
+                    ${renderPolicyTextBody(content)}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function closeAuthPolicyModal(event) {
+    event?.preventDefault?.();
+    const modalRoot = document.getElementById('global-modal-root');
+    if (modalRoot) {
+        modalRoot.innerHTML = '';
+    }
+}
+
 function renderTermsPolicy() {
     renderPolicyContent('view-terms', getTermsPolicyContent(), 'closeTermsPolicy');
 }
