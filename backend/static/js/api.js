@@ -28,20 +28,21 @@ async function apiFetchAuthMe(idToken) {
 async function getCurrentAuthHeaders(includeJson = false) {
     const headers = includeJson ? { 'Content-Type': 'application/json' } : {};
     if (firebaseAuth?.currentUser) {
+        if (typeof markAuthActivity === 'function') markAuthActivity();
         const token = await firebaseAuth.currentUser.getIdToken();
         headers.Authorization = `Bearer ${token}`;
     }
     return headers;
 }
 
-async function apiUpdateProfileDisplayName(idToken, displayName) {
+async function apiUpdateProfileDisplayName(idToken, payload) {
     const res = await fetch(`${API_BASE}/profile/display-name`, {
         method: 'PATCH',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${idToken}`
         },
-        body: JSON.stringify({ display_name: displayName })
+        body: JSON.stringify(payload)
     });
     const data = await res.json();
     if (!res.ok) {

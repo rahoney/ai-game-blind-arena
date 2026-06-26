@@ -113,6 +113,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "development").strip().lower()
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "").strip().rstrip("/")
+CURRENT_POLICY_VERSION = os.environ.get("POLICY_VERSION", "2026-06-26").strip() or "2026-06-26"
 COMMENT_REACTION_RATE_LIMITS = make_rate_limit_store()
 COMMENT_REPLY_RATE_LIMITS = make_rate_limit_store()
 COMMENT_SUBMISSION_HISTORY = make_rate_limit_store()
@@ -1090,6 +1091,16 @@ def _get_profile_by_id(profile_id: str):
     return (res.data or [None])[0]
 
 
+def _policy_acceptance_update(payload):
+    if not getattr(payload, "terms_accepted", False) or not getattr(payload, "privacy_accepted", False):
+        raise HTTPException(status_code=400, detail="policy_acceptance_required")
+    return {
+        "terms_accepted_at": _now_iso(),
+        "privacy_accepted_at": _now_iso(),
+        "policy_version": (getattr(payload, "policy_version", None) or CURRENT_POLICY_VERSION).strip()[:50],
+    }
+
+
 def _make_temporary_display_name():
     alphabet = "abcdefghijklmnopqrstuvwxyz"
     for _ in range(25):
@@ -1144,13 +1155,15 @@ def _write_admin_audit_log(
         logger.exception("Admin audit log write failed")
 
 
-def _update_profile_display_name(profile: dict, display_name: str):
+def _update_profile_display_name(profile: dict, payload: ProfileDisplayNameUpdate):
     _ensure_account_not_disabled(profile)
+    display_name = payload.display_name
     is_valid, error_key = validate_display_name(display_name)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_key)
 
     uid = profile.get("firebase_uid")
+    policy_update = _policy_acceptance_update(payload) if not profile.get("display_name_set") else {}
     if LOCAL_TEST_MODE:
         for existing_uid, existing in LOCAL_DB["profiles"].items():
             if existing_uid != uid and existing.get("display_name", "").casefold() == display_name.casefold():
@@ -1158,6 +1171,7 @@ def _update_profile_display_name(profile: dict, display_name: str):
         profile.update({
             "display_name": display_name,
             "display_name_set": True,
+            **policy_update,
             "updated_at": _now_iso(),
         })
         return profile
@@ -1172,6 +1186,7 @@ def _update_profile_display_name(profile: dict, display_name: str):
         update_payload = {
             "display_name": display_name,
             "display_name_set": True,
+            **policy_update,
             "updated_at": _now_iso(),
         }
         updated_res = supabase.table("profiles").update(update_payload).eq("firebase_uid", uid).execute()
@@ -1186,6 +1201,7 @@ def _update_profile_identity(profile: dict, payload: ProfileIdentityUpdate):
     _ensure_account_not_disabled(profile)
     _validate_identity_fields(payload.login_id, payload.real_name, payload.display_name, payload.language)
     uid = profile.get("firebase_uid")
+    policy_update = _policy_acceptance_update(payload) if not profile.get("display_name_set") else {}
 
     if LOCAL_TEST_MODE:
         for existing_uid, existing in LOCAL_DB["profiles"].items():
@@ -1202,6 +1218,7 @@ def _update_profile_identity(profile: dict, payload: ProfileIdentityUpdate):
             "display_name_set": True,
             "email_verification_required": True,
             "account_status": "email_unverified" if not profile.get("email_verified") else "active",
+            **policy_update,
             "updated_at": _now_iso(),
         })
         return profile
@@ -1223,6 +1240,7 @@ def _update_profile_identity(profile: dict, payload: ProfileIdentityUpdate):
             "display_name_set": True,
             "email_verification_required": True,
             "account_status": "email_unverified" if not profile.get("email_verified") else "active",
+            **policy_update,
             "updated_at": _now_iso(),
         }
         updated_res = supabase.table("profiles").update(update_payload).eq("firebase_uid", uid).execute()
@@ -3174,7 +3192,7 @@ async def resolve_login_id_email(payload: LoginIdEmailRequest, request: Request)
 async def update_profile_display_name(payload: ProfileDisplayNameUpdate, request: Request):
     user = require_firebase_user(request)
     profile = _resolve_profile_for_firebase_user(user)
-    updated_profile = _update_profile_display_name(profile, payload.display_name)
+    updated_profile = _update_profile_display_name(profile, payload)
     return {
         "profile": updated_profile,
         "is_admin": updated_profile.get("role") in ("admin", "super_admin"),

@@ -9,6 +9,26 @@ function getAuthLanguageKey() {
     return (state.language || 'ko').split('-')[0] === 'en' ? 'en' : 'ko';
 }
 
+function renderPolicyAcceptanceControl(disabled) {
+    return `
+        <label class="auth-policy-consent">
+            <input
+                type="checkbox"
+                id="auth-policy-acceptance"
+                onchange="updateSignupSubmitState()"
+                ${disabled ? 'disabled' : ''}
+            >
+            <span>
+                ${t('auth_policy_acceptance_text')}
+                <a href="/terms" onclick="openTermsPolicy(event)">${t('terms_policy_title')}</a>
+                <span aria-hidden="true">/</span>
+                <a href="/privacy" onclick="openPrivacyPolicy(event)">${t('privacy_policy_title')}</a>
+            </span>
+        </label>
+        <p class="auth-policy-summary">${t('auth_policy_acceptance_summary')}</p>
+    `;
+}
+
 function renderGoogleAuthButton(disabled) {
     return `
         <button type="button" class="gsi-material-button auth-provider-button" onclick="handleSocialLogin('google')" ${disabled ? 'disabled' : ''}>
@@ -128,6 +148,7 @@ function renderLogin() {
                     <button type="button" onclick="handlePasswordReset()" ${disabled ? 'disabled' : ''}>${t('auth_reset_password_send')}</button>
                     <button type="button" class="secondary" onclick="setAuthMode('login')">${t('auth_back_to_login')}</button>
                 ` : isDisplayName ? `
+                    ${renderPolicyAcceptanceControl(actionDisabled)}
                     <button type="button" onclick="handleDisplayNameSubmit()" ${actionDisabled ? 'disabled' : ''}>${t('auth_display_name_save')}</button>
                 ` : isVerifyEmail ? `
                     <p class="auth-inline-status">${t('auth_verify_email_sent_to', { email: escapeHtml(state.authUser?.email || '') })}</p>
@@ -157,6 +178,7 @@ function renderLogin() {
                         <input type="password" id="auth-password" autocomplete="new-password" placeholder="${t('auth_password_placeholder')}" oninput="updateSignupSubmitState()" onkeypress="if(event.keyCode==13) handleEmailAuth('signup')" ${actionDisabled ? 'disabled' : ''}>
                         ${renderAuthFieldLabel('auth-password-confirm', 'auth_password_confirm_label')}
                         <input type="password" id="auth-password-confirm" autocomplete="new-password" placeholder="${t('auth_password_confirm_placeholder')}" oninput="updateSignupSubmitState()" onkeypress="if(event.keyCode==13) handleEmailAuth('signup')" ${actionDisabled ? 'disabled' : ''}>
+                        ${renderPolicyAcceptanceControl(actionDisabled)}
                         <div class="auth-actions">
                             <button id="login-submit-btn" onclick="handleEmailAuth('signup')" disabled>${t('auth_signup')}</button>
                         </div>

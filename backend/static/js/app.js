@@ -8,6 +8,7 @@ async function initApp() {
     }
     applyDocumentLanguage();
     initializeVeilPlaysAnalytics();
+    initializeInactivityLogout();
 
     const initialRoute = getInitialStaticRoute();
     if (initialRoute) {
