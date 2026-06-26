@@ -150,3 +150,29 @@ CREATE TABLE comment_replies (
 CREATE INDEX idx_comment_replies_evaluation_id ON comment_replies (evaluation_id);
 CREATE INDEX idx_comment_replies_user_id ON comment_replies (user_id);
 CREATE INDEX idx_comment_replies_profile_display_name ON comment_replies (profile_display_name);
+
+CREATE TABLE admin_audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    actor_profile_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    actor_firebase_uid TEXT,
+    action TEXT NOT NULL CHECK (
+        action IN (
+            'comment_blind_toggle',
+            'user_suspend',
+            'user_unsuspend',
+            'user_reset_display_name',
+            'user_delete'
+        )
+    ),
+    target_type TEXT NOT NULL CHECK (target_type IN ('comment', 'reply', 'profile')),
+    target_id TEXT,
+    reason TEXT,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_admin_audit_logs_actor ON admin_audit_logs (actor_profile_id, created_at DESC);
+CREATE INDEX idx_admin_audit_logs_target ON admin_audit_logs (target_type, target_id, created_at DESC);
+CREATE INDEX idx_admin_audit_logs_action ON admin_audit_logs (action, created_at DESC);

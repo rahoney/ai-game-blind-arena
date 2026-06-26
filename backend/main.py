@@ -128,6 +128,7 @@ LOCAL_DB = {
     "auth_provider_accounts": [],
     "account_recovery_attempts": [],
     "signup_email_verifications": [],
+    "admin_audit_logs": [],
 }
 GAME_STATS_CACHE_TTL_SECONDS = 20
 RESERVED_LOGIN_IDS = {"admin", "administrator", "moderator", "operator", "staff", "manager", "veilplays", "veilplay"}
@@ -292,6 +293,9 @@ EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 LOGIN_ID_RE = re.compile(r"^[A-Za-z0-9]{4,15}$")
 SERVICE_BRAND_NAME = "VeilPlays"
 SERVICE_CONTEXT_NAME = "AI Game Blind Arena"
+ADMIN_TOKEN_SECRET_VALUE = os.environ.get("ADMIN_TOKEN_SECRET", "").strip()
+if ENVIRONMENT == "production" and len(ADMIN_TOKEN_SECRET_VALUE.encode("utf-8")) < 32:
+    raise RuntimeError("ADMIN_TOKEN_SECRET must be configured with at least 32 bytes in production")
 BLIND_TOKEN_SECRET_VALUE = os.environ.get("BLIND_TOKEN_SECRET", "").strip()
 if len(BLIND_TOKEN_SECRET_VALUE.encode("utf-8")) < 32:
     raise RuntimeError("BLIND_TOKEN_SECRET must be configured with at least 32 bytes")
@@ -370,19 +374,19 @@ def _normalize_email(email: str):
 
 
 def _hash_recovery_identifier(*parts: str):
-    secret = os.environ.get("ADMIN_TOKEN_SECRET") or os.environ.get("FIREBASE_PROJECT_ID") or "local"
+    secret = ADMIN_TOKEN_SECRET_VALUE or os.environ.get("FIREBASE_PROJECT_ID") or "local"
     raw = "|".join(part.strip().casefold() for part in parts)
     return hashlib.sha256(f"{secret}:{raw}".encode("utf-8")).hexdigest()
 
 
 def _hash_signup_verification_code(email: str, code: str):
-    secret = os.environ.get("ADMIN_TOKEN_SECRET") or os.environ.get("FIREBASE_PROJECT_ID") or "local"
+    secret = ADMIN_TOKEN_SECRET_VALUE or os.environ.get("FIREBASE_PROJECT_ID") or "local"
     raw = f"{_normalize_email(email)}:{code.strip()}"
     return hashlib.sha256(f"{secret}:{raw}".encode("utf-8")).hexdigest()
 
 
 def _token_secret():
-    return (os.environ.get("ADMIN_TOKEN_SECRET") or os.environ.get("FIREBASE_PROJECT_ID") or "local").encode("utf-8")
+    return (ADMIN_TOKEN_SECRET_VALUE or os.environ.get("FIREBASE_PROJECT_ID") or "local").encode("utf-8")
 
 
 def _b64url_encode(data: bytes):
@@ -1106,6 +1110,36 @@ def _public_admin_profile(profile: dict):
         "created_at": profile.get("created_at"),
         "last_active_at": profile.get("last_active_at"),
     }
+
+
+def _write_admin_audit_log(
+    actor: dict,
+    action: str,
+    target_type: str,
+    target_id: str | None,
+    request: Request,
+    reason: str | None = None,
+    metadata: dict | None = None,
+):
+    row = {
+        "actor_profile_id": actor.get("user_id"),
+        "actor_firebase_uid": (actor.get("profile") or {}).get("firebase_uid"),
+        "action": action,
+        "target_type": target_type,
+        "target_id": target_id,
+        "reason": (reason or "").strip()[:500] or None,
+        "metadata": metadata or {},
+        "ip_address": _get_client_ip(request),
+        "user_agent": (request.headers.get("user-agent") or "")[:500],
+        "created_at": _now_iso(),
+    }
+    try:
+        if LOCAL_TEST_MODE:
+            LOCAL_DB["admin_audit_logs"].append(row)
+        elif supabase:
+            supabase.table("admin_audit_logs").insert(row).execute()
+    except Exception:
+        logger.exception("Admin audit log write failed")
 
 
 def _update_profile_display_name(profile: dict, display_name: str):
@@ -3819,7 +3853,7 @@ async def create_comment_reply(payload: CommentReplyCreate, request: Request):
 
 @app.post("/api/admin/blind")
 async def admin_toggle_blind(payload: AdminBlindToggle, request: Request):
-    _require_admin_actor(request)
+    actor = _require_admin_actor(request)
 
     table_map = {
         "comment": "evaluations",
@@ -3850,6 +3884,14 @@ async def admin_toggle_blind(payload: AdminBlindToggle, request: Request):
             }
 
             supabase.table(table_name).update(update_data).eq('id', payload.target_id).execute()
+        _write_admin_audit_log(
+            actor,
+            "comment_blind_toggle",
+            payload.target_type,
+            payload.target_id,
+            request,
+            metadata={"is_blinded": payload.is_blinded},
+        )
         return {
             "status": "success",
             "target_type": payload.target_type,
@@ -3950,14 +3992,16 @@ async def admin_suspend_user(profile_id: str, payload: AdminUserModerationAction
     }
     if LOCAL_TEST_MODE:
         profile.update(update_payload)
+        _write_admin_audit_log(actor, "user_suspend", "profile", profile_id, request, payload.reason)
         return {"profile": _public_admin_profile(profile)}
     updated = supabase.table("profiles").update(update_payload).eq("id", profile_id).execute().data
+    _write_admin_audit_log(actor, "user_suspend", "profile", profile_id, request, payload.reason)
     return {"profile": (updated or [None])[0] or {**profile, **update_payload}}
 
 
 @app.post("/api/admin/users/{profile_id}/unsuspend")
 async def admin_unsuspend_user(profile_id: str, payload: AdminUserModerationAction, request: Request):
-    _require_admin_actor(request)
+    actor = _require_admin_actor(request)
     profile = _get_profile_by_id(profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="admin_user_not_found")
@@ -3967,8 +4011,10 @@ async def admin_unsuspend_user(profile_id: str, payload: AdminUserModerationActi
     }
     if LOCAL_TEST_MODE:
         profile.update(update_payload)
+        _write_admin_audit_log(actor, "user_unsuspend", "profile", profile_id, request, payload.reason)
         return {"profile": _public_admin_profile(profile)}
     updated = supabase.table("profiles").update(update_payload).eq("id", profile_id).execute().data
+    _write_admin_audit_log(actor, "user_unsuspend", "profile", profile_id, request, payload.reason)
     return {"profile": (updated or [None])[0] or {**profile, **update_payload}}
 
 
@@ -3988,8 +4034,26 @@ async def admin_reset_user_display_name(profile_id: str, payload: AdminUserModer
     }
     if LOCAL_TEST_MODE:
         profile.update(update_payload)
+        _write_admin_audit_log(
+            actor,
+            "user_reset_display_name",
+            "profile",
+            profile_id,
+            request,
+            payload.reason,
+            {"temporary_display_name": temporary_display_name},
+        )
         return {"profile": _public_admin_profile(profile)}
     updated = supabase.table("profiles").update(update_payload).eq("id", profile_id).execute().data
+    _write_admin_audit_log(
+        actor,
+        "user_reset_display_name",
+        "profile",
+        profile_id,
+        request,
+        payload.reason,
+        {"temporary_display_name": temporary_display_name},
+    )
     return {"profile": (updated or [None])[0] or {**profile, **update_payload}}
 
 
@@ -4006,6 +4070,15 @@ async def admin_delete_user(profile_id: str, payload: AdminUserModerationAction,
     firebase_uid = profile.get("firebase_uid", "")
     _anonymize_deleted_account(profile)
     firebase_deleted = delete_firebase_user(firebase_uid)
+    _write_admin_audit_log(
+        actor,
+        "user_delete",
+        "profile",
+        profile_id,
+        request,
+        payload.reason,
+        {"firebase_deleted": firebase_deleted, "provider_count": len(provider_accounts)},
+    )
     return {"deleted": True, "firebase_deleted": firebase_deleted}
 
 
