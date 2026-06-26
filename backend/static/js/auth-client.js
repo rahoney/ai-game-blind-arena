@@ -254,6 +254,7 @@ function getFriendlyAuthError(error, mode = 'login') {
     if (code === 'login_id_format') return bucket.loginIdFormat;
     if (code === 'login_id_reserved') return t('login_id_reserved');
     if (code === 'account_suspended') return t('account_suspended');
+    if (code === 'policy_acceptance_required') return t('auth_policy_acceptance_required');
     return bucket.generic;
 }
 
@@ -263,6 +264,19 @@ function getDisplayNameValidationError(displayName) {
     return validationError ? getDisplayNameErrorMessage(validationError) : '';
 }
 
+function getPolicyAcceptanceValues() {
+    const accepted = !!document.getElementById('auth-policy-acceptance')?.checked;
+    return {
+        terms_accepted: accepted,
+        privacy_accepted: accepted,
+        policy_version: state.policyVersion || '2026-06-26',
+    };
+}
+
+function hasAcceptedCurrentPolicies() {
+    return !!document.getElementById('auth-policy-acceptance')?.checked;
+}
+
 function getIdentityFormValues() {
     return {
         login_id: document.getElementById('auth-login-id')?.value.trim() || '',
@@ -270,6 +284,7 @@ function getIdentityFormValues() {
         display_name: document.getElementById('auth-display-name')?.value.trim() || '',
         email_verification_token: state.signupEmailVerification?.token || '',
         language: state.language || 'ko',
+        ...getPolicyAcceptanceValues(),
     };
 }
 
@@ -308,6 +323,7 @@ function isValidSignupForm() {
         && state.displayNameAvailability?.status === 'available'
         && isValidSignupPassword(password)
         && password === passwordConfirm
+        && hasAcceptedCurrentPolicies()
     );
 }
 
@@ -839,6 +855,7 @@ async function refreshAccountFromFirebaseUser(options = {}) {
     const token = await firebaseAuth.currentUser.getIdToken(forceTokenRefresh);
     syncCurrentAuthUserSnapshot();
     syncBlindSeedForAuthUser(firebaseAuth.currentUser.uid);
+    markAuthActivity();
     state.account = await apiFetchAuthMe(token);
     state.isAdmin = !!state.account?.is_admin;
     const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
@@ -892,6 +909,10 @@ async function handleEmailAuth(mode) {
         }
         if (password !== passwordConfirm) {
             showAppMessage(t('auth_password_confirm_mismatch'), { tone: 'error' });
+            return;
+        }
+        if (!hasAcceptedCurrentPolicies()) {
+            showAppMessage(t('auth_policy_acceptance_required'), { tone: 'error' });
             return;
         }
     }
@@ -1652,7 +1673,10 @@ async function handleAccountLoginIdSetupSubmit() {
 async function saveDisplayName(displayName) {
     if (!firebaseAuth?.currentUser) return null;
     const token = await firebaseAuth.currentUser.getIdToken();
-    state.account = await apiUpdateProfileDisplayName(token, displayName);
+    state.account = await apiUpdateProfileDisplayName(token, {
+        display_name: displayName,
+        ...getPolicyAcceptanceValues(),
+    });
     state.isAdmin = !!state.account?.is_admin;
     return state.account;
 }
@@ -1816,6 +1840,10 @@ async function handleDisplayNameSubmit() {
         showAppMessage(displayNameError, { tone: 'error' });
         return;
     }
+    if (!hasAcceptedCurrentPolicies()) {
+        showAppMessage(t('auth_policy_acceptance_required'), { tone: 'error' });
+        return;
+    }
 
     const trace = startAuthPerformanceTrace('display_name_submit');
     let outcome = 'error';
@@ -1846,7 +1874,9 @@ async function handleDisplayNameSubmit() {
         const detail = e?.message || '';
         const message = detail === 'display_name_taken'
             ? t('auth_display_name_taken')
-            : getDisplayNameErrorMessage(detail || 'display_name_generic_error');
+            : detail === 'policy_acceptance_required'
+                ? t('auth_policy_acceptance_required')
+                : getDisplayNameErrorMessage(detail || 'display_name_generic_error');
         showAppMessage(message, { tone: 'error' });
     } finally {
         if (outcome !== 'success') finishAuthPerformanceTrace(trace, outcome);
@@ -1900,6 +1930,42 @@ async function signOutAccount() {
     setSignedOutState();
     syncAuthDialogVisibility();
     rerenderPostAuthDataViews();
+}
+
+function markAuthActivity() {
+    if (!state.authUser) return;
+    state.lastAuthActivityAt = Date.now();
+}
+
+function initializeInactivityLogout() {
+    const timeoutMs = 60 * 60 * 1000;
+    const activityEvents = ['click', 'keydown', 'touchstart', 'scroll', 'focusin'];
+    activityEvents.forEach((eventName) => {
+        window.addEventListener(eventName, markAuthActivity, { passive: true, capture: true });
+    });
+    window.addEventListener('blur', () => {
+        if (document.activeElement?.tagName === 'IFRAME') {
+            markAuthActivity();
+        }
+    });
+
+    if (state.inactivityTimerId) {
+        window.clearInterval(state.inactivityTimerId);
+    }
+    state.inactivityTimerId = window.setInterval(async () => {
+        if (!state.authUser || state.inactivityLogoutInProgress) return;
+        if (Date.now() - Number(state.lastAuthActivityAt || 0) < timeoutMs) return;
+        try {
+            state.inactivityLogoutInProgress = true;
+            await signOutAccount();
+            showAppMessage(t('auth_inactivity_logout'), { tone: 'info' });
+            if (state.currentView?.id !== 'home') {
+                navigateTo('home', renderLanding);
+            }
+        } finally {
+            state.inactivityLogoutInProgress = false;
+        }
+    }, 60 * 1000);
 }
 
 // ─── 닉네임(display_name) 변경 ────────────────────────────────────────
