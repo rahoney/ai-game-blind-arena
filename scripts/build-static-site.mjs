@@ -60,8 +60,8 @@ writeFileSync(
 if (vercelEnvironment !== 'production') {
     const indexPath = resolve(outputDir, 'index.html');
     const indexHtml = readFileSync(indexPath, 'utf8').replace(
-        '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
-        '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <meta name="robots" content="noindex, nofollow">',
+        /(<meta name="viewport" content="[^"]+">)/,
+        '$1\n    <meta name="robots" content="noindex, nofollow">',
     );
     writeFileSync(indexPath, indexHtml, 'utf8');
     writeFileSync(resolve(outputDir, 'robots.txt'), 'User-agent: *\nDisallow: /\n', 'utf8');
