@@ -11,6 +11,10 @@ function getMyPageProfileValue(key, fallback = '') {
     return state.account?.profile?.[key] || fallback || '';
 }
 
+function getMyPageProfileBadgeSize() {
+    return typeof window !== 'undefined' && window.matchMedia?.('(max-width: 640px)').matches ? 38 : 160;
+}
+
 function renderMyPageInfoTile(labelKey, value, extraClass = '') {
     return `
         <div class="mypage-info-tile ${extraClass}">
@@ -401,7 +405,7 @@ function renderMyPage() {
 
             <div class="mypage-profile-shell">
                 <div class="mypage-badge-column">
-                    <div class="mypage-badge-preview">${currentProfileBadgeKey ? renderBadgeSvg(currentProfileBadgeKey) : ''}</div>
+                    <div class="mypage-badge-preview">${currentProfileBadgeKey ? renderBadgeSvg(currentProfileBadgeKey, getMyPageProfileBadgeSize()) : ''}</div>
                     <div class="mypage-badge-summary">
                         <div>${t('mypage_badge_title')}</div>
                         <strong>${badgeLabel || '-'}</strong>
