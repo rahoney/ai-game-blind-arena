@@ -5388,7 +5388,7 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
     .footer {
         min-height: 0;
         padding: 0.65rem 0.75rem;
-        margin-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+        margin-bottom: calc(1.75rem + env(safe-area-inset-bottom, 0px));
     }
 
     .footer-inner {
