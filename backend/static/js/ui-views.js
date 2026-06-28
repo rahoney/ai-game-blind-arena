@@ -785,7 +785,10 @@ function renderGameList() {
                         <span class="model-selection-kicker">${t('model_selection_round_kicker')}</span>
                         <h3 id="model-selection-grid-title">${t('model_selection_title')}</h3>
                     </div>
-                    <p>${t('model_selection_description')}</p>
+                    <div class="model-selection-copy">
+                        <p>${t('model_selection_description')}</p>
+                        <p class="model-selection-device-note">${t('model_selection_device_note')}</p>
+                    </div>
                 </div>
                 <div class="model-selection-grid">
                 ${modelsHtml}
