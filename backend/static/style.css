@@ -63,6 +63,7 @@ body {
         linear-gradient(160deg, #afd7f6 0%, #c7d7f5 62%, #d4d2f0 100%);
     color: var(--text-color);
     height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1423,38 +1424,39 @@ body.theme-home .header-brand:active {
         top: 50%;
         width: 42px;
         height: 42px;
-        padding: 10px 8px;
+        padding: 0;
         border: 1px solid rgba(255,255,255,0.68);
         border-radius: 8px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        gap: 4px;
+        display: block;
         color: #fff;
-        background: rgba(21, 39, 64, 0.92);
-        box-shadow: 0 0 0 1px rgba(79,195,247,0.18), 0 0 20px rgba(79, 195, 247, 0.28);
+        background: rgba(21, 39, 64, 0.96);
+        box-shadow: 0 0 0 1px rgba(79,195,247,0.18);
         transform: translateY(-50%);
         z-index: 5;
+        overflow: hidden;
     }
 
     .header-mobile-trigger::before {
         content: "";
-        display: block;
+        position: absolute;
+        left: 50%;
+        top: 50%;
         width: 22px;
         height: 17px;
-        margin: auto;
+        transform: translate(-50%, -50%);
         background:
             linear-gradient(#fff, #fff) top / 100% 3px no-repeat,
             linear-gradient(#fff, #fff) center / 100% 3px no-repeat,
             linear-gradient(#fff, #fff) bottom / 100% 3px no-repeat;
         border-radius: 2px;
-        filter: drop-shadow(0 0 7px rgba(255,255,255,0.7));
+        filter: drop-shadow(0 0 3px rgba(255,255,255,0.38));
+        pointer-events: none;
     }
 
     .header-mobile-trigger:not(.open) span {
         opacity: 0 !important;
-        width: 0;
-        height: 0;
+        width: 0 !important;
+        height: 0 !important;
         overflow: hidden;
     }
 
@@ -5391,6 +5393,7 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
     .footer {
         min-height: 0;
         padding: 0.65rem 0.75rem;
+        margin-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
     }
 
     .footer-inner {
