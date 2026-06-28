@@ -151,6 +151,8 @@ async function toggleBlindTarget(targetType, targetId, nextBlindState) {
 
 async function playGame(blindId) {
     if (state.isPlayLaunching) return;
+    const isMobileViewport = window.matchMedia?.('(max-width: 768px), (pointer: coarse)').matches;
+    if (isMobileViewport && !window.confirm(t('mobile_play_confirm'))) return;
     state.selectedGame = state.games[state.selectedCategory].find(m => m.blind_id === blindId);
     if (!state.selectedGame) return;
     state.isPlayLaunching = true;
