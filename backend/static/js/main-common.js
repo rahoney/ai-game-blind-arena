@@ -151,6 +151,68 @@ function showAppMessage(message, options = {}) {
     }, { once: true });
 }
 
+function showAppConfirm(message, options = {}) {
+    return new Promise((resolve) => {
+        const {
+            title = '',
+            tone = 'info',
+            confirmText = state.language === 'ko' ? '확인' : 'OK',
+            cancelText = state.language === 'ko' ? '취소' : 'Cancel',
+            checkboxLabel = '',
+            allowHtml = false,
+        } = options;
+
+        const toneMeta = {
+            info: { icon: 'i', accent: '#3ca9d8', glow: 'rgba(60, 169, 216, 0.18)' },
+            success: { icon: '✓', accent: '#34d399', glow: 'rgba(52, 211, 153, 0.18)' },
+            warning: { icon: '!', accent: '#f59e0b', glow: 'rgba(245, 158, 11, 0.2)' },
+            error: { icon: '!', accent: '#ef4444', glow: 'rgba(239, 68, 68, 0.2)' },
+        };
+        const meta = toneMeta[tone] || toneMeta.info;
+        const overlay = document.createElement('div');
+        overlay.className = 'app-modal-overlay';
+        const messageMarkup = allowHtml
+            ? String(message || '').replace(/\n/g, '<br>')
+            : escapeHtml(String(message || '')).replace(/\n/g, '<br>');
+
+        overlay.innerHTML = `
+            <div class="app-modal app-modal-${tone}" role="alertdialog" aria-modal="true" aria-live="assertive">
+                <div class="app-modal-badge" style="--modal-accent:${meta.accent}; --modal-glow:${meta.glow};">${meta.icon}</div>
+                ${title ? `<h3 class="app-modal-title">${escapeHtml(title)}</h3>` : ''}
+                <div class="app-modal-message">${messageMarkup}</div>
+                ${checkboxLabel ? `
+                    <label class="app-modal-checkbox">
+                        <input type="checkbox" id="app-modal-checkbox">
+                        <span>${escapeHtml(checkboxLabel)}</span>
+                    </label>
+                ` : ''}
+                <div class="app-modal-actions">
+                    <button type="button" class="app-modal-cancel">${escapeHtml(cancelText)}</button>
+                    <button type="button" class="app-modal-confirm">${escapeHtml(confirmText)}</button>
+                </div>
+            </div>
+        `;
+
+        const finish = (confirmed) => {
+            const checked = !!overlay.querySelector('#app-modal-checkbox')?.checked;
+            overlay.remove();
+            document.removeEventListener('keydown', handleEscape);
+            resolve({ confirmed, checked });
+        };
+        const handleEscape = (event) => {
+            if (event.key === 'Escape') finish(false);
+        };
+
+        document.body.appendChild(overlay);
+        overlay.querySelector('.app-modal-confirm')?.addEventListener('click', () => finish(true));
+        overlay.querySelector('.app-modal-cancel')?.addEventListener('click', () => finish(false));
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) finish(false);
+        });
+        document.addEventListener('keydown', handleEscape);
+    });
+}
+
 window.alert = function customAlert(message) {
     showAppMessage(message);
 };
