@@ -712,10 +712,34 @@ function renderLanding() {
 function scrollLandingToCategories() {
     const target = document.getElementById('landing-game-categories');
     if (!target) return;
-    target.scrollIntoView({
-        behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-        block: 'start',
-    });
+    const contentLayer = document.getElementById('content-layer');
+    const header = document.getElementById('main-header');
+    const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+
+    if (header) {
+        header.style.transform = 'translateY(0px)';
+        header.style.opacity = '1';
+        header.style.visibility = 'visible';
+    }
+
+    if (contentLayer) {
+        const targetTop = target.offsetTop;
+        const headerOffset = header?.offsetHeight || 0;
+        contentLayer.scrollTo({
+            top: Math.max(targetTop - headerOffset - 12, 0),
+            behavior,
+        });
+        requestAnimationFrame(() => {
+            if (header) {
+                header.style.transform = 'translateY(0px)';
+                header.style.opacity = '1';
+                header.style.visibility = 'visible';
+            }
+        });
+        return;
+    }
+
+    target.scrollIntoView({ behavior, block: 'start' });
 }
 
 function renderGameList() {
@@ -762,6 +786,7 @@ function renderGameList() {
                     <span class="model-selection-kicker">${t('model_selection_kicker')}</span>
                     <h2 id="model-selection-title">${catLabel}</h2>
                     ${renderGameGuideCard(category, { concise: true, marginTop: '0', marginBottom: '0' })}
+                    <p class="model-selection-device-note">${t('model_selection_device_note')}</p>
                 </div>
                 <dl class="model-selection-summary">
                     <div>
@@ -787,7 +812,6 @@ function renderGameList() {
                     </div>
                     <div class="model-selection-copy">
                         <p>${t('model_selection_description')}</p>
-                        <p class="model-selection-device-note">${t('model_selection_device_note')}</p>
                     </div>
                 </div>
                 <div class="model-selection-grid">
