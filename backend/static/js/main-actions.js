@@ -152,7 +152,23 @@ async function toggleBlindTarget(targetType, targetId, nextBlindState) {
 async function playGame(blindId) {
     if (state.isPlayLaunching) return;
     const isMobileViewport = window.matchMedia?.('(max-width: 768px), (pointer: coarse)').matches;
-    if (isMobileViewport && !window.confirm(t('mobile_play_confirm'))) return;
+    if (isMobileViewport) {
+        const suppressUntil = Number(localStorage.getItem('veilplays_mobile_play_notice_until') || 0);
+        if (Date.now() >= suppressUntil) {
+            const result = typeof showAppConfirm === 'function'
+                ? await showAppConfirm(t('mobile_play_confirm'), {
+                    tone: 'warning',
+                    confirmText: t('mobile_play_continue'),
+                    cancelText: t('mobile_play_cancel'),
+                    checkboxLabel: t('mobile_play_snooze_1h'),
+                })
+                : { confirmed: window.confirm(t('mobile_play_confirm')), checked: false };
+            if (!result.confirmed) return;
+            if (result.checked) {
+                localStorage.setItem('veilplays_mobile_play_notice_until', String(Date.now() + 60 * 60 * 1000));
+            }
+        }
+    }
     state.selectedGame = state.games[state.selectedCategory].find(m => m.blind_id === blindId);
     if (!state.selectedGame) return;
     state.isPlayLaunching = true;
