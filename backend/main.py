@@ -1501,6 +1501,45 @@ def _anonymize_deleted_account(profile: dict):
         raise HTTPException(status_code=500, detail="account_delete_failed") from exc
 
 
+def _hard_delete_withdrawn_profile(profile_id: str):
+    if not profile_id:
+        raise HTTPException(status_code=500, detail="profile_id_missing")
+
+    if LOCAL_TEST_MODE:
+        LOCAL_DB["profiles"].pop(profile_id, None)
+        LOCAL_DB["auth_provider_accounts"] = [
+            row for row in LOCAL_DB["auth_provider_accounts"]
+            if row.get("profile_id") != profile_id
+        ]
+        LOCAL_DB["evaluations"] = [
+            row for row in LOCAL_DB["evaluations"]
+            if row.get("user_id") != profile_id
+        ]
+        LOCAL_DB["comment_reactions"] = [
+            row for row in LOCAL_DB["comment_reactions"]
+            if row.get("user_id") != profile_id
+        ]
+        LOCAL_DB["comment_replies"] = [
+            row for row in LOCAL_DB["comment_replies"]
+            if row.get("user_id") != profile_id
+        ]
+        LOCAL_DB["user_views"] = [
+            row for row in LOCAL_DB["user_views"]
+            if row.get("user_id") != profile_id
+        ]
+        return True
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Supabase is not configured")
+
+    try:
+        supabase.table("profiles").delete().eq("id", profile_id).eq("account_status", "withdrawn").execute()
+        return True
+    except Exception as exc:
+        logger.exception("Withdrawn profile hard delete failed for profile_id=%s", profile_id)
+        raise HTTPException(status_code=500, detail="account_delete_failed") from exc
+
+
 def _get_oauth_state_secret():
     secret = (
         os.environ.get("OAUTH_STATE_SECRET", "").strip()
@@ -3933,7 +3972,10 @@ async def admin_overview(request: Request, query: str = "", limit: int = 30):
 
     try:
         if LOCAL_TEST_MODE:
-            profiles = list(LOCAL_DB["profiles"].values())
+            profiles = [
+                profile for profile in LOCAL_DB["profiles"].values()
+                if profile.get("account_status") != "withdrawn"
+            ]
             if normalized_query:
                 q = normalized_query.casefold()
                 profiles = [
@@ -3964,7 +4006,7 @@ async def admin_overview(request: Request, query: str = "", limit: int = 30):
 
         profile_query = supabase.table("profiles").select(
             "id, firebase_uid, login_id, display_name, email, role, account_status, display_name_set, created_at, last_active_at"
-        ).order("updated_at", desc=True).limit(limit)
+        ).neq("account_status", "withdrawn").order("updated_at", desc=True).limit(limit)
         if normalized_query:
             escaped = normalized_query.replace("%", "\\%").replace("_", "\\_")
             profile_query = profile_query.or_(
@@ -4085,6 +4127,18 @@ async def admin_delete_user(profile_id: str, payload: AdminUserModerationAction,
         raise HTTPException(status_code=404, detail="admin_user_not_found")
     if profile.get("role") in ("admin", "super_admin") or profile.get("id") == actor.get("user_id"):
         raise HTTPException(status_code=403, detail="admin_cannot_modify_admin")
+    if profile.get("account_status") == "withdrawn":
+        _hard_delete_withdrawn_profile(profile_id)
+        _write_admin_audit_log(
+            actor,
+            "user_delete",
+            "profile",
+            profile_id,
+            request,
+            payload.reason,
+            {"hard_deleted": True, "status": "withdrawn"},
+        )
+        return {"deleted": True, "hard_deleted": True}
     provider_accounts = _get_provider_accounts_for_profile(profile.get("id"))
     _revoke_provider_accounts(provider_accounts)
     firebase_uid = profile.get("firebase_uid", "")
