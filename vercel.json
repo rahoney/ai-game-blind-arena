@@ -6,18 +6,6 @@
     {
       "source": "/static/:path*",
       "destination": "/:path*"
-    },
-    {
-      "source": "/about",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/terms",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/privacy",
-      "destination": "/index.html"
     }
   ],
   "headers": [
