@@ -887,7 +887,7 @@ function renderPlayEvaluationForm() {
                                 <span class="play-eval-label-text">${formatEvaluationLabel(t('eval_' + key))}</span>
                                 <span id="val-${key}" class="play-eval-score-value" style="color: var(--primary); font-size: 1.3rem; flex-shrink:0;">-</span>
                             </label>
-                            <div class="liquid-range is-unrated" data-progress="44.44" style="--range-progress: 44.44%;">
+                            <div class="liquid-range is-unrated" data-progress="44.44" style="--range-progress: 44.44%; --range-visual-progress: 44.44%;">
                                 <input type="range" id="score-${key}" min="1" max="10" value="5" onpointerdown="markScoreTouched('${key}')" onkeydown="markScoreTouchedFromKey(event, '${key}')" oninput="updateScore('${key}')" ${participationLocked ? 'disabled' : ''}>
                                 <span class="liquid-range-glass" aria-hidden="true"></span>
                             </div>
@@ -1019,6 +1019,7 @@ function updateScore(key) {
     if (!range) return;
     range.dataset.progress = `${progress}`;
     range.style.setProperty('--range-progress', `${progress}%`);
+    range.style.setProperty('--range-visual-progress', getRangeThumbCenterPosition(slider, progress));
     range.style.setProperty('--range-glass-stretch', glassStretch.toFixed(3));
     range.style.setProperty('--range-glass-shift', `${glassShift.toFixed(1)}px`);
     range.classList.add('is-moving');
@@ -1028,6 +1029,17 @@ function updateScore(key) {
         range.style.setProperty('--range-glass-stretch', '1');
         range.style.setProperty('--range-glass-shift', '0px');
     }, 140)}`;
+}
+
+function getRangeThumbCenterPosition(slider, progress) {
+    const range = slider?.closest('.liquid-range');
+    const width = Number(range?.clientWidth || slider?.clientWidth || 0);
+    if (!width) return `${progress}%`;
+    const thumbWidth = 42;
+    const ratio = Math.min(Math.max(progress / 100, 0), 1);
+    const travelWidth = Math.max(width - thumbWidth, 0);
+    const centerPx = Math.min(width, (thumbWidth / 2) + (travelWidth * ratio));
+    return `${centerPx.toFixed(1)}px`;
 }
 
 function markScoreTouched(key) {
