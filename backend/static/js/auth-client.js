@@ -745,7 +745,6 @@ function finishAuthPerformanceTrace(trace, outcome = 'success') {
         recordedAt: new Date().toISOString(),
     };
     state.authPerformance = [...(state.authPerformance || []), result].slice(-20);
-    console.info('[auth-perf]', result);
     return result;
 }
 
@@ -795,13 +794,10 @@ async function refreshGameCatalog(options = {}) {
         if (rerender) rerenderPostAuthDataViews();
         return;
     }
-    const startedAt = window.performance?.now?.() || Date.now();
     state.gamesLoading = true;
     if (rerender) rerenderPostAuthDataViews();
     state.gamesRefreshPromise = (async () => {
         await apiFetchGames();
-        const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
-        console.info(`[perf] apiFetchGames ${elapsedMs.toFixed(1)}ms`);
     })();
     try {
         await state.gamesRefreshPromise;
@@ -831,13 +827,10 @@ async function refreshUserEvaluations(options = {}) {
         if (rerender) rerenderPostAuthDataViews();
         return;
     }
-    const startedAt = window.performance?.now?.() || Date.now();
     state.userEvalsLoading = true;
     state.userEvalsRefreshPromise = (async () => {
         await apiFetchUserEvals();
         state.userEvalsFetchedAt = Date.now();
-        const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
-        console.info(`[perf] apiFetchUserEvals ${elapsedMs.toFixed(1)}ms`);
     })();
     try {
         await state.userEvalsRefreshPromise;
@@ -851,7 +844,6 @@ async function refreshUserEvaluations(options = {}) {
 async function refreshAccountFromFirebaseUser(options = {}) {
     const { forceTokenRefresh = false, renderNavigation = true, trace = null } = options;
     if (!firebaseAuth?.currentUser) return null;
-    const startedAt = window.performance?.now?.() || Date.now();
     const token = await firebaseAuth.currentUser.getIdToken(forceTokenRefresh);
     markAuthPerformanceStep(trace, 'firebase_token_ready');
     syncCurrentAuthUserSnapshot();
@@ -860,8 +852,6 @@ async function refreshAccountFromFirebaseUser(options = {}) {
     state.account = await apiFetchAuthMe(token, { includeLinkedProviders: false });
     markAuthPerformanceStep(trace, 'auth_me_loaded');
     state.isAdmin = !!state.account?.is_admin;
-    const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
-    console.info(`[perf] apiFetchAuthMe ${elapsedMs.toFixed(1)}ms forceTokenRefresh=${forceTokenRefresh}`);
     if (renderNavigation) renderGlobalNavigation();
     return state.account;
 }
