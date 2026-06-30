@@ -3084,24 +3084,8 @@ async def steam_openid_callback(request: Request, state: str | None = None):
 
 @app.get("/api/auth/me")
 async def auth_me(request: Request, include_linked_providers: bool = True):
-    started_at = perf_counter()
-    last_step_at = started_at
-
-    def mark_server_auth_step(step: str):
-        nonlocal last_step_at
-        now = perf_counter()
-        logger.warning(
-            "[auth-perf] /api/auth/me %s step_ms=%.1f elapsed_ms=%.1f",
-            step,
-            (now - last_step_at) * 1000,
-            (now - started_at) * 1000,
-        )
-        last_step_at = now
-
     user = require_firebase_user(request)
-    mark_server_auth_step("firebase_user_verified")
     profile = _resolve_profile_for_firebase_user(user)
-    mark_server_auth_step("profile_resolved")
     linked_providers = (
         _linked_provider_keys_for_profile(profile)
         if include_linked_providers
@@ -3114,8 +3098,6 @@ async def auth_me(request: Request, include_linked_providers: bool = True):
             if provider and provider != "password"
         )
     )
-    mark_server_auth_step("linked_providers_loaded" if include_linked_providers else "linked_providers_skipped")
-    logger.warning("[auth-perf] /api/auth/me total_ms=%.1f include_linked_providers=%s", (perf_counter() - started_at) * 1000, include_linked_providers)
     return {
         "uid": user.get("uid", ""),
         "email": user.get("email"),
@@ -3255,35 +3237,16 @@ async def change_my_display_name(payload: AccountDisplayNameChange, request: Req
 
 @app.post("/api/auth/login-id-email")
 async def resolve_login_id_email(payload: LoginIdEmailRequest, request: Request, background_tasks: BackgroundTasks):
-    started_at = perf_counter()
-    last_step_at = started_at
-
-    def mark_login_id_step(step: str):
-        nonlocal last_step_at
-        now = perf_counter()
-        logger.warning(
-            "[auth-perf] /api/auth/login-id-email %s step_ms=%.1f elapsed_ms=%.1f",
-            step,
-            (now - last_step_at) * 1000,
-            (now - started_at) * 1000,
-        )
-        last_step_at = now
-
     login_id = payload.login_id.strip()
     identifier_hash = _hash_recovery_identifier("login_id_email", login_id)
     client_ip = _get_client_ip(request)
     user_agent = request.headers.get("User-Agent", "")
     _check_recovery_rate_limit("login_id_email", identifier_hash, request)
-    mark_login_id_step("rate_limit_checked")
     profile = _find_profile_by_login_id(login_id)
-    mark_login_id_step("profile_lookup_finished")
     if not profile or not profile.get("email"):
         background_tasks.add_task(_record_recovery_attempt_from_client, "find_login_id", identifier_hash, client_ip, user_agent, False)
-        mark_login_id_step("audit_queued_failure")
         _invalid_recovery_input()
     background_tasks.add_task(_record_recovery_attempt_from_client, "find_login_id", identifier_hash, client_ip, user_agent, True)
-    mark_login_id_step("audit_queued_success")
-    logger.warning("[auth-perf] /api/auth/login-id-email total_ms=%.1f", (perf_counter() - started_at) * 1000)
     return {"email": _normalize_email(profile["email"])}
 
 
