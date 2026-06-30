@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -131,6 +131,43 @@ function writeStaticSeoPages() {
     }
 }
 
+function walkFiles(directory) {
+    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+        const path = resolve(directory, entry.name);
+        return entry.isDirectory() ? walkFiles(path) : [path];
+    });
+}
+
+function stripCssComments(source) {
+    return source.replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
+function minifyCss(source) {
+    return stripCssComments(source)
+        .replace(/\s+/g, ' ')
+        .replace(/\s*([{}:;,>+~])\s*/g, '$1')
+        .replace(/;}/g, '}')
+        .trim();
+}
+
+function minifyJavaScript(source) {
+    return source
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith('//'))
+        .join('\n');
+}
+
+function minifyStaticAssets() {
+    for (const path of walkFiles(outputDir)) {
+        if (path.endsWith('.css')) {
+            writeFileSync(path, minifyCss(readFileSync(path, 'utf8')), 'utf8');
+        } else if (path.endsWith('.js') && !path.endsWith('.min.js')) {
+            writeFileSync(path, minifyJavaScript(readFileSync(path, 'utf8')), 'utf8');
+        }
+    }
+}
+
 rmSync(outputDir, { recursive: true, force: true });
 mkdirSync(outputDir, { recursive: true });
 cpSync(sourceDir, outputDir, { recursive: true });
@@ -151,5 +188,6 @@ if (vercelEnvironment !== 'production') {
 }
 
 writeStaticSeoPages();
+minifyStaticAssets();
 
 console.log(`Static site built for ${publicConfig.environment}: ${outputDir}`);
