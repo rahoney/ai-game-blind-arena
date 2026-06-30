@@ -112,6 +112,8 @@ function renderLogin() {
     const isForcedDisplayNameReset = isDisplayName
         && !!state.account?.profile
         && state.account.profile.display_name_set === false;
+    const showDisplayNamePolicyAcceptance = isDisplayName
+        && (!state.account?.profile || requiresPolicyAcceptanceForDisplayName());
     const authDescriptionKey = isDisplayName
         ? (isForcedDisplayNameReset ? 'auth_display_name_reset_desc' : 'auth_display_name_setup_desc')
         : isVerifyEmail
@@ -160,7 +162,7 @@ function renderLogin() {
                     <button type="button" onclick="handlePasswordReset()" ${disabled ? 'disabled' : ''}>${t('auth_reset_password_send')}</button>
                     <button type="button" class="secondary" onclick="setAuthMode('login')">${t('auth_back_to_login')}</button>
                 ` : isDisplayName ? `
-                    ${renderPolicyAcceptanceControl(actionDisabled)}
+                    ${showDisplayNamePolicyAcceptance ? renderPolicyAcceptanceControl(actionDisabled) : ''}
                     <button type="button" onclick="handleDisplayNameSubmit()" ${actionDisabled ? 'disabled' : ''}>${t('auth_display_name_save')}</button>
                 ` : isVerifyEmail ? `
                     <p class="auth-inline-status">${t('auth_verify_email_sent_to', { email: escapeHtml(state.authUser?.email || '') })}</p>
