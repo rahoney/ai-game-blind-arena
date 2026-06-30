@@ -1114,7 +1114,7 @@ def _policy_acceptance_update(payload):
 def _make_temporary_display_name():
     alphabet = "abcdefghijklmnopqrstuvwxyz"
     for _ in range(25):
-        candidate = f"user_{secrets.randbelow(9000) + 1000}{secrets.choice(alphabet)}"
+        candidate = f"user{secrets.randbelow(9000) + 1000}{secrets.choice(alphabet)}"
         if not _is_display_name_taken(candidate):
             return candidate
     raise HTTPException(status_code=500, detail="temporary_display_name_failed")
