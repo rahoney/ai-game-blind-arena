@@ -1111,6 +1111,11 @@ def _policy_acceptance_update(payload):
     }
 
 
+def _has_policy_acceptance(profile: dict | None):
+    profile = profile or {}
+    return bool(profile.get("terms_accepted_at") and profile.get("privacy_accepted_at"))
+
+
 def _make_temporary_display_name():
     alphabet = "abcdefghijklmnopqrstuvwxyz"
     for _ in range(25):
@@ -1173,7 +1178,11 @@ def _update_profile_display_name(profile: dict, payload: ProfileDisplayNameUpdat
         raise HTTPException(status_code=400, detail=error_key)
 
     uid = profile.get("firebase_uid")
-    policy_update = _policy_acceptance_update(payload) if not profile.get("display_name_set") else {}
+    policy_update = (
+        _policy_acceptance_update(payload)
+        if not profile.get("display_name_set") and not _has_policy_acceptance(profile)
+        else {}
+    )
     if LOCAL_TEST_MODE:
         for existing_uid, existing in LOCAL_DB["profiles"].items():
             if existing_uid != uid and existing.get("display_name", "").casefold() == display_name.casefold():
@@ -1211,7 +1220,11 @@ def _update_profile_identity(profile: dict, payload: ProfileIdentityUpdate):
     _ensure_account_not_disabled(profile)
     _validate_identity_fields(payload.login_id, payload.real_name, payload.display_name, payload.language)
     uid = profile.get("firebase_uid")
-    policy_update = _policy_acceptance_update(payload) if not profile.get("display_name_set") else {}
+    policy_update = (
+        _policy_acceptance_update(payload)
+        if not profile.get("display_name_set") and not _has_policy_acceptance(profile)
+        else {}
+    )
 
     if LOCAL_TEST_MODE:
         for existing_uid, existing in LOCAL_DB["profiles"].items():

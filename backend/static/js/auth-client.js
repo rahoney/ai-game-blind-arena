@@ -277,6 +277,17 @@ function hasAcceptedCurrentPolicies() {
     return !!document.getElementById('auth-policy-acceptance')?.checked;
 }
 
+function hasStoredPolicyAcceptance() {
+    const profile = state.account?.profile || {};
+    return !!(profile.terms_accepted_at && profile.privacy_accepted_at);
+}
+
+function requiresPolicyAcceptanceForDisplayName() {
+    return !!state.account?.profile
+        && state.account.profile.display_name_set === false
+        && !hasStoredPolicyAcceptance();
+}
+
 function getIdentityFormValues() {
     return {
         login_id: document.getElementById('auth-login-id')?.value.trim() || '',
@@ -1665,9 +1676,12 @@ async function handleAccountLoginIdSetupSubmit() {
 async function saveDisplayName(displayName) {
     if (!firebaseAuth?.currentUser) return null;
     const token = await firebaseAuth.currentUser.getIdToken();
+    const payload = { display_name: displayName };
+    if (requiresPolicyAcceptanceForDisplayName()) {
+        Object.assign(payload, getPolicyAcceptanceValues());
+    }
     state.account = await apiUpdateProfileDisplayName(token, {
-        display_name: displayName,
-        ...getPolicyAcceptanceValues(),
+        ...payload,
     });
     state.isAdmin = !!state.account?.is_admin;
     return state.account;
@@ -1832,7 +1846,7 @@ async function handleDisplayNameSubmit() {
         showAppMessage(displayNameError, { tone: 'error' });
         return;
     }
-    if (!hasAcceptedCurrentPolicies()) {
+    if (requiresPolicyAcceptanceForDisplayName() && !hasAcceptedCurrentPolicies()) {
         showAppMessage(t('auth_policy_acceptance_required'), { tone: 'error' });
         return;
     }
