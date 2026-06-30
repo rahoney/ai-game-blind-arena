@@ -1673,12 +1673,12 @@ async function handleAccountLoginIdSetupSubmit() {
     }
 }
 
-async function saveDisplayName(displayName) {
+async function saveDisplayName(displayName, policyAcceptanceValues = null) {
     if (!firebaseAuth?.currentUser) return null;
     const token = await firebaseAuth.currentUser.getIdToken();
     const payload = { display_name: displayName };
-    if (requiresPolicyAcceptanceForDisplayName()) {
-        Object.assign(payload, getPolicyAcceptanceValues());
+    if (policyAcceptanceValues) {
+        Object.assign(payload, policyAcceptanceValues);
     }
     state.account = await apiUpdateProfileDisplayName(token, {
         ...payload,
@@ -1850,6 +1850,9 @@ async function handleDisplayNameSubmit() {
         showAppMessage(t('auth_policy_acceptance_required'), { tone: 'error' });
         return;
     }
+    const policyAcceptanceValues = requiresPolicyAcceptanceForDisplayName()
+        ? getPolicyAcceptanceValues()
+        : null;
 
     const trace = startAuthPerformanceTrace('display_name_submit');
     let outcome = 'error';
@@ -1858,7 +1861,7 @@ async function handleDisplayNameSubmit() {
         rerenderAuthBusySurface();
         await firebaseAuth.currentUser.updateProfile({ displayName });
         markAuthPerformanceStep(trace, 'firebase_display_name_updated');
-        await saveDisplayName(displayName);
+        await saveDisplayName(displayName, policyAcceptanceValues);
         markAuthPerformanceStep(trace, 'service_display_name_saved');
         state.authMode = 'login';
         const { allPromise } = refreshSignedInGameState({
