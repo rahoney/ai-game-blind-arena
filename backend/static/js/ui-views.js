@@ -109,6 +109,18 @@ function renderLogin() {
     const isFindId = mode === 'find_id';
     const isResetPassword = mode === 'reset_password';
     const showDialogClose = isDialog && canCloseAuthDialog();
+    const isForcedDisplayNameReset = isDisplayName
+        && !!state.account?.profile
+        && state.account.profile.display_name_set === false;
+    const authDescriptionKey = isDisplayName
+        ? (isForcedDisplayNameReset ? 'auth_display_name_reset_desc' : 'auth_display_name_setup_desc')
+        : isVerifyEmail
+            ? 'auth_verify_email_desc'
+            : isHelp
+                ? 'auth_help_desc'
+                : isFindId
+                    ? 'auth_find_id_desc'
+                    : 'auth_reset_password_desc';
     const authBusyNotice = state.isLoginSubmitting
         ? `<p class="auth-inline-status auth-progress-status" role="status" aria-live="polite">${getAuthBusyMessage()}</p>`
         : '';
@@ -118,7 +130,7 @@ function renderLogin() {
                 <button type="button" class="auth-dialog-close" onclick="closeAuthDialog()" aria-label="${t('dialog_close')}">×</button>
             ` : ''}
             <div class="card auth-card ${isDialog ? 'auth-card-dialog' : ''}">
-            ${isDisplayName || isVerifyEmail || isHelp || isFindId || isResetPassword ? `<p class="auth-description">${isDisplayName ? t('auth_display_name_setup_desc') : isVerifyEmail ? t('auth_verify_email_desc') : isHelp ? t('auth_help_desc') : isFindId ? t('auth_find_id_desc') : t('auth_reset_password_desc')}</p>` : ''}
+            ${isDisplayName || isVerifyEmail || isHelp || isFindId || isResetPassword ? `<p class="auth-description">${t(authDescriptionKey)}</p>` : ''}
             ${disabled ? `<p class="auth-status">${t('auth_not_configured')}</p>` : ''}
             <div class="auth-form">
                 ${isDisplayName ? `

@@ -716,7 +716,10 @@ async function handleAdminUserAction(profileId, action) {
     if (!window.confirm(t(confirmKey))) return;
     try {
         await apiAdminUserAction(profileId, action);
-        showAppMessage(t('admin_action_success'), { tone: 'success' });
+        const successKey = action === 'reset-display-name'
+            ? 'admin_reset_display_name_success'
+            : 'admin_action_success';
+        showAppMessage(t(successKey), { tone: 'success' });
         await refreshAdminOverview();
     } catch (e) {
         showAppMessage(t(e?.message || 'admin_user_action_failed'), { tone: 'error' });
