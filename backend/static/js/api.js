@@ -13,12 +13,15 @@ async function apiFetchAuthConfig() {
 }
 
 async function apiFetchAuthMe(idToken) {
+    const startedAt = window.performance?.now?.() || Date.now();
     const res = await fetch(`${API_BASE}/auth/me`, {
         headers: {
             'Authorization': `Bearer ${idToken}`
         }
     });
     const data = await res.json();
+    const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
+    console.info(`[auth-perf] api:/auth/me ${elapsedMs.toFixed(1)}ms status=${res.status}`);
     if (!res.ok) {
         throw new Error(data?.detail || 'auth_failed');
     }
@@ -143,12 +146,15 @@ async function apiChangeMyDisplayName(displayName) {
 }
 
 async function apiResolveLoginIdEmail(loginId) {
+    const startedAt = window.performance?.now?.() || Date.now();
     const res = await fetch(`${API_BASE}/auth/login-id-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ login_id: loginId })
     });
     const data = await res.json();
+    const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
+    console.info(`[auth-perf] api:/auth/login-id-email ${elapsedMs.toFixed(1)}ms status=${res.status}`);
     if (!res.ok) {
         throw new Error(data?.detail || 'invalid_recovery_input');
     }
