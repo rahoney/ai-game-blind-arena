@@ -849,14 +849,16 @@ async function refreshUserEvaluations(options = {}) {
 }
 
 async function refreshAccountFromFirebaseUser(options = {}) {
-    const { forceTokenRefresh = false, renderNavigation = true } = options;
+    const { forceTokenRefresh = false, renderNavigation = true, trace = null } = options;
     if (!firebaseAuth?.currentUser) return null;
     const startedAt = window.performance?.now?.() || Date.now();
     const token = await firebaseAuth.currentUser.getIdToken(forceTokenRefresh);
+    markAuthPerformanceStep(trace, 'firebase_token_ready');
     syncCurrentAuthUserSnapshot();
     syncBlindSeedForAuthUser(firebaseAuth.currentUser.uid);
     markAuthActivity();
     state.account = await apiFetchAuthMe(token);
+    markAuthPerformanceStep(trace, 'auth_me_loaded');
     state.isAdmin = !!state.account?.is_admin;
     const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;
     console.info(`[perf] apiFetchAuthMe ${elapsedMs.toFixed(1)}ms forceTokenRefresh=${forceTokenRefresh}`);
@@ -943,7 +945,7 @@ async function handleEmailAuth(mode) {
             markAuthPerformanceStep(trace, 'firebase_authenticated');
         }
         setAuthBusyContext('auth_profile_load');
-        await refreshAccountFromFirebaseUser({ renderNavigation: false });
+        await refreshAccountFromFirebaseUser({ renderNavigation: false, trace });
         markAuthPerformanceStep(trace, 'account_profile_loaded');
         if (needsEmailVerification()) {
             outcome = 'verification_required';
