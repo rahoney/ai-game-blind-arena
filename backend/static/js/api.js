@@ -12,9 +12,11 @@ async function apiFetchAuthConfig() {
     return await res.json();
 }
 
-async function apiFetchAuthMe(idToken) {
+async function apiFetchAuthMe(idToken, options = {}) {
+    const includeLinkedProviders = options.includeLinkedProviders !== false;
+    const linkedProviderQuery = includeLinkedProviders ? '' : '?include_linked_providers=false';
     const startedAt = window.performance?.now?.() || Date.now();
-    const res = await fetch(`${API_BASE}/auth/me`, {
+    const res = await fetch(`${API_BASE}/auth/me${linkedProviderQuery}`, {
         headers: {
             'Authorization': `Bearer ${idToken}`
         }
