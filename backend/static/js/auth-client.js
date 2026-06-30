@@ -659,7 +659,7 @@ async function initializeFirebaseAuth() {
                         state.authUser = user;
                         syncBlindSeedForAuthUser(user.uid);
                         const token = await user.getIdToken();
-                        state.account = await apiFetchAuthMe(token);
+                        state.account = await apiFetchAuthMe(token, { includeLinkedProviders: false });
                         state.isAdmin = !!state.account?.is_admin;
                         if (needsEmailVerification(user)) {
                             state.authMode = 'verify_email';
@@ -857,7 +857,7 @@ async function refreshAccountFromFirebaseUser(options = {}) {
     syncCurrentAuthUserSnapshot();
     syncBlindSeedForAuthUser(firebaseAuth.currentUser.uid);
     markAuthActivity();
-    state.account = await apiFetchAuthMe(token);
+    state.account = await apiFetchAuthMe(token, { includeLinkedProviders: false });
     markAuthPerformanceStep(trace, 'auth_me_loaded');
     state.isAdmin = !!state.account?.is_admin;
     const elapsedMs = (window.performance?.now?.() || Date.now()) - startedAt;

@@ -30,7 +30,7 @@
         },
         {
           "key": "Content-Security-Policy-Report-Only",
-          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://www.gstatic.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' https://api.veilplays.com https://*.googleapis.com https://*.firebaseio.com https://*.google-analytics.com https://www.google-analytics.com https://region1.google-analytics.com; frame-src 'self' https://docs.google.com https://*.firebaseapp.com; form-action 'self' https://accounts.google.com"
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://www.gstatic.com https://www.googletagmanager.com https://apis.google.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' https://api.veilplays.com https://*.googleapis.com https://*.firebaseio.com https://*.google-analytics.com https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net; frame-src 'self' https://docs.google.com https://*.firebaseapp.com; form-action 'self' https://accounts.google.com"
         }
       ]
     },

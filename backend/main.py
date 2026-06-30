@@ -3073,14 +3073,14 @@ async def steam_openid_callback(request: Request, state: str | None = None):
 
 
 @app.get("/api/auth/me")
-async def auth_me(request: Request):
+async def auth_me(request: Request, include_linked_providers: bool = True):
     started_at = perf_counter()
     last_step_at = started_at
 
     def mark_server_auth_step(step: str):
         nonlocal last_step_at
         now = perf_counter()
-        logger.info(
+        logger.warning(
             "[auth-perf] /api/auth/me %s step_ms=%.1f elapsed_ms=%.1f",
             step,
             (now - last_step_at) * 1000,
@@ -3092,9 +3092,20 @@ async def auth_me(request: Request):
     mark_server_auth_step("firebase_user_verified")
     profile = _resolve_profile_for_firebase_user(user)
     mark_server_auth_step("profile_resolved")
-    linked_providers = _linked_provider_keys_for_profile(profile)
-    mark_server_auth_step("linked_providers_loaded")
-    logger.info("[auth-perf] /api/auth/me total_ms=%.1f", (perf_counter() - started_at) * 1000)
+    linked_providers = (
+        _linked_provider_keys_for_profile(profile)
+        if include_linked_providers
+        else sorted(
+            provider
+            for provider in {
+                _normalize_provider_key(provider)
+                for provider in (profile.get("social_providers") or [])
+            }
+            if provider and provider != "password"
+        )
+    )
+    mark_server_auth_step("linked_providers_loaded" if include_linked_providers else "linked_providers_skipped")
+    logger.warning("[auth-perf] /api/auth/me total_ms=%.1f include_linked_providers=%s", (perf_counter() - started_at) * 1000, include_linked_providers)
     return {
         "uid": user.get("uid", ""),
         "email": user.get("email"),
