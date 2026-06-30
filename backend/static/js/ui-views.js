@@ -814,16 +814,15 @@ function renderGameList() {
                         <p>${t('model_selection_description')}</p>
                     </div>
                 </div>
+                <div class="model-selection-results">
+                    <button type="button" class="model-selection-results-button" onclick="navigateTo('results', renderResults)">
+                        ${t('all_results')}
+                    </button>
+                </div>
                 <div class="model-selection-grid">
                 ${modelsHtml}
                 </div>
             </section>
-
-            <div class="model-selection-results">
-                <button type="button" class="model-selection-results-button" onclick="navigateTo('results', renderResults)">
-                    ${t('all_results')}
-                </button>
-            </div>
         </main>
     `;
 }
