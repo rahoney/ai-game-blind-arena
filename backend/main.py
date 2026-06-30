@@ -3074,9 +3074,27 @@ async def steam_openid_callback(request: Request, state: str | None = None):
 
 @app.get("/api/auth/me")
 async def auth_me(request: Request):
+    started_at = perf_counter()
+    last_step_at = started_at
+
+    def mark_server_auth_step(step: str):
+        nonlocal last_step_at
+        now = perf_counter()
+        logger.info(
+            "[auth-perf] /api/auth/me %s step_ms=%.1f elapsed_ms=%.1f",
+            step,
+            (now - last_step_at) * 1000,
+            (now - started_at) * 1000,
+        )
+        last_step_at = now
+
     user = require_firebase_user(request)
+    mark_server_auth_step("firebase_user_verified")
     profile = _resolve_profile_for_firebase_user(user)
+    mark_server_auth_step("profile_resolved")
     linked_providers = _linked_provider_keys_for_profile(profile)
+    mark_server_auth_step("linked_providers_loaded")
+    logger.info("[auth-perf] /api/auth/me total_ms=%.1f", (perf_counter() - started_at) * 1000)
     return {
         "uid": user.get("uid", ""),
         "email": user.get("email"),
