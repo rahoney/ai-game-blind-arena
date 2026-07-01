@@ -11,7 +11,6 @@
 **VeilPlays**는 동일한 프롬프트로 여러 AI 모델이 제작한 게임을 직접 플레이하고, 블라인드 방식으로 비교 평가하는 **게임 기반 AI 모델 성능 비교·벤치마크 서비스**입니다.
 
 - Service: [https://www.veilplays.com](https://www.veilplays.com)
-- API health check: [https://api.veilplays.com/healthz](https://api.veilplays.com/healthz)
 
 ## Overview
 
@@ -80,7 +79,6 @@
 | Email | Brevo |
 | Hosting | Vercel for static frontend, Render for FastAPI API |
 | Security edge | Cloudflare DNS, SSL, cache rules, rate limiting rules |
-| Analytics and search | Google Analytics, Google Search Console, Naver Search Advisor |
 
 ## Architecture
 
@@ -170,15 +168,6 @@ node scripts/verify-deployment-prep.mjs
 
 ## Security Notes
 
-- Server-side data access is handled through the FastAPI backend.
-- Supabase RLS is enabled with deny-by-default policies for direct anonymous/authenticated access.
-- Firebase ID tokens are verified server-side before account, evaluation, and admin actions.
-- Admin APIs require configured super-admin Firebase UIDs.
-- Cloudflare rate limiting is used for sensitive auth mail and recovery endpoints.
-- Static frontend is served with security headers through Vercel configuration.
-
-## Repository Rules
-
-- `docs/`는 로컬 작업 자료 전용이다. `.gitignore`에서 제거하지 말고, `docs/` 하위 파일에 대한 예외를 만들지 말고, `docs/` 안의 어떤 파일도 GitHub에 강제로 추가하지 않는다.
-- 커밋 메시지는 반드시 한국어로 작성한다.
-- 바로 푸시하지 않는 작업도 셧다운 대비와 버전 관리를 위해 Git 커밋으로 기록한다.
+- Account, evaluation, comment, and admin actions are verified and processed server-side.
+- User-generated comments and replies can be moderated through administrator tools.
+- Secrets, environment values, and internal operation notes are not included in this repository README.
