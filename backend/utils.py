@@ -258,7 +258,7 @@ def resolve_profile_badge_key(saved_profile_badge_key: str | None, unlocked_badg
     unlocked_badge_keys = unlocked_badge_keys or ["badge_egg"]
     if saved_profile_badge_key and saved_profile_badge_key in unlocked_badge_keys:
         return saved_profile_badge_key
-    return unlocked_badge_keys[-1]
+    return "badge_egg"
 
 
 def _activity_display_name(row):
