@@ -163,9 +163,7 @@ function renderPlayModelCommentsContent() {
     const modelResult = state.playModelCommentsResult;
     const comments = [...(modelResult?.comments || [])]
         .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-    const title = modelResult?.actual_model_name
-        ? t('play_comments_title_with_model', { model: escapeHtml(modelResult.actual_model_name) })
-        : t('play_comments_title');
+    const title = t('play_comments_title');
 
     if (!comments.length) {
         return `
