@@ -261,14 +261,14 @@ function getLockedTopResultModelNames(results = state.resultsData || []) {
 
 function renderLockedResultModelName(rankNumber) {
     return `
-        <div class="results-model-lock" aria-label="${t('results_model_locked_label')}">
+        <div class="results-model-lock ${rankNumber === 1 ? 'with-copy' : 'is-continuation'}" aria-label="${t('results_model_locked_label')}">
             <span class="results-model-lock-icon" aria-hidden="true">🔒</span>
             <span class="results-model-lock-bars" aria-hidden="true">
                 <span></span>
                 <span></span>
                 <span></span>
             </span>
-            <span class="results-model-lock-copy">${t('results_top_models_locked_notice')}</span>
+            ${rankNumber === 1 ? `<span class="results-model-lock-copy">${t('results_top_models_locked_notice')}</span>` : ''}
             <span class="results-model-lock-rank">Top ${rankNumber}</span>
         </div>
     `;
