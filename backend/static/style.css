@@ -5409,35 +5409,16 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
     letter-spacing: 0;
 }
 
-.results-lock-notice {
-    margin: 0.35rem 0 0.65rem;
-    padding: 0.72rem 0.95rem;
-    border: 1px solid rgba(79, 195, 247, 0.28);
-    border-radius: 10px;
-    color: var(--text-color);
-    background:
-        linear-gradient(135deg, rgba(79, 195, 247, 0.16), rgba(124, 92, 255, 0.08)),
-        rgba(255, 255, 255, 0.035);
-    font-weight: 850;
-    text-align: center;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.18);
-}
-
-.results-lock-notice-row td {
-    padding: 0.7rem 0.55rem 0.25rem;
-    border-bottom: 0;
-}
-
 .results-model-lock {
     position: relative;
-    width: min(170px, 100%);
-    min-height: 42px;
+    width: min(220px, 100%);
+    min-height: 76px;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: auto auto;
-    gap: 0.18rem 0.5rem;
+    grid-template-rows: auto auto auto;
+    gap: 0.22rem 0.55rem;
     align-items: center;
-    padding: 0.5rem 0.62rem;
+    padding: 0.58rem 0.68rem;
     overflow: hidden;
     border: 1px solid rgba(182, 236, 255, 0.24);
     border-radius: 10px;
@@ -5463,7 +5444,7 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
 .results-model-lock-icon {
     position: relative;
     z-index: 1;
-    grid-row: 1 / 3;
+    grid-row: 1 / 4;
     font-size: 0.95rem;
     line-height: 1;
 }
@@ -5488,6 +5469,16 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
 
 .results-model-lock-bars span:nth-child(3) {
     width: 56%;
+}
+
+.results-model-lock-copy {
+    position: relative;
+    z-index: 1;
+    color: var(--text-color);
+    font-size: 0.72rem;
+    font-weight: 900;
+    line-height: 1.25;
+    word-break: keep-all;
 }
 
 .results-model-lock-rank {

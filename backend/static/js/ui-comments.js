@@ -268,6 +268,7 @@ function renderLockedResultModelName(rankNumber) {
                 <span></span>
                 <span></span>
             </span>
+            <span class="results-model-lock-copy">${t('results_top_models_locked_notice')}</span>
             <span class="results-model-lock-rank">Top ${rankNumber}</span>
         </div>
     `;
@@ -314,14 +315,6 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
         results.sort((a, b) => parseFloat(b[sortKey]) - parseFloat(a[sortKey]));
         state.resultsData = results;
         const lockedModelNames = getLockedTopResultModelNames(results);
-        const shouldShowResultsLockNotice = lockedModelNames.size > 0;
-        const lockNoticeRowHtml = shouldShowResultsLockNotice ? `
-            <tr class="results-lock-notice-row">
-                <td colspan="10">
-                    <div class="results-lock-notice">${t('results_top_models_locked_notice')}</div>
-                </td>
-            </tr>
-        ` : '';
 
         const getHeader = (key, label) => {
             const isActive = sortKey === key;
@@ -391,7 +384,6 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
                             </tr>
                         </thead>
                         <tbody>
-                            ${lockNoticeRowHtml}
                             ${rowsHtml}
                         </tbody>
                     </table>
