@@ -215,12 +215,16 @@ function getSortedCommentEntries(results = state.resultsData || []) {
 
 function renderResultsCommentsSection(results = state.resultsData || []) {
     const sortedCommentEntries = getSortedCommentEntries(results);
+    const lockedModelNames = getLockedTopResultModelNames(results);
     const commentsSectionsHtml = sortedCommentEntries.length ? `
         <div class="card results-comments-card" style="margin-top: 1.5rem; padding:1.5rem 1.25rem; max-width:100%;">
-            ${sortedCommentEntries.map((entry) => renderCommentCard(entry.comment, {
-                actual_model_name: entry.actual_model_name,
-                includeModelName: true,
-            })).join('')}
+            ${sortedCommentEntries.map((entry) => {
+                const isLockedModel = lockedModelNames.has(entry.actual_model_name);
+                return renderCommentCard(entry.comment, {
+                    actual_model_name: isLockedModel ? '' : entry.actual_model_name,
+                    includeModelName: !isLockedModel,
+                });
+            }).join('')}
         </div>
     ` : `
         <div class="card" style="margin-top: 1.5rem; color: var(--text-muted); text-align: center;">
@@ -238,6 +242,34 @@ function renderResultsCommentsSection(results = state.resultsData || []) {
         </div>
         ${renderCommentParticipationNotice()}
         ${commentsSectionsHtml}
+    `;
+}
+
+function hasEvaluatedCurrentCategory() {
+    if (!state.selectedCategory) return false;
+    return state.userEvals.some((item) => item.game_type === state.selectedCategory);
+}
+
+function shouldLockTopResultModelNames() {
+    return !state.isAdmin && !hasEvaluatedCurrentCategory();
+}
+
+function getLockedTopResultModelNames(results = state.resultsData || []) {
+    if (!shouldLockTopResultModelNames()) return new Set();
+    return new Set(results.slice(0, 3).map((item) => item.actual_model_name).filter(Boolean));
+}
+
+function renderLockedResultModelName(rankNumber) {
+    return `
+        <div class="results-model-lock" aria-label="${t('results_model_locked_label')}">
+            <span class="results-model-lock-icon" aria-hidden="true">🔒</span>
+            <span class="results-model-lock-bars" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+            </span>
+            <span class="results-model-lock-rank">Top ${rankNumber}</span>
+        </div>
     `;
 }
 
@@ -281,6 +313,8 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
 
         results.sort((a, b) => parseFloat(b[sortKey]) - parseFloat(a[sortKey]));
         state.resultsData = results;
+        const lockedModelNames = getLockedTopResultModelNames(results);
+        const shouldShowResultsLockNotice = lockedModelNames.size > 0;
 
         const getHeader = (key, label) => {
             const isActive = sortKey === key;
@@ -289,6 +323,8 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
         };
 
         const rowsHtml = results.map((r, index) => {
+            const rankNumber = index + 1;
+            const isModelNameLocked = lockedModelNames.has(r.actual_model_name);
             let rankHtml = `${index + 1}`;
             let rowStyle = 'border-bottom: 1px solid var(--border-color); transition: background 0.3s;';
             let medal = '';
@@ -309,7 +345,7 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
                 <tr style="${rowStyle}">
                     <td style="padding: 1.2rem 0.5rem; text-align: center; font-weight: 700;">${rankHtml}</td>
                     <td style="padding: 1.2rem 0.8rem; text-align: left; min-width: 150px;">
-                        <strong style="font-size: 1.05rem; display: block; line-height: 1.2;">${escapeHtml(r.actual_model_name)}</strong>
+                        ${isModelNameLocked ? renderLockedResultModelName(rankNumber) : `<strong style="font-size: 1.05rem; display: block; line-height: 1.2;">${escapeHtml(r.actual_model_name)}</strong>`}
                         ${medal}
                     </td>
                     <td style="padding: 1rem 0.5rem; text-align: center; font-weight: 900; color: var(--primary); font-size: 1.1rem; background: rgba(99, 102, 241, 0.05);">${r.avg_total}</td>
@@ -332,6 +368,7 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
                     <div style="width: 100px;"></div>
                 </div>
                 <div class="card results-table-shell">
+                    ${shouldShowResultsLockNotice ? `<div class="results-lock-notice">${t('results_top_models_locked_notice')}</div>` : ''}
                     <table style="width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr>
