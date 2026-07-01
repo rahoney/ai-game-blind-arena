@@ -315,6 +315,13 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
         state.resultsData = results;
         const lockedModelNames = getLockedTopResultModelNames(results);
         const shouldShowResultsLockNotice = lockedModelNames.size > 0;
+        const lockNoticeRowHtml = shouldShowResultsLockNotice ? `
+            <tr class="results-lock-notice-row">
+                <td colspan="10">
+                    <div class="results-lock-notice">${t('results_top_models_locked_notice')}</div>
+                </td>
+            </tr>
+        ` : '';
 
         const getHeader = (key, label) => {
             const isActive = sortKey === key;
@@ -368,7 +375,6 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
                     <div style="width: 100px;"></div>
                 </div>
                 <div class="card results-table-shell">
-                    ${shouldShowResultsLockNotice ? `<div class="results-lock-notice">${t('results_top_models_locked_notice')}</div>` : ''}
                     <table style="width: 100%; border-collapse: collapse;">
                         <thead>
                             <tr>
@@ -385,6 +391,7 @@ async function renderResults(sortKey = state.resultsSort || 'avg_total', options
                             </tr>
                         </thead>
                         <tbody>
+                            ${lockNoticeRowHtml}
                             ${rowsHtml}
                         </tbody>
                     </table>

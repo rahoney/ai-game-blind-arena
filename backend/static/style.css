@@ -5410,8 +5410,8 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
 }
 
 .results-lock-notice {
-    margin: 0 0 1rem;
-    padding: 0.82rem 1rem;
+    margin: 0.35rem 0 0.65rem;
+    padding: 0.72rem 0.95rem;
     border: 1px solid rgba(79, 195, 247, 0.28);
     border-radius: 10px;
     color: var(--text-color);
@@ -5421,6 +5421,11 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
     font-weight: 850;
     text-align: center;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 14px 34px rgba(0,0,0,0.18);
+}
+
+.results-lock-notice-row td {
+    padding: 0.7rem 0.55rem 0.25rem;
+    border-bottom: 0;
 }
 
 .results-model-lock {
