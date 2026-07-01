@@ -329,6 +329,8 @@ async function submitEvaluation() {
             console.error('Evaluation success UI update failed', uiError);
         }
 
+        upsertSubmittedEvaluationState(payload);
+
         try {
             invalidateResultsCache(state.selectedCategory);
             await loadSelectedModelComments({ showLoading: false });
@@ -354,6 +356,27 @@ async function submitEvaluation() {
     } finally {
         state.isEvaluationSubmitting = false;
         if (submitButton) submitButton.disabled = false;
+    }
+}
+
+function upsertSubmittedEvaluationState(payload) {
+    if (!payload?.game_type || !payload?.blind_model_id) return;
+    const modelRef = state.selectedGame || {};
+    const nextEval = {
+        game_type: payload.game_type,
+        blind_model_id: payload.blind_model_id,
+        model_key: modelRef.model_key || '',
+        actual_model_name: modelRef.actual_model || modelRef.actual_model_name || '',
+    };
+    const exists = state.userEvals.some((item) => (
+        item.game_type === nextEval.game_type
+        && (
+            (nextEval.model_key && item.model_key === nextEval.model_key)
+            || item.blind_model_id === nextEval.blind_model_id
+        )
+    ));
+    if (!exists) {
+        state.userEvals = [...state.userEvals, nextEval];
     }
 }
 
