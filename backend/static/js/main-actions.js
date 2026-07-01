@@ -330,26 +330,24 @@ async function submitEvaluation() {
         }
 
         try {
-            await refreshUserEvaluations({ rerender: false, force: true });
-        } catch (e) {
-            console.error('User evaluation refresh failed after submit', e);
-        }
-
-        try {
-            const myPageData = await apiFetchMyPage();
-            if (myPageData) {
-                notifyNewUnlockedBadges(myPageData, { shouldNotify: true });
-            }
-        } catch (e) {
-            console.error('My page refresh failed after submit', e);
-        }
-
-        try {
             invalidateResultsCache(state.selectedCategory);
             await loadSelectedModelComments({ showLoading: false });
         } catch (e) {
             console.error('Comment refresh failed after submit', e);
         }
+
+        Promise.allSettled([
+            refreshUserEvaluations({ rerender: false, force: true }),
+            apiFetchMyPage().then((myPageData) => {
+                if (myPageData) {
+                    notifyNewUnlockedBadges(myPageData, { shouldNotify: true });
+                }
+            }),
+        ]).catch((e) => {
+            if (e) {
+                console.error('Post evaluation background refresh failed', e);
+            }
+        });
     } catch (unexpectedError) {
         console.error('Unexpected evaluation submit flow error', unexpectedError);
         showAppMessage(t('evaluation_submit_network_error'), { tone: 'error' });
