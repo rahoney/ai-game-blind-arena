@@ -89,10 +89,20 @@ async function saveProfileBadge() {
     if (state.account?.profile) {
         state.account.profile.profile_badge_key = data.profile_badge_key;
     }
+    if (state.account) {
+        state.account.profile_badge_key = data.profile_badge_key;
+    }
     state.profileBadgeSelection = data.profile_badge_key;
+    state.resultsCache = {};
+    state.resultsRefreshPromises = {};
     showAppMessage(t('profile_badge_save_success'), { tone: 'success' });
     renderMyPage();
     renderGlobalNavigation();
+    if (state.currentView?.id === 'play' || state.currentView?.id === 'results') {
+        refreshCurrentCommentsView().catch((e) => {
+            console.error('Comments refresh failed after profile badge update', e);
+        });
+    }
 }
 
 async function setCommentSort(sortKey) {
