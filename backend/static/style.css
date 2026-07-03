@@ -4686,6 +4686,13 @@ iframe { width: 100%; height: 100%; border: none; }
         text-wrap: balance;
     }
 
+    body.lang-ko .landing-hero-copy h2 {
+        max-width: min(100%, 420px);
+        word-break: keep-all;
+        overflow-wrap: normal;
+        text-wrap: normal;
+    }
+
     .landing-visual-card-single {
         min-height: 280px;
     }
