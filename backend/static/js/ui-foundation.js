@@ -633,6 +633,9 @@ function toggleMobileNavigation(event) {
     if (!trigger || !menu) return;
     const shouldOpen = !menu.classList.contains('open');
     closeHeaderMenus();
+    if (shouldOpen) {
+        menu.scrollTop = 0;
+    }
     menu.classList.toggle('open', shouldOpen);
     menu.setAttribute('aria-hidden', shouldOpen ? 'false' : 'true');
     trigger.classList.toggle('open', shouldOpen);
@@ -650,6 +653,7 @@ function closeHeaderMenus() {
     trigger?.setAttribute('aria-expanded', 'false');
     mobileMenu?.classList.remove('open');
     mobileMenu?.setAttribute('aria-hidden', 'true');
+    if (mobileMenu) mobileMenu.scrollTop = 0;
 }
 
 function headerSelectCategory(category) {
