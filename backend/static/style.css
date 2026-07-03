@@ -1501,11 +1501,11 @@ body.theme-home .header-brand:active {
     }
 
     .header-mobile-menu {
-        position: absolute;
-        top: calc(100% + 0.45rem);
-        left: 0;
-        right: 0;
-        max-height: calc(100dvh - 72px);
+        position: fixed;
+        top: calc(66px + env(safe-area-inset-top, 0px));
+        left: max(0.65rem, env(safe-area-inset-left, 0px));
+        right: max(0.65rem, env(safe-area-inset-right, 0px));
+        max-height: calc(100dvh - 78px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
         padding: 0.9rem;
         border: 1px solid rgba(186, 219, 255, 0.16);
         border-radius: 8px;
@@ -1627,6 +1627,11 @@ body.theme-home .header-brand:active {
     .header {
         min-height: calc(92px + env(safe-area-inset-top, 0px));
         padding-top: calc(2.55rem + env(safe-area-inset-top, 0px));
+    }
+
+    .header-mobile-menu {
+        top: calc(92px + env(safe-area-inset-top, 0px));
+        max-height: calc(100dvh - 104px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     }
 }
 
