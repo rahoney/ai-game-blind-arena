@@ -1502,10 +1502,10 @@ body.theme-home .header-brand:active {
 
     .header-mobile-menu {
         position: fixed;
-        top: calc(66px + env(safe-area-inset-top, 0px));
+        top: var(--mobile-menu-top, calc(74px + env(safe-area-inset-top, 0px)));
         left: max(0.65rem, env(safe-area-inset-left, 0px));
         right: max(0.65rem, env(safe-area-inset-right, 0px));
-        max-height: calc(100dvh - 78px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100dvh - var(--mobile-menu-top, 74px) - 10px - env(safe-area-inset-bottom, 0px));
         padding: 0.9rem;
         border: 1px solid rgba(186, 219, 255, 0.16);
         border-radius: 8px;
@@ -1521,7 +1521,7 @@ body.theme-home .header-brand:active {
         transform: translateY(-8px);
         pointer-events: none;
         transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
-        z-index: 130;
+        z-index: 9500;
     }
 
     .header-mobile-menu.open {
@@ -1627,11 +1627,6 @@ body.theme-home .header-brand:active {
     .header {
         min-height: calc(92px + env(safe-area-inset-top, 0px));
         padding-top: calc(2.55rem + env(safe-area-inset-top, 0px));
-    }
-
-    .header-mobile-menu {
-        top: calc(92px + env(safe-area-inset-top, 0px));
-        max-height: calc(100dvh - 104px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     }
 }
 
