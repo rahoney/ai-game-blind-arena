@@ -1531,6 +1531,19 @@ body.theme-home .header-brand:active {
         pointer-events: auto;
     }
 
+    body.auth-dialog-open .header-mobile-menu,
+    html.auth-dialog-open .header-mobile-menu {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        transform: translateY(-8px) !important;
+    }
+
+    body.auth-dialog-open .header-mobile-trigger,
+    html.auth-dialog-open .header-mobile-trigger {
+        pointer-events: none;
+    }
+
     .header-mobile-account,
     .header-mobile-section,
     .header-mobile-about {
@@ -1653,7 +1666,11 @@ body.auth-dialog-open #onboarding-layer,
 html.auth-dialog-open #onboarding-layer {
     position: fixed;
     inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
     z-index: 11000;
+    overscroll-behavior: contain;
     background:
         radial-gradient(circle at top, rgba(235, 248, 255, 0.84), rgba(193, 226, 240, 0.74) 45%, rgba(164, 205, 225, 0.68) 100%);
     backdrop-filter: blur(16px) saturate(120%);
@@ -1667,7 +1684,7 @@ html.auth-dialog-open #onboarding-slider {
 
 body.auth-dialog-open .onboarding-section,
 html.auth-dialog-open .onboarding-section {
-    min-height: 100%;
+    min-height: 100dvh;
     justify-content: center;
     align-items: center;
     padding: calc(1.5rem + env(safe-area-inset-top, 0px)) 1.5rem calc(1.5rem + env(safe-area-inset-bottom, 0px));

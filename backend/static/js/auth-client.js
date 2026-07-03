@@ -114,12 +114,19 @@ function syncAuthDialogVisibility() {
     if (!onboardingLayer || !contentLayer || !onboardingSlider) return;
 
     if (state.authDialogOpen) {
+        if (typeof closeHeaderMenus === 'function') closeHeaderMenus();
         onboardingLayer.classList.remove('hidden');
         onboardingLayer.classList.add('auth-dialog-layer');
         contentLayer.classList.remove('hidden');
         document.body.classList.add('auth-dialog-open');
         document.documentElement.classList.add('auth-dialog-open');
+        onboardingLayer.scrollTop = 0;
+        onboardingSlider.scrollTop = 0;
         onboardingSlider.style.transform = 'translate3d(0, 0, 0)';
+        requestAnimationFrame(() => {
+            onboardingLayer.scrollTop = 0;
+            onboardingSlider.style.transform = 'translate3d(0, 0, 0)';
+        });
         return;
     }
 
@@ -133,6 +140,7 @@ function syncAuthDialogVisibility() {
 
 function openAuthDialog(mode = 'login') {
     if (state.isLoginSubmitting || canParticipateWithAccount()) return;
+    if (typeof closeHeaderMenus === 'function') closeHeaderMenus();
     state.authDialogOpen = true;
     state.authMode = mode === 'signup' ? 'signup' : 'login';
     renderLogin();
