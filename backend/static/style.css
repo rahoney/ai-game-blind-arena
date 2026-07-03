@@ -4253,6 +4253,8 @@ html.auth-dialog-open #onboarding-layer {
 }
 
 .auth-card-dialog .auth-form input {
+    height: 52px;
+    padding: 0 1rem;
     border-color: var(--app-border);
     border-radius: 8px;
     color: var(--app-text);
@@ -4271,6 +4273,52 @@ html.auth-dialog-open #onboarding-layer {
     color: var(--app-text);
     background: rgba(255,255,255,0.035);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.auth-card-dialog .auth-login-actions button {
+    height: 52px;
+    min-height: 52px;
+    padding: 0 1rem;
+}
+
+.auth-card-dialog .auth-social-buttons {
+    align-items: stretch;
+}
+
+.auth-card-dialog .auth-social-buttons .auth-provider-button {
+    width: 100%;
+    height: 48px;
+    min-height: 48px;
+    margin-top: 0;
+    padding: 0 0.85rem;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.auth-card-dialog .auth-social-buttons .auth-provider-image-button {
+    padding: 0;
+    border: 1px solid rgba(215, 232, 255, 0.18);
+    background: transparent;
+}
+
+.auth-card-dialog .auth-social-buttons .auth-provider-image-button img {
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: cover;
+}
+
+.auth-card-dialog .auth-social-buttons .gsi-material-button {
+    padding: 0 0.85rem;
+}
+
+.auth-card-dialog .auth-social-buttons .auth-provider-brand-button {
+    padding: 0 0.85rem;
+    gap: 0.5rem;
+}
+
+.auth-card-dialog .auth-social-buttons .auth-provider-brand-button.steam {
+    padding: 0 0.85rem;
 }
 
 .auth-card-dialog .auth-form > button:hover,
