@@ -43,6 +43,12 @@
 
 ![Game categories](assets/readme/veilplays-game-categories.jpeg)
 
+### Login / Sign Up
+
+이메일 계정 로그인과 Google, Kakao, Naver, GitHub, Discord, Steam 간편 로그인을 지원합니다.
+
+![Login screen](assets/readme/veilplays-login.jpeg)
+
 ### Blind Model Select
 
 게임별 15개 모델은 Model A-O로 표시됩니다. 실제 AI 모델명은 평가 완료 전까지 노출하지 않습니다.
