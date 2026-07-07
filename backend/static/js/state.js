@@ -23,6 +23,7 @@ let state = {
     account: null,
     authConfigured: false,
     authReady: false,
+    authConfigError: null,
     authMode: 'login',
     signupEmailVerification: {
         email: '',

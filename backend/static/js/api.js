@@ -1,3 +1,6 @@
+const AUTH_CONFIG_CACHE_KEY = `veilplays_auth_config:${API_ORIGIN}`;
+const AUTH_CONFIG_CACHE_TTL_MS = 30 * 60 * 1000;
+
 async function apiFetchGames() {
     const lang = state.language || 'ko';
     const blindSeed = encodeURIComponent(ensureBlindSeed());
@@ -8,8 +11,28 @@ async function apiFetchGames() {
 }
 
 async function apiFetchAuthConfig() {
-    const res = await fetch(`${API_BASE}/auth/config`, { cache: 'no-store' });
-    return await res.json();
+    try {
+        const cached = JSON.parse(sessionStorage.getItem(AUTH_CONFIG_CACHE_KEY) || 'null');
+        if (cached?.config?.configured && Date.now() - cached.savedAt < AUTH_CONFIG_CACHE_TTL_MS) {
+            return cached.config;
+        }
+    } catch (e) {
+        sessionStorage.removeItem(AUTH_CONFIG_CACHE_KEY);
+    }
+
+    const res = await fetch(`${API_BASE}/auth/config`);
+    const config = await res.json();
+    if (res.ok && config?.configured) {
+        try {
+            sessionStorage.setItem(AUTH_CONFIG_CACHE_KEY, JSON.stringify({
+                savedAt: Date.now(),
+                config,
+            }));
+        } catch (e) {
+            sessionStorage.removeItem(AUTH_CONFIG_CACHE_KEY);
+        }
+    }
+    return config;
 }
 
 async function apiFetchAuthMe(idToken, options = {}) {

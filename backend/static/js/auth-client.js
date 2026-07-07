@@ -151,6 +151,16 @@ function closeAuthDialog() {
     syncAuthDialogVisibility();
 }
 
+function rerenderAuthReadinessSurfaces() {
+    if (state.authDialogOpen || state.currentView?.id === 'login') {
+        renderLogin();
+        syncAuthDialogVisibility();
+    }
+    if (typeof renderHeaderActions === 'function') {
+        renderHeaderActions();
+    }
+}
+
 function completeAuthDialogSuccess() {
     if (!state.authDialogOpen) return false;
     state.authDialogOpen = false;
@@ -633,14 +643,18 @@ async function initializeFirebaseAuth() {
     if (typeof firebase === 'undefined') {
         state.authReady = true;
         state.authConfigured = false;
+        state.authConfigError = 'firebase_sdk_missing';
+        rerenderAuthReadinessSurfaces();
         return;
     }
 
     try {
         const config = await apiFetchAuthConfig();
         state.authConfigured = !!config.configured;
+        state.authConfigError = config.configured ? null : 'firebase_config_missing';
         if (!config.configured) {
             state.authReady = true;
+            rerenderAuthReadinessSurfaces();
             return;
         }
 
@@ -682,6 +696,7 @@ async function initializeFirebaseAuth() {
                 } finally {
                     state.authReady = true;
                     renderGlobalNavigation();
+                    rerenderAuthReadinessSurfaces();
                     unsubscribe();
                     resolve();
                 }
@@ -690,7 +705,9 @@ async function initializeFirebaseAuth() {
     } catch (e) {
         console.error('Firebase auth initialization failed', e);
         state.authConfigured = false;
+        state.authConfigError = e?.message || 'firebase_config_load_failed';
         state.authReady = true;
+        rerenderAuthReadinessSurfaces();
     }
 }
 
