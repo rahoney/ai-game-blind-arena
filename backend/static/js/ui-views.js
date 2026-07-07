@@ -98,7 +98,9 @@ function renderGithubAuthButton(disabled) {
 
 function renderLogin() {
     const el = document.getElementById('view-login');
-    const disabled = !state.authConfigured;
+    const authLoading = !state.authReady;
+    const configFailed = state.authReady && !state.authConfigured;
+    const disabled = authLoading || configFailed;
     const actionDisabled = disabled || state.isLoginSubmitting;
     const mode = ['signup', 'display_name', 'verify_email', 'help', 'find_id', 'reset_password'].includes(state.authMode) ? state.authMode : 'login';
     const isDialog = state.authDialogOpen && state.currentView?.id !== 'login';
@@ -133,7 +135,8 @@ function renderLogin() {
             ` : ''}
             <div class="card auth-card ${isDialog ? 'auth-card-dialog' : ''}">
             ${isDisplayName || isVerifyEmail || isHelp || isFindId || isResetPassword ? `<p class="auth-description">${t(authDescriptionKey)}</p>` : ''}
-            ${disabled ? `<p class="auth-status">${t('auth_not_configured')}</p>` : ''}
+            ${authLoading ? `<p class="auth-status" role="status" aria-live="polite">${t('auth_initializing')}</p>` : ''}
+            ${configFailed ? `<p class="auth-status">${t('auth_not_configured')}</p>` : ''}
             <div class="auth-form">
                 ${isDisplayName ? `
                     <label for="auth-display-name">${t('auth_display_name_label')}</label>
