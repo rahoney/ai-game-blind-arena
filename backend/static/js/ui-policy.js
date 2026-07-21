@@ -2,8 +2,8 @@ function getPrivacyPolicyContent() {
     if (state.language === 'en') {
         return {
             title: 'Privacy Policy',
-            effectiveDate: 'Effective date: June 26, 2026',
-            intro: 'VeilPlays provides an account-based AI game evaluation service. This page explains what data may be processed, why it may be processed, how long it may be retained, what third-party services may be involved, and what disclosures apply if Google AdSense is enabled.',
+            effectiveDate: 'Effective date: July 21, 2026',
+            intro: 'VeilPlays provides an account-based AI game evaluation service. This page explains what data may be processed, why it may be processed, how long it may be retained, what third-party services may be involved, and what disclosures apply to service analytics and advertising.',
             sections: [
                 {
                     heading: '1. Service Operator',
@@ -32,6 +32,7 @@ function getPrivacyPolicyContent() {
                         'To store evaluations, comments, replies, and reactions',
                         'To calculate rankings, statistics, My Page summaries, and badge unlock conditions',
                         'To prevent abuse such as spam, repeated submissions, or policy violations',
+                        'To analyze navigation, scrolling, clicks, and evaluation completion patterns and improve the user experience',
                         'To respond to inquiries submitted through the Contact Us page and to improve service operations',
                     ],
                 },
@@ -49,6 +50,8 @@ function getPrivacyPolicyContent() {
                     body: [
                         'Supabase may be used for database storage and backend data handling.',
                         'Google Forms may be used for the inquiry page and user-submitted contact messages.',
+                        'Microsoft Clarity is used to understand navigation, scrolling, clicks, and other interaction patterns through session recordings and heatmaps. Clarity may process technical information such as IP address, browser and device information, page access records, and interaction signals under Microsoft\'s applicable policies.',
+                        'Game controls rendered inside the game iframe are outside the intended Clarity tracking scope. Authentication, account-management, administration, and evaluation-comment input areas are explicitly masked in the page markup.',
                         'Google AdSense may be introduced later. If enabled, Google and its partners may collect, receive, or process data for ad serving, measurement, fraud prevention, frequency capping, reporting, or personalization according to their own policies.',
                         'When third-party advertising is active, third parties may read or write cookies in the browser, use web beacons, and receive technical information such as IP address and browser identifiers in connection with ad requests and ad measurement.',
                     ],
@@ -57,6 +60,7 @@ function getPrivacyPolicyContent() {
                     heading: '6. Cookies, Local Storage, Web Beacons, and Ads',
                     body: [
                         'The service currently uses browser localStorage for language preference and some UI state.',
+                        'Microsoft Clarity may use cookies or similar technologies for session analysis. Input field contents are masked and are not intended to be collected in session recordings.',
                         'If Google AdSense is enabled, Google and its partners may use cookies, local storage, pixels, web beacons, SDK-like identifiers, or similar technologies for ad delivery, frequency capping, measurement, fraud detection, and personalized or non-personalized advertising where applicable.',
                         'In connection with those technologies, technical data such as IP address, browser type, device information, page access records, and interaction signals may be collected or processed.',
                         'Users may review or manage ad personalization through Google Ad Settings: https://adssettings.google.com/',
@@ -86,8 +90,8 @@ function getPrivacyPolicyContent() {
 
     return {
         title: '개인정보처리방침',
-        effectiveDate: '시행일: 2026년 6월 26일',
-        intro: 'VeilPlays는 계정 기반의 AI 게임 평가 서비스를 제공합니다. 본 페이지는 어떤 정보가 처리될 수 있는지, 왜 처리되는지, 얼마나 보관될 수 있는지, 어떤 제3자 서비스가 관여할 수 있는지, 그리고 향후 Google AdSense가 도입될 경우 어떤 고지가 적용되는지를 설명합니다.',
+        effectiveDate: '시행일: 2026년 7월 21일',
+        intro: 'VeilPlays는 계정 기반의 AI 게임 평가 서비스를 제공합니다. 본 페이지는 어떤 정보가 처리될 수 있는지, 왜 처리되는지, 얼마나 보관될 수 있는지, 어떤 제3자 서비스가 관여할 수 있는지, 그리고 서비스 분석 및 광고에 어떤 고지가 적용되는지를 설명합니다.',
         sections: [
             {
                 heading: '1. 서비스 운영자',
@@ -116,6 +120,7 @@ function getPrivacyPolicyContent() {
                     '평가, 코멘트, 댓글, 반응 기록을 저장하고 보여주기 위해',
                     '랭킹, 통계, 마이페이지 요약, 배지 획득 조건을 계산하기 위해',
                     '스팸, 반복 입력, 정책 위반 등 서비스 오남용을 방지하기 위해',
+                    '화면 이동, 스크롤, 클릭, 평가 완료 흐름을 분석하고 사용자 경험을 개선하기 위해',
                     '문의하기 페이지를 통해 접수된 문의에 응답하고 서비스 운영을 개선하기 위해',
                 ],
             },
@@ -133,6 +138,8 @@ function getPrivacyPolicyContent() {
                 body: [
                     '데이터 저장 및 백엔드 처리를 위해 Supabase를 사용할 수 있습니다.',
                     '문의 페이지 운영을 위해 Google Forms를 사용할 수 있습니다.',
+                    '화면 이동, 스크롤, 클릭 등 이용 흐름을 세션 녹화와 히트맵으로 분석하기 위해 Microsoft Clarity를 사용합니다. 이 과정에서 Microsoft의 관련 정책에 따라 IP 주소, 브라우저 및 기기 정보, 페이지 접근 기록, 상호작용 신호 등의 기술적 정보가 처리될 수 있습니다.',
+                    '게임 iframe 내부의 게임 조작은 Clarity의 의도된 추적 범위에서 제외되며, 로그인·계정관리·관리자 화면과 평가 코멘트 입력 영역은 페이지 코드에서 명시적으로 마스킹합니다.',
                     '향후 Google AdSense가 도입될 수 있으며, 실제 도입 시 Google 및 파트너사는 광고 제공, 성과 측정, 사기 방지, 노출 빈도 제한, 개인화 등의 목적으로 데이터를 수집하거나 처리할 수 있습니다.',
                     '제3자 광고가 활성화되면 광고 요청 및 측정 과정에서 제3자가 브라우저의 쿠키를 읽거나 저장하고, 웹 비콘을 사용하며, IP 주소나 브라우저 식별자 같은 기술적 정보를 전달받을 수 있습니다.',
                 ],
@@ -141,6 +148,7 @@ function getPrivacyPolicyContent() {
                 heading: '6. 쿠키, 로컬 스토리지, 웹 비콘 및 광고',
                 body: [
                     '현재 서비스는 언어 설정과 일부 UI 상태 저장을 위해 브라우저 localStorage를 사용할 수 있습니다.',
+                    'Microsoft Clarity는 세션 분석을 위해 쿠키 또는 유사 기술을 사용할 수 있습니다. 입력 필드의 내용은 마스킹되며 세션 녹화에서 수집하지 않는 것을 원칙으로 합니다.',
                     'Google AdSense가 활성화되면 Google 및 파트너사는 광고 제공, 빈도 제한, 성과 측정, 사기 방지, 맞춤형 또는 비맞춤형 광고 제공 등을 위해 쿠키, 로컬 스토리지, 픽셀, 웹 비콘 또는 유사 기술을 사용할 수 있습니다.',
                     '이 과정에서 IP 주소, 브라우저 종류, 기기 정보, 페이지 접근 기록, 상호작용 신호 등 기술적 정보가 수집되거나 처리될 수 있습니다.',
                     '광고 기능이 활성화된 경우 사용자는 Google 광고 설정 페이지(https://adssettings.google.com/)를 통해 맞춤형 광고 관련 설정을 확인하거나 관리할 수 있습니다.',
