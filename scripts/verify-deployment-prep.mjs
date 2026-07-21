@@ -61,6 +61,9 @@ assert(!productionIndex.includes('noindex, nofollow'), 'Production must be index
 assert(!productionAbout.includes('noindex, nofollow'), 'Production about page must be indexable');
 assert(!productionTerms.includes('noindex, nofollow'), 'Production terms page must be indexable');
 assert(!productionPrivacy.includes('noindex, nofollow'), 'Production privacy page must be indexable');
+assert(productionIndex.includes('https://www.clarity.ms/tag/'), 'Clarity tracking script missing');
+assert(productionIndex.includes('xpwx0v65rj'), 'Clarity project ID missing');
+assert(productionAbout.includes('xpwx0v65rj'), 'Clarity tracking missing from generated static pages');
 assert(productionIndex.includes('rel="canonical" href="https://www.veilplays.com/"'), 'Canonical URL missing');
 assert(productionAbout.includes('rel="canonical" href="https://www.veilplays.com/about"'), 'About canonical URL missing');
 assert(productionAbout.includes('VeilPlays는 여러 AI 모델이 동일한 프롬프트로 제작한 게임'), 'About static SEO content missing');
