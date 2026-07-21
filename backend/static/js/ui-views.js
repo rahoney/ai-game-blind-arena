@@ -899,7 +899,7 @@ function renderPlayEvaluationForm() {
                 </div>
                 <div style="margin-top: 3rem; width: 100%; max-width: 1100px;">
                     <label style="display: block; margin-bottom: 1rem; font-size: 1.2rem; font-weight: bold; color: var(--primary);">${state.language === 'ko' ? '코멘트 (150자 이내)' : 'Comment (Max 150 chars)'}</label>
-                    <textarea id="comment" rows="4" maxlength="150" placeholder="${t('comment_placeholder')}" ${participationLocked ? 'disabled' : ''} style="width: 100%; padding: 1.5rem; font-size: 1.2rem; border-radius: 15px; background: var(--surface-bg); color: var(--text-color); border: 1px solid var(--border-color); transition: border-color 0.3s; line-height: 1.6;"></textarea>
+                    <textarea id="comment" rows="4" maxlength="150" data-clarity-mask="true" placeholder="${t('comment_placeholder')}" ${participationLocked ? 'disabled' : ''} style="width: 100%; padding: 1.5rem; font-size: 1.2rem; border-radius: 15px; background: var(--surface-bg); color: var(--text-color); border: 1px solid var(--border-color); transition: border-color 0.3s; line-height: 1.6;"></textarea>
                 </div>
                 <button type="button" id="evaluation-submit-btn" class="primary-action" onclick="submitEvaluation()" ${participationLocked ? 'disabled' : ''} style="margin-top: 2.5rem; padding: 1.15rem 3rem; font-size: 1.4rem; font-weight: 800; width: auto; min-width: 300px;">${t('eval_submit')}</button>
             </div>

@@ -340,6 +340,9 @@ async function submitEvaluation() {
         }
 
         upsertSubmittedEvaluationState(payload);
+        if (typeof window.clarity === 'function') {
+            window.clarity('event', 'evaluation_submitted');
+        }
 
         try {
             invalidateResultsCache(state.selectedCategory);

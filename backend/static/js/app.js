@@ -114,6 +114,9 @@ function navigateTo(viewId, renderFunction, ...args) {
     state.currentView = { id: viewId, func: renderFunction, args: args };
     renderFunction(...args);
     trackVirtualPageView(viewId);
+    if (typeof window.clarity === 'function') {
+        window.clarity('set', 'app_view', viewId);
+    }
     if (typeof renderHeaderActions === 'function') {
         renderHeaderActions();
     }
