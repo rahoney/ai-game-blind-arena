@@ -115,7 +115,8 @@ function replaceMeta(html, page) {
 
 function injectStaticSeoContent(html, page) {
     const sectionPattern = new RegExp(`(<section id="${page.sectionId}" class="content-section">)(</section>)`);
-    return html
+    const cleanHtml = html.replace(/<section id="view-home" class="content-section">[\s\S]*?<\/section>/, '<section id="view-home" class="content-section"></section>');
+    return cleanHtml
         .replace(/<body class="[^"]*">/, `<body class="${page.bodyClass}">`)
         .replace('<div id="content-layer" class="hidden">', '<div id="content-layer">')
         .replace(sectionPattern, `$1${page.bodyHtml}$2`);

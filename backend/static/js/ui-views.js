@@ -603,6 +603,7 @@ function renderLanding() {
                 </div>
                 <div class="landing-shell landing-hero-grid">
                     <div class="landing-hero-copy">
+                        <h1 class="visually-hidden">VeilPlays | 게임 기반 AI 모델 성능 비교·벤치마크</h1>
                         <div class="landing-hero-main-copy">${t('landing_hero_main_copy')}</div>
                         <h2>${formatLandingHeroTitle()}</h2>
                         <p class="landing-hero-lead">${t('landing_hero_copy')}</p>
