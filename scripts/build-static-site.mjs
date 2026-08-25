@@ -113,33 +113,33 @@ const staticSeoPages = [
 function replaceMeta(html, page) {
   const url = `https://www.veilplays.com/${page.path}`;
   return html
-    .replace(/<title>.*?<\/title>/, `<title>${page.title}</title>`)
+    .replace(/<title>[\s\S]*?<\/title>/, `<title>${page.title}</title>`)
     .replace(
-      /<meta name="description" content="[^"]*">/,
+      /<meta\s+name="description"[\s\S]*?\/?>/,
       `<meta name="description" content="${page.description}">`,
     )
     .replace(
-      /<link rel="canonical" href="[^"]*">/,
+      /<link\s+rel="canonical"[\s\S]*?\/?>/,
       `<link rel="canonical" href="${url}">`,
     )
     .replace(
-      /<meta property="og:url" content="[^"]*">/,
+      /<meta\s+property="og:url"[\s\S]*?\/?>/,
       `<meta property="og:url" content="${url}">`,
     )
     .replace(
-      /<meta property="og:title" content="[^"]*">/,
+      /<meta\s+property="og:title"[\s\S]*?\/?>/,
       `<meta property="og:title" content="${page.title}">`,
     )
     .replace(
-      /<meta property="og:description" content="[^"]*">/,
+      /<meta\s+property="og:description"[\s\S]*?\/?>/,
       `<meta property="og:description" content="${page.description}">`,
     )
     .replace(
-      /<meta name="twitter:title" content="[^"]*">/,
+      /<meta\s+name="twitter:title"[\s\S]*?\/?>/,
       `<meta name="twitter:title" content="${page.title}">`,
     )
     .replace(
-      /<meta name="twitter:description" content="[^"]*">/,
+      /<meta\s+name="twitter:description"[\s\S]*?\/?>/,
       `<meta name="twitter:description" content="${page.description}">`,
     )
     .replace(/"url": "https:\/\/www\.veilplays\.com\/"/, `"url": "${url}"`)
@@ -223,7 +223,7 @@ writeFileSync(
 if (vercelEnvironment !== "production") {
   const indexPath = resolve(outputDir, "index.html");
   const indexHtml = readFileSync(indexPath, "utf8").replace(
-    /(<meta name="viewport" content="[^"]+">)/,
+    /(<meta\s+name="viewport"[\s\S]*?\/?>)/,
     '$1\n    <meta name="robots" content="noindex, nofollow">',
   );
   writeFileSync(indexPath, indexHtml, "utf8");

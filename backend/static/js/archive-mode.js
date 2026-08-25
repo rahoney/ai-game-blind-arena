@@ -159,7 +159,7 @@ function showArchiveNoticeModal() {
 
   root.innerHTML = `
         <div class="archive-modal-backdrop" onclick="closeArchiveNoticeModal()">
-            <div class="archive-modal-card card" onclick="event.stopPropagation()">
+            <div class="archive-modal-card" onclick="event.stopPropagation()">
                 <div class="archive-modal-header">
                     <span class="archive-badge-pill">ARCHIVE MODE</span>
                     <h3 class="archive-modal-title">${title}</h3>
