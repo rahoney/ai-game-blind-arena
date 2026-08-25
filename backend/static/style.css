@@ -5672,6 +5672,9 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
 }
 
 .archive-modal-card {
+    --text-color: var(--app-text);
+    --text-muted: var(--app-text-muted);
+    color: var(--app-text);
     width: 100%;
     max-width: 540px;
     max-height: 90vh;
@@ -5689,27 +5692,28 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
     margin-bottom: 1.4rem;
 }
 
-.archive-modal-title {
+.archive-modal-card .archive-modal-title {
     font-size: 1.5rem;
     font-weight: 800;
-    color: var(--text-color, #ffffff);
+    color: var(--app-text);
     margin: 0.75rem 0 0;
     letter-spacing: -0.02em;
 }
 
-.archive-modal-body {
+.archive-modal-card .archive-modal-body {
     font-size: 0.95rem;
     line-height: 1.65;
-    color: var(--text-muted, #94a3b8);
+    color: var(--app-text-muted);
     margin-bottom: 1.75rem;
 }
 
-.archive-modal-body p {
+.archive-modal-card .archive-modal-body p {
     margin: 0 0 0.85rem;
+    color: var(--app-text-muted);
 }
 
-.archive-modal-body p strong {
-    color: #f1f5f9;
+.archive-modal-card .archive-modal-body p strong {
+    color: var(--app-text);
 }
 
 .archive-features-box {
@@ -5736,7 +5740,7 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
     flex-direction: column;
     gap: 0.45rem;
     font-size: 0.88rem;
-    color: #cbd5e1;
+    color: var(--app-text-muted);
 }
 
 .archive-modal-actions {
@@ -5745,12 +5749,40 @@ input[type="text"]::placeholder, input[type="email"]::placeholder, input[type="p
     gap: 0.85rem;
 }
 
+.archive-modal-card button {
+    color: var(--app-text);
+}
+
+.archive-modal-card button.primary {
+    color: #ffffff;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.95), rgba(79, 70, 229, 0.95));
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);
+}
+
+.archive-modal-card button.primary:hover {
+    background: linear-gradient(135deg, rgba(129, 140, 248, 1), rgba(99, 102, 241, 1));
+    color: #ffffff;
+    box-shadow: 0 6px 20px rgba(79, 70, 229, 0.6);
+}
+
+.archive-modal-card button.secondary {
+    color: var(--app-text);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.archive-modal-card button.secondary:hover {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+}
+
 @media (max-width: 520px) {
     .archive-modal-card {
         padding: 1.5rem 1.2rem;
     }
 
-    .archive-modal-title {
+    .archive-modal-card .archive-modal-title {
         font-size: 1.3rem;
     }
 
