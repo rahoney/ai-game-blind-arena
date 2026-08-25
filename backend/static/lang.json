@@ -393,7 +393,16 @@
     "about_cond_4_title": "Minimal Prompt",
     "about_cond_4_desc": "게임의 주제, 최소 구성 요소, 기능, 조작 방식, 디자인, 실행 환경에 대한 프롬프트를 단 1회만 입력합니다.",
     "about_cond_5_title": "Creative Freedom",
-    "about_cond_5_desc": "추가 기능, 인터페이스 구성, 그래픽 표현 방식, 스테이지 구성 등은 각 AI 모델이 자율적으로 판단해 구현합니다."
+    "about_cond_5_desc": "추가 기능, 인터페이스 구성, 그래픽 표현 방식, 스테이지 구성 등은 각 AI 모델이 자율적으로 판단해 구현합니다.",
+    "archive_modal_title": "VeilPlays 아카이브 모드 안내",
+    "archive_modal_body_1": "VeilPlays는 현재 정식 서비스 운영을 종료하고 프로젝트 포트폴리오 및 아카이브 체험용으로 제공됩니다.",
+    "archive_modal_body_2": "6개 장르 90종 AI 생성 게임 플레이와 벤치마크 랭킹 결과를 자유롭게 둘러보실 수 있습니다. 로그인·평가·마이페이지는 데모 데이터(서버 통신 0건)로 동작합니다.",
+    "archive_modal_btn_explore": "포트폴리오 둘러보기",
+    "archive_badge_label": "ARCHIVE",
+    "archive_demo_login_title": "데모 계정으로 둘러보기",
+    "archive_demo_login_desc": "별도의 가입 없이 1-클릭으로 로그인하여 평가 제출 및 마이페이지 화면을 체험할 수 있습니다.",
+    "archive_demo_login_btn": "데모 로그인으로 체험하기",
+    "archive_write_disabled_notice": "아카이브 모드에서는 데모 계정 정보가 표시되며 수정이 지원되지 않습니다."
   },
   "en": {
     "title": "VeilPlays",
@@ -789,6 +798,16 @@
     "about_cond_4_title": "Minimal Prompt",
     "about_cond_4_desc": "Only one prompt is provided, covering the game’s theme, minimum required elements, features, controls, design, and runtime environment.",
     "about_cond_5_title": "Creative Freedom",
-    "about_cond_5_desc": "Additional features, interface structure, graphic style, and stage design are left to each AI model’s own judgment."
+    "about_cond_5_desc": "Additional features, interface structure, graphic style, and stage design are left to each AI model’s own judgment.",
+    "archive_modal_title": "VeilPlays Archive Mode Notice",
+    "archive_modal_body_1": "VeilPlays has concluded live operations and is now available as a project portfolio & interactive archive.",
+    "archive_modal_body_2": "You can explore 90 AI-generated games across 6 genres and benchmark rankings. Login, evaluations, and MyPage run in demo mode with 0 server requests.",
+    "archive_modal_btn_explore": "Explore Portfolio",
+    "archive_badge_label": "ARCHIVE",
+    "archive_demo_login_title": "Explore with Demo Account",
+    "archive_demo_login_desc": "Experience evaluation submissions and the MyPage dashboard with 1-click demo login without sign-up.",
+    "archive_demo_login_btn": "Experience Demo Login",
+    "archive_write_disabled_notice": "In archive mode, demo account data is displayed and editing is disabled."
   }
 }
+

@@ -1,0 +1,277 @@
+{
+  "metadata": {
+    "snapshotAt": "2026-08-25T00:00:00Z",
+    "schemaVersion": "1.0.0",
+    "sourceVersion": "portfolio-archive-v1",
+    "gameType": "서바이벌 디펜스"
+  },
+  "results": [
+    {
+      "actual_model_name": "Claude 4.7 Opus",
+      "blind_id": "A",
+      "model_key": "model-서바이벌 디펜스-A",
+      "participant_count": 70,
+      "avg_control": 9.6,
+      "avg_structure": 9.2,
+      "avg_presentation": 9.2,
+      "avg_difficulty": 8.8,
+      "avg_fun": 9.2,
+      "avg_overall": 9.6,
+      "avg_total": 9.3,
+      "comments": [
+        {
+          "id": "eval-서바이벌 디펜스-1",
+          "display_name": "뱀서마니아",
+          "comment": "수백 마리의 적이 몰려와도 프레임 드랍 없이 부드럽게 돌아갑니다. 오브젝트 풀링 처리가 잘 된 듯.",
+          "is_blinded": false,
+          "created_at": "2026-07-07T16:40:00Z",
+          "like_count": 20,
+          "dislike_count": 0,
+          "user_reaction": null,
+          "badge": {
+            "stage_key": "badge_gamer_owl"
+          },
+          "replies": [
+            {
+              "id": "reply-서바이벌 디펜스-1-1",
+              "display_name": "웨이브생존자",
+              "reply": "경험치 보석 자석 아이템 먹을 때 쾌감이 엄청납니다.",
+              "created_at": "2026-07-07T17:15:00Z",
+              "is_blinded": false,
+              "badge": {
+                "stage_key": "badge_critic_owl"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "actual_model_name": "ChatGPT 5.5 (Thinking Standard)",
+      "blind_id": "N",
+      "model_key": "model-서바이벌 디펜스-N",
+      "participant_count": 87,
+      "avg_control": 8.8,
+      "avg_structure": 9.0,
+      "avg_presentation": 9.3,
+      "avg_difficulty": 8.5,
+      "avg_fun": 9.2,
+      "avg_overall": 9.3,
+      "avg_total": 9.0,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Claude 4.6 Sonnet",
+      "blind_id": "L",
+      "model_key": "model-서바이벌 디펜스-L",
+      "participant_count": 101,
+      "avg_control": 9.1,
+      "avg_structure": 9.3,
+      "avg_presentation": 8.9,
+      "avg_difficulty": 8.5,
+      "avg_fun": 8.9,
+      "avg_overall": 8.5,
+      "avg_total": 8.9,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Gemini 3.1 Pro",
+      "blind_id": "J",
+      "model_key": "model-서바이벌 디펜스-J",
+      "participant_count": 107,
+      "avg_control": 8.8,
+      "avg_structure": 8.8,
+      "avg_presentation": 9.4,
+      "avg_difficulty": 8.3,
+      "avg_fun": 8.7,
+      "avg_overall": 8.9,
+      "avg_total": 8.8,
+      "comments": []
+    },
+    {
+      "actual_model_name": "ChatGPT 5.4 (Thinking Extended)",
+      "blind_id": "H",
+      "model_key": "model-서바이벌 디펜스-H",
+      "participant_count": 79,
+      "avg_control": 8.4,
+      "avg_structure": 8.6,
+      "avg_presentation": 9.0,
+      "avg_difficulty": 8.8,
+      "avg_fun": 8.7,
+      "avg_overall": 8.8,
+      "avg_total": 8.7,
+      "comments": []
+    },
+    {
+      "actual_model_name": "DeepSeek v3.2 (Thinking)",
+      "blind_id": "I",
+      "model_key": "model-서바이벌 디펜스-I",
+      "participant_count": 84,
+      "avg_control": 8.8,
+      "avg_structure": 8.7,
+      "avg_presentation": 8.4,
+      "avg_difficulty": 8.8,
+      "avg_fun": 8.7,
+      "avg_overall": 8.8,
+      "avg_total": 8.7,
+      "comments": []
+    },
+    {
+      "actual_model_name": "GLM 5.1",
+      "blind_id": "C",
+      "model_key": "model-서바이벌 디펜스-C",
+      "participant_count": 75,
+      "avg_control": 8.6,
+      "avg_structure": 8.6,
+      "avg_presentation": 8.7,
+      "avg_difficulty": 8.4,
+      "avg_fun": 8.3,
+      "avg_overall": 8.6,
+      "avg_total": 8.5,
+      "comments": [
+        {
+          "id": "eval-서바이벌 디펜스-3",
+          "display_name": "최후의생존자",
+          "comment": "15분 생존 성공! 보스 공격 패턴 피하는 긴장감이 대단했습니다.",
+          "is_blinded": false,
+          "created_at": "2026-07-21T22:20:00Z",
+          "like_count": 9,
+          "dislike_count": 0,
+          "user_reaction": null,
+          "badge": {
+            "stage_key": "badge_junior_owl"
+          },
+          "replies": []
+        }
+      ]
+    },
+    {
+      "actual_model_name": "Kimi k2.5 (Thinking)",
+      "blind_id": "D",
+      "model_key": "model-서바이벌 디펜스-D",
+      "participant_count": 98,
+      "avg_control": 8.1,
+      "avg_structure": 8.3,
+      "avg_presentation": 8.3,
+      "avg_difficulty": 8.4,
+      "avg_fun": 8.2,
+      "avg_overall": 8.4,
+      "avg_total": 8.3,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Gemini 3 (Thinking)",
+      "blind_id": "G",
+      "model_key": "model-서바이벌 디펜스-G",
+      "participant_count": 79,
+      "avg_control": 8.2,
+      "avg_structure": 8.3,
+      "avg_presentation": 8.7,
+      "avg_difficulty": 8.1,
+      "avg_fun": 8.5,
+      "avg_overall": 8.2,
+      "avg_total": 8.3,
+      "comments": []
+    },
+    {
+      "actual_model_name": "ChatGPT 5.4 (Thinking Standard)",
+      "blind_id": "O",
+      "model_key": "model-서바이벌 디펜스-O",
+      "participant_count": 61,
+      "avg_control": 8.3,
+      "avg_structure": 8.2,
+      "avg_presentation": 8.4,
+      "avg_difficulty": 8.0,
+      "avg_fun": 8.3,
+      "avg_overall": 8.5,
+      "avg_total": 8.3,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Grok 4.2 Expert",
+      "blind_id": "F",
+      "model_key": "model-서바이벌 디펜스-F",
+      "participant_count": 77,
+      "avg_control": 8.1,
+      "avg_structure": 8.0,
+      "avg_presentation": 8.1,
+      "avg_difficulty": 8.6,
+      "avg_fun": 8.3,
+      "avg_overall": 8.1,
+      "avg_total": 8.2,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Qwen 3.5 27B",
+      "blind_id": "B",
+      "model_key": "model-서바이벌 디펜스-B",
+      "participant_count": 71,
+      "avg_control": 7.7,
+      "avg_structure": 8.2,
+      "avg_presentation": 7.7,
+      "avg_difficulty": 8.3,
+      "avg_fun": 8.0,
+      "avg_overall": 8.1,
+      "avg_total": 8.0,
+      "comments": [
+        {
+          "id": "eval-서바이벌 디펜스-2",
+          "display_name": "타워빌더",
+          "comment": "레벨업 시 3지선다 스킬 강화 조합이 다양해서 다회차 플레이 가치가 높습니다.",
+          "is_blinded": false,
+          "created_at": "2026-07-17T10:05:00Z",
+          "like_count": 12,
+          "dislike_count": 1,
+          "user_reaction": null,
+          "badge": {
+            "stage_key": "badge_senior_owl"
+          },
+          "replies": []
+        }
+      ]
+    },
+    {
+      "actual_model_name": "Copilot Pro (Deep Thinking)",
+      "blind_id": "M",
+      "model_key": "model-서바이벌 디펜스-M",
+      "participant_count": 83,
+      "avg_control": 7.9,
+      "avg_structure": 8.0,
+      "avg_presentation": 8.4,
+      "avg_difficulty": 7.7,
+      "avg_fun": 8.1,
+      "avg_overall": 8.0,
+      "avg_total": 8.0,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Gemma 4 26B A4B",
+      "blind_id": "E",
+      "model_key": "model-서바이벌 디펜스-E",
+      "participant_count": 91,
+      "avg_control": 7.8,
+      "avg_structure": 8.0,
+      "avg_presentation": 8.0,
+      "avg_difficulty": 7.8,
+      "avg_fun": 7.4,
+      "avg_overall": 7.6,
+      "avg_total": 7.8,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Meta Muse Spark",
+      "blind_id": "K",
+      "model_key": "model-서바이벌 디펜스-K",
+      "participant_count": 91,
+      "avg_control": 7.5,
+      "avg_structure": 8.2,
+      "avg_presentation": 8.1,
+      "avg_difficulty": 7.6,
+      "avg_fun": 7.5,
+      "avg_overall": 8.1,
+      "avg_total": 7.8,
+      "comments": []
+    }
+  ],
+  "is_admin": false
+}

@@ -1,0 +1,78 @@
+{
+  "display_name": "데모플레이어",
+  "profile_badge_key": "badge_critic_owl",
+  "unique_eval_model_count": 28,
+  "unlocked_badge_count": 7,
+  "unlocked_badge_keys": [
+    "badge_egg",
+    "badge_student_owl",
+    "badge_junior_owl",
+    "badge_senior_owl",
+    "badge_critic_owl",
+    "badge_cardmaster_owl",
+    "badge_gamer_owl"
+  ],
+  "top_game_type": {
+    "game_type": "던전 탐색",
+    "views": 42
+  },
+  "evaluations_by_game_type": [
+    {
+      "game_type": "던전 탐색",
+      "count": 8
+    },
+    {
+      "game_type": "강화된 벽돌깨기",
+      "count": 6
+    },
+    {
+      "game_type": "카드배틀",
+      "count": 5
+    },
+    {
+      "game_type": "1인칭 미니 FPS",
+      "count": 4
+    },
+    {
+      "game_type": "서바이벌 디펜스",
+      "count": 3
+    },
+    {
+      "game_type": "횡스크롤 액션",
+      "count": 2
+    }
+  ],
+  "top_models": [
+    {
+      "game_type": "던전 탐색",
+      "actual_model_name": "Claude 4.7 Opus",
+      "views": 15
+    },
+    {
+      "game_type": "카드배틀",
+      "actual_model_name": "ChatGPT 5.5 (Thinking Standard)",
+      "views": 12
+    },
+    {
+      "game_type": "1인칭 미니 FPS",
+      "actual_model_name": "Gemini 3.1 Pro",
+      "views": 9
+    },
+    {
+      "game_type": "강화된 벽돌깨기",
+      "actual_model_name": "DeepSeek V4 Pro",
+      "views": 8
+    },
+    {
+      "game_type": "서바이벌 디펜스",
+      "actual_model_name": "GLM 5.1",
+      "views": 6
+    }
+  ],
+  "badge": {
+    "stage_key": "badge_critic_owl",
+    "current_count": 28,
+    "next_threshold": 30,
+    "is_max_stage": false
+  }
+}

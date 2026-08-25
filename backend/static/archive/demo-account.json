@@ -1,0 +1,16 @@
+{
+  "user_id": "demo-user-archive",
+  "email": "demo@veilplays.com",
+  "display_name": "데모플레이어",
+  "profile": {
+    "display_name": "데모플레이어",
+    "login_id": "demoplayer",
+    "profile_badge_key": "badge_critic_owl",
+    "email": "demo@veilplays.com",
+    "is_admin": false
+  },
+  "linked_providers": [
+    "google",
+    "github"
+  ]
+}

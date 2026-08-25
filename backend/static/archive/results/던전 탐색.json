@@ -1,0 +1,277 @@
+{
+  "metadata": {
+    "snapshotAt": "2026-08-25T00:00:00Z",
+    "schemaVersion": "1.0.0",
+    "sourceVersion": "portfolio-archive-v1",
+    "gameType": "던전 탐색"
+  },
+  "results": [
+    {
+      "actual_model_name": "Claude 4.7 Opus",
+      "blind_id": "N",
+      "model_key": "model-던전 탐색-N",
+      "participant_count": 112,
+      "avg_control": 9.4,
+      "avg_structure": 9.8,
+      "avg_presentation": 9.6,
+      "avg_difficulty": 8.8,
+      "avg_fun": 9.4,
+      "avg_overall": 9.2,
+      "avg_total": 9.4,
+      "comments": []
+    },
+    {
+      "actual_model_name": "ChatGPT 5.5 (Thinking Standard)",
+      "blind_id": "O",
+      "model_key": "model-던전 탐색-O",
+      "participant_count": 104,
+      "avg_control": 9.2,
+      "avg_structure": 9.3,
+      "avg_presentation": 9.1,
+      "avg_difficulty": 8.8,
+      "avg_fun": 9.1,
+      "avg_overall": 9.0,
+      "avg_total": 9.1,
+      "comments": []
+    },
+    {
+      "actual_model_name": "DeepSeek V4 Pro",
+      "blind_id": "F",
+      "model_key": "model-던전 탐색-F",
+      "participant_count": 105,
+      "avg_control": 8.9,
+      "avg_structure": 9.2,
+      "avg_presentation": 9.0,
+      "avg_difficulty": 8.7,
+      "avg_fun": 9.1,
+      "avg_overall": 9.1,
+      "avg_total": 9.0,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Gemini 3.1 Pro",
+      "blind_id": "I",
+      "model_key": "model-던전 탐색-I",
+      "participant_count": 105,
+      "avg_control": 8.8,
+      "avg_structure": 9.2,
+      "avg_presentation": 9.4,
+      "avg_difficulty": 8.8,
+      "avg_fun": 9.2,
+      "avg_overall": 8.7,
+      "avg_total": 9.0,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Claude 4.6 Sonnet",
+      "blind_id": "D",
+      "model_key": "model-던전 탐색-D",
+      "participant_count": 66,
+      "avg_control": 8.7,
+      "avg_structure": 9.0,
+      "avg_presentation": 8.6,
+      "avg_difficulty": 8.8,
+      "avg_fun": 8.9,
+      "avg_overall": 9.1,
+      "avg_total": 8.8,
+      "comments": []
+    },
+    {
+      "actual_model_name": "DeepSeek v3.2 (Thinking)",
+      "blind_id": "A",
+      "model_key": "model-던전 탐색-A",
+      "participant_count": 50,
+      "avg_control": 8.7,
+      "avg_structure": 8.5,
+      "avg_presentation": 8.8,
+      "avg_difficulty": 8.6,
+      "avg_fun": 8.8,
+      "avg_overall": 8.6,
+      "avg_total": 8.7,
+      "comments": [
+        {
+          "id": "eval-던전 탐색-1",
+          "display_name": "던전마스터_99",
+          "comment": "미니맵과 타일셋 렌더링이 매우 자연스럽고, 턴제 이동 판정이 직관적입니다.",
+          "is_blinded": false,
+          "created_at": "2026-07-12T14:20:00Z",
+          "like_count": 14,
+          "dislike_count": 1,
+          "user_reaction": null,
+          "badge": {
+            "stage_key": "badge_senior_owl"
+          },
+          "replies": [
+            {
+              "id": "reply-던전 탐색-1-1",
+              "display_name": "로그라이크매니아",
+              "reply": "동감합니다. 특히 인벤토리 UI 반응속도가 훌륭하네요.",
+              "created_at": "2026-07-12T15:10:00Z",
+              "is_blinded": false,
+              "badge": {
+                "stage_key": "badge_critic_owl"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "actual_model_name": "GLM 5.1",
+      "blind_id": "C",
+      "model_key": "model-던전 탐색-C",
+      "participant_count": 109,
+      "avg_control": 8.5,
+      "avg_structure": 8.9,
+      "avg_presentation": 8.4,
+      "avg_difficulty": 8.3,
+      "avg_fun": 8.6,
+      "avg_overall": 8.6,
+      "avg_total": 8.5,
+      "comments": [
+        {
+          "id": "eval-던전 탐색-3",
+          "display_name": "전설의올빼미",
+          "comment": "장비 파밍 밸런스가 좋습니다. 후반부 몬스터 스케일링도 적절해요.",
+          "is_blinded": false,
+          "created_at": "2026-07-18T18:45:00Z",
+          "like_count": 6,
+          "dislike_count": 0,
+          "user_reaction": null,
+          "badge": {
+            "stage_key": "badge_gamer_owl"
+          },
+          "replies": []
+        }
+      ]
+    },
+    {
+      "actual_model_name": "Gemini 3 (Thinking)",
+      "blind_id": "G",
+      "model_key": "model-던전 탐색-G",
+      "participant_count": 70,
+      "avg_control": 8.3,
+      "avg_structure": 8.2,
+      "avg_presentation": 8.7,
+      "avg_difficulty": 8.2,
+      "avg_fun": 8.4,
+      "avg_overall": 8.7,
+      "avg_total": 8.4,
+      "comments": []
+    },
+    {
+      "actual_model_name": "ChatGPT 5.4 (Thinking Standard)",
+      "blind_id": "L",
+      "model_key": "model-던전 탐색-L",
+      "participant_count": 113,
+      "avg_control": 8.5,
+      "avg_structure": 8.3,
+      "avg_presentation": 8.8,
+      "avg_difficulty": 8.2,
+      "avg_fun": 8.3,
+      "avg_overall": 8.4,
+      "avg_total": 8.4,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Grok 4.2 Expert",
+      "blind_id": "M",
+      "model_key": "model-던전 탐색-M",
+      "participant_count": 79,
+      "avg_control": 8.3,
+      "avg_structure": 8.4,
+      "avg_presentation": 8.2,
+      "avg_difficulty": 8.3,
+      "avg_fun": 8.2,
+      "avg_overall": 8.0,
+      "avg_total": 8.2,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Kimi k2.5 (Thinking)",
+      "blind_id": "J",
+      "model_key": "model-던전 탐색-J",
+      "participant_count": 104,
+      "avg_control": 8.1,
+      "avg_structure": 8.2,
+      "avg_presentation": 8.3,
+      "avg_difficulty": 8.4,
+      "avg_fun": 7.8,
+      "avg_overall": 7.9,
+      "avg_total": 8.1,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Qwen 3.5 27B",
+      "blind_id": "B",
+      "model_key": "model-던전 탐색-B",
+      "participant_count": 87,
+      "avg_control": 7.7,
+      "avg_structure": 8.0,
+      "avg_presentation": 8.3,
+      "avg_difficulty": 8.2,
+      "avg_fun": 7.6,
+      "avg_overall": 8.0,
+      "avg_total": 8.0,
+      "comments": [
+        {
+          "id": "eval-던전 탐색-2",
+          "display_name": "픽셀모험가",
+          "comment": "보스전 패턴이 꽤 다채롭네요. 프롬프트 하나로 이 정도 완성도를 낸 게 놀랍습니다.",
+          "is_blinded": false,
+          "created_at": "2026-07-15T09:30:00Z",
+          "like_count": 9,
+          "dislike_count": 0,
+          "user_reaction": null,
+          "badge": {
+            "stage_key": "badge_critic_owl"
+          },
+          "replies": []
+        }
+      ]
+    },
+    {
+      "actual_model_name": "Copilot Pro (Deep Thinking)",
+      "blind_id": "E",
+      "model_key": "model-던전 탐색-E",
+      "participant_count": 106,
+      "avg_control": 8.1,
+      "avg_structure": 7.9,
+      "avg_presentation": 8.2,
+      "avg_difficulty": 8.2,
+      "avg_fun": 7.8,
+      "avg_overall": 8.0,
+      "avg_total": 8.0,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Meta Muse Spark",
+      "blind_id": "K",
+      "model_key": "model-던전 탐색-K",
+      "participant_count": 78,
+      "avg_control": 8.0,
+      "avg_structure": 7.8,
+      "avg_presentation": 7.9,
+      "avg_difficulty": 8.0,
+      "avg_fun": 8.1,
+      "avg_overall": 8.1,
+      "avg_total": 8.0,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Gemma 4 26B A4B",
+      "blind_id": "H",
+      "model_key": "model-던전 탐색-H",
+      "participant_count": 62,
+      "avg_control": 7.3,
+      "avg_structure": 7.6,
+      "avg_presentation": 7.8,
+      "avg_difficulty": 8.2,
+      "avg_fun": 7.9,
+      "avg_overall": 7.5,
+      "avg_total": 7.7,
+      "comments": []
+    }
+  ],
+  "is_admin": false
+}

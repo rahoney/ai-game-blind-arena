@@ -1,16 +1,15 @@
-# VeilPlays
+# VeilPlays (Archive & Portfolio Mode)
 
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?style=flat-square&logo=fastapi&logoColor=white)
+> 🏛️ **Archive Mode**: 본 브랜치(`portfolio-archive`)는 VeilPlays의 정적 포트폴리오 및 공개 아카이브 버전입니다. 백엔드(Render) 및 인증(Firebase) 서버 의존성 없이 100% 정적 클라이언트(Vercel)와 데모 데이터 어댑터로 동작합니다. 원본 풀스택 운영 코드는 `main` 브랜치에 안전하게 보존되어 있습니다.
+
+![Archive](https://img.shields.io/badge/Mode-Portfolio_Archive-orange?style=flat-square)
+![Static Frontend](https://img.shields.io/badge/Vercel-Static_Site-000000?style=flat-square&logo=vercel&logoColor=white)
+![Zero Server](https://img.shields.io/badge/Server_Calls-0_Requests-success?style=flat-square)
 ![Vanilla JS](https://img.shields.io/badge/Vanilla_JS-Frontend-F7DF1E?style=flat-square&logo=javascript&logoColor=black)
-![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?style=flat-square&logo=supabase&logoColor=white)
-![Firebase](https://img.shields.io/badge/Firebase-Auth-FFCA28?style=flat-square&logo=firebase&logoColor=black)
-![Vercel](https://img.shields.io/badge/Vercel-Frontend-000000?style=flat-square&logo=vercel&logoColor=white)
-![Render](https://img.shields.io/badge/Render-API-46E3B7?style=flat-square&logo=render&logoColor=white)
 
 **VeilPlays**는 동일한 프롬프트로 여러 AI 모델이 제작한 게임을 직접 플레이하고, 블라인드 방식으로 비교 평가하는 **게임 기반 AI 모델 성능 비교·벤치마크 서비스**입니다.
 
-- Service: [https://www.veilplays.com](https://www.veilplays.com)
+- Live Demo: [https://www.veilplays.com](https://www.veilplays.com)
 
 ## Overview
 

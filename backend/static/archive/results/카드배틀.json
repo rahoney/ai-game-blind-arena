@@ -1,0 +1,277 @@
+{
+  "metadata": {
+    "snapshotAt": "2026-08-25T00:00:00Z",
+    "schemaVersion": "1.0.0",
+    "sourceVersion": "portfolio-archive-v1",
+    "gameType": "카드배틀"
+  },
+  "results": [
+    {
+      "actual_model_name": "Claude 4.7 Opus",
+      "blind_id": "O",
+      "model_key": "model-카드배틀-O",
+      "participant_count": 67,
+      "avg_control": 9.5,
+      "avg_structure": 9.7,
+      "avg_presentation": 9.7,
+      "avg_difficulty": 8.8,
+      "avg_fun": 9.0,
+      "avg_overall": 9.5,
+      "avg_total": 9.4,
+      "comments": []
+    },
+    {
+      "actual_model_name": "ChatGPT 5.5 (Thinking Standard)",
+      "blind_id": "H",
+      "model_key": "model-카드배틀-H",
+      "participant_count": 79,
+      "avg_control": 8.9,
+      "avg_structure": 9.0,
+      "avg_presentation": 9.6,
+      "avg_difficulty": 8.8,
+      "avg_fun": 9.3,
+      "avg_overall": 8.9,
+      "avg_total": 9.1,
+      "comments": []
+    },
+    {
+      "actual_model_name": "DeepSeek V4 Pro",
+      "blind_id": "L",
+      "model_key": "model-카드배틀-L",
+      "participant_count": 55,
+      "avg_control": 9.0,
+      "avg_structure": 9.2,
+      "avg_presentation": 9.1,
+      "avg_difficulty": 9.0,
+      "avg_fun": 9.3,
+      "avg_overall": 9.3,
+      "avg_total": 9.1,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Gemini 3.1 Pro",
+      "blind_id": "C",
+      "model_key": "model-카드배틀-C",
+      "participant_count": 100,
+      "avg_control": 8.9,
+      "avg_structure": 9.0,
+      "avg_presentation": 9.4,
+      "avg_difficulty": 8.6,
+      "avg_fun": 9.1,
+      "avg_overall": 8.8,
+      "avg_total": 9.0,
+      "comments": [
+        {
+          "id": "eval-카드배틀-3",
+          "display_name": "슬더스장인",
+          "comment": "턴 종료 및 드로우 애니메이션이 매끄럽네요.",
+          "is_blinded": false,
+          "created_at": "2026-07-22T21:40:00Z",
+          "like_count": 7,
+          "dislike_count": 0,
+          "user_reaction": null,
+          "badge": {
+            "stage_key": "badge_gamer_owl"
+          },
+          "replies": []
+        }
+      ]
+    },
+    {
+      "actual_model_name": "Claude 4.6 Sonnet",
+      "blind_id": "K",
+      "model_key": "model-카드배틀-K",
+      "participant_count": 46,
+      "avg_control": 9.0,
+      "avg_structure": 8.9,
+      "avg_presentation": 8.8,
+      "avg_difficulty": 8.7,
+      "avg_fun": 8.7,
+      "avg_overall": 9.0,
+      "avg_total": 8.8,
+      "comments": []
+    },
+    {
+      "actual_model_name": "DeepSeek v3.2 (Thinking)",
+      "blind_id": "M",
+      "model_key": "model-카드배틀-M",
+      "participant_count": 67,
+      "avg_control": 8.7,
+      "avg_structure": 8.7,
+      "avg_presentation": 8.4,
+      "avg_difficulty": 8.6,
+      "avg_fun": 8.9,
+      "avg_overall": 8.8,
+      "avg_total": 8.7,
+      "comments": []
+    },
+    {
+      "actual_model_name": "GLM 5.1",
+      "blind_id": "A",
+      "model_key": "model-카드배틀-A",
+      "participant_count": 72,
+      "avg_control": 8.4,
+      "avg_structure": 8.4,
+      "avg_presentation": 8.6,
+      "avg_difficulty": 8.5,
+      "avg_fun": 8.5,
+      "avg_overall": 8.8,
+      "avg_total": 8.5,
+      "comments": [
+        {
+          "id": "eval-카드배틀-1",
+          "display_name": "카드전략가",
+          "comment": "마나 커브와 덱 시너지 메커니즘이 탄탄합니다. AI 상대의 카드 선택 알고리즘도 꽤 스마트해요.",
+          "is_blinded": false,
+          "created_at": "2026-07-08T13:10:00Z",
+          "like_count": 22,
+          "dislike_count": 1,
+          "user_reaction": null,
+          "badge": {
+            "stage_key": "badge_cardmaster_owl"
+          },
+          "replies": [
+            {
+              "id": "reply-카드배틀-1-1",
+              "display_name": "하스유저",
+              "reply": "콤보 연계 플레이가 의외로 깊이 있습니다.",
+              "created_at": "2026-07-08T14:00:00Z",
+              "is_blinded": false,
+              "badge": {
+                "stage_key": "badge_critic_owl"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "actual_model_name": "Grok 4.2 Expert",
+      "blind_id": "G",
+      "model_key": "model-카드배틀-G",
+      "participant_count": 116,
+      "avg_control": 8.1,
+      "avg_structure": 8.3,
+      "avg_presentation": 8.4,
+      "avg_difficulty": 8.8,
+      "avg_fun": 8.2,
+      "avg_overall": 8.2,
+      "avg_total": 8.3,
+      "comments": []
+    },
+    {
+      "actual_model_name": "ChatGPT 5.4 (Thinking Standard)",
+      "blind_id": "N",
+      "model_key": "model-카드배틀-N",
+      "participant_count": 118,
+      "avg_control": 8.4,
+      "avg_structure": 8.3,
+      "avg_presentation": 8.6,
+      "avg_difficulty": 8.0,
+      "avg_fun": 8.4,
+      "avg_overall": 8.1,
+      "avg_total": 8.3,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Copilot Pro (Deep Thinking)",
+      "blind_id": "B",
+      "model_key": "model-카드배틀-B",
+      "participant_count": 103,
+      "avg_control": 8.2,
+      "avg_structure": 8.3,
+      "avg_presentation": 8.0,
+      "avg_difficulty": 8.2,
+      "avg_fun": 8.2,
+      "avg_overall": 8.0,
+      "avg_total": 8.2,
+      "comments": [
+        {
+          "id": "eval-카드배틀-2",
+          "display_name": "덱빌더_K",
+          "comment": "카드 툴팁 설명과 상태이상 이펙트가 한눈에 들어와서 플레이가 편했습니다.",
+          "is_blinded": false,
+          "created_at": "2026-07-16T17:25:00Z",
+          "like_count": 15,
+          "dislike_count": 0,
+          "user_reaction": null,
+          "badge": {
+            "stage_key": "badge_senior_owl"
+          },
+          "replies": []
+        }
+      ]
+    },
+    {
+      "actual_model_name": "Gemini 3 (Thinking)",
+      "blind_id": "E",
+      "model_key": "model-카드배틀-E",
+      "participant_count": 98,
+      "avg_control": 8.1,
+      "avg_structure": 8.5,
+      "avg_presentation": 8.3,
+      "avg_difficulty": 8.1,
+      "avg_fun": 8.1,
+      "avg_overall": 8.4,
+      "avg_total": 8.2,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Kimi k2.5 (Thinking)",
+      "blind_id": "I",
+      "model_key": "model-카드배틀-I",
+      "participant_count": 115,
+      "avg_control": 8.4,
+      "avg_structure": 8.3,
+      "avg_presentation": 8.2,
+      "avg_difficulty": 8.2,
+      "avg_fun": 7.9,
+      "avg_overall": 8.4,
+      "avg_total": 8.2,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Qwen 3.5 27B",
+      "blind_id": "D",
+      "model_key": "model-카드배틀-D",
+      "participant_count": 57,
+      "avg_control": 7.7,
+      "avg_structure": 8.3,
+      "avg_presentation": 8.1,
+      "avg_difficulty": 8.0,
+      "avg_fun": 7.9,
+      "avg_overall": 8.2,
+      "avg_total": 8.0,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Meta Muse Spark",
+      "blind_id": "F",
+      "model_key": "model-카드배틀-F",
+      "participant_count": 90,
+      "avg_control": 8.1,
+      "avg_structure": 7.7,
+      "avg_presentation": 8.0,
+      "avg_difficulty": 8.1,
+      "avg_fun": 7.8,
+      "avg_overall": 7.9,
+      "avg_total": 7.9,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Gemma 4 26B A4B",
+      "blind_id": "J",
+      "model_key": "model-카드배틀-J",
+      "participant_count": 60,
+      "avg_control": 7.5,
+      "avg_structure": 7.4,
+      "avg_presentation": 7.7,
+      "avg_difficulty": 7.7,
+      "avg_fun": 7.8,
+      "avg_overall": 7.6,
+      "avg_total": 7.6,
+      "comments": []
+    }
+  ],
+  "is_admin": false
+}

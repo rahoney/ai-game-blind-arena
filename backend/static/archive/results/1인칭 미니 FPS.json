@@ -1,0 +1,277 @@
+{
+  "metadata": {
+    "snapshotAt": "2026-08-25T00:00:00Z",
+    "schemaVersion": "1.0.0",
+    "sourceVersion": "portfolio-archive-v1",
+    "gameType": "1인칭 미니 FPS"
+  },
+  "results": [
+    {
+      "actual_model_name": "Claude 4.7 Opus",
+      "blind_id": "B",
+      "model_key": "model-1인칭 미니 FPS-B",
+      "participant_count": 74,
+      "avg_control": 9.4,
+      "avg_structure": 9.4,
+      "avg_presentation": 9.7,
+      "avg_difficulty": 8.7,
+      "avg_fun": 9.0,
+      "avg_overall": 9.2,
+      "avg_total": 9.2,
+      "comments": [
+        {
+          "id": "eval-1인칭 미니 FPS-2",
+          "display_name": "스나이퍼_조",
+          "comment": "적 AI의 시야 감지와 히트박스 판정이 정밀합니다.",
+          "is_blinded": false,
+          "created_at": "2026-07-13T12:15:00Z",
+          "like_count": 13,
+          "dislike_count": 1,
+          "user_reaction": null,
+          "badge": {
+            "stage_key": "badge_critic_owl"
+          },
+          "replies": []
+        }
+      ]
+    },
+    {
+      "actual_model_name": "ChatGPT 5.5 (Thinking Standard)",
+      "blind_id": "J",
+      "model_key": "model-1인칭 미니 FPS-J",
+      "participant_count": 95,
+      "avg_control": 9.0,
+      "avg_structure": 9.5,
+      "avg_presentation": 9.3,
+      "avg_difficulty": 8.8,
+      "avg_fun": 9.3,
+      "avg_overall": 9.2,
+      "avg_total": 9.2,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Gemini 3.1 Pro",
+      "blind_id": "F",
+      "model_key": "model-1인칭 미니 FPS-F",
+      "participant_count": 112,
+      "avg_control": 8.8,
+      "avg_structure": 9.2,
+      "avg_presentation": 9.1,
+      "avg_difficulty": 8.5,
+      "avg_fun": 8.9,
+      "avg_overall": 8.8,
+      "avg_total": 8.9,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Claude 4.6 Sonnet",
+      "blind_id": "C",
+      "model_key": "model-1인칭 미니 FPS-C",
+      "participant_count": 51,
+      "avg_control": 8.8,
+      "avg_structure": 8.9,
+      "avg_presentation": 8.6,
+      "avg_difficulty": 8.6,
+      "avg_fun": 8.6,
+      "avg_overall": 9.0,
+      "avg_total": 8.8,
+      "comments": [
+        {
+          "id": "eval-1인칭 미니 FPS-3",
+          "display_name": "FPS덕후",
+          "comment": "마우스 룩과 키보드 조작감이 즉각적이어서 몰입감이 좋습니다.",
+          "is_blinded": false,
+          "created_at": "2026-07-19T15:50:00Z",
+          "like_count": 10,
+          "dislike_count": 0,
+          "user_reaction": null,
+          "badge": {
+            "stage_key": "badge_student_owl"
+          },
+          "replies": []
+        }
+      ]
+    },
+    {
+      "actual_model_name": "ChatGPT 5.4 (Thinking Extended)",
+      "blind_id": "I",
+      "model_key": "model-1인칭 미니 FPS-I",
+      "participant_count": 69,
+      "avg_control": 9.0,
+      "avg_structure": 8.7,
+      "avg_presentation": 8.8,
+      "avg_difficulty": 8.3,
+      "avg_fun": 9.0,
+      "avg_overall": 9.0,
+      "avg_total": 8.8,
+      "comments": []
+    },
+    {
+      "actual_model_name": "DeepSeek v3.2 (Thinking)",
+      "blind_id": "A",
+      "model_key": "model-1인칭 미니 FPS-A",
+      "participant_count": 104,
+      "avg_control": 8.9,
+      "avg_structure": 8.4,
+      "avg_presentation": 8.5,
+      "avg_difficulty": 9.0,
+      "avg_fun": 8.7,
+      "avg_overall": 8.6,
+      "avg_total": 8.7,
+      "comments": [
+        {
+          "id": "eval-1인칭 미니 FPS-1",
+          "display_name": "레이캐스터",
+          "comment": "순수 HTML5 Canvas로 3D 레이캐스팅을 이렇게 부드럽게 뽑아낸 점이 인상적입니다.",
+          "is_blinded": false,
+          "created_at": "2026-07-05T19:00:00Z",
+          "like_count": 25,
+          "dislike_count": 0,
+          "user_reaction": null,
+          "badge": {
+            "stage_key": "badge_senior_owl"
+          },
+          "replies": [
+            {
+              "id": "reply-1인칭 미니 FPS-1-1",
+              "display_name": "울펜슈타인팬",
+              "reply": "90년대 고전 명작 느낌이 물씬 나네요.",
+              "created_at": "2026-07-05T20:30:00Z",
+              "is_blinded": false,
+              "badge": {
+                "stage_key": "badge_gamer_owl"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "actual_model_name": "GLM 5.1",
+      "blind_id": "L",
+      "model_key": "model-1인칭 미니 FPS-L",
+      "participant_count": 65,
+      "avg_control": 8.4,
+      "avg_structure": 8.9,
+      "avg_presentation": 8.4,
+      "avg_difficulty": 8.5,
+      "avg_fun": 8.8,
+      "avg_overall": 8.7,
+      "avg_total": 8.6,
+      "comments": []
+    },
+    {
+      "actual_model_name": "ChatGPT 5.4 (Thinking Standard)",
+      "blind_id": "G",
+      "model_key": "model-1인칭 미니 FPS-G",
+      "participant_count": 77,
+      "avg_control": 8.4,
+      "avg_structure": 8.7,
+      "avg_presentation": 8.4,
+      "avg_difficulty": 8.4,
+      "avg_fun": 8.3,
+      "avg_overall": 8.3,
+      "avg_total": 8.4,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Grok 4.2 Expert",
+      "blind_id": "K",
+      "model_key": "model-1인칭 미니 FPS-K",
+      "participant_count": 94,
+      "avg_control": 8.4,
+      "avg_structure": 8.2,
+      "avg_presentation": 8.5,
+      "avg_difficulty": 8.7,
+      "avg_fun": 8.3,
+      "avg_overall": 8.1,
+      "avg_total": 8.4,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Kimi k2.5 (Thinking)",
+      "blind_id": "H",
+      "model_key": "model-1인칭 미니 FPS-H",
+      "participant_count": 108,
+      "avg_control": 8.1,
+      "avg_structure": 8.3,
+      "avg_presentation": 8.4,
+      "avg_difficulty": 8.6,
+      "avg_fun": 8.2,
+      "avg_overall": 8.4,
+      "avg_total": 8.3,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Gemini 3 (Thinking)",
+      "blind_id": "E",
+      "model_key": "model-1인칭 미니 FPS-E",
+      "participant_count": 97,
+      "avg_control": 8.2,
+      "avg_structure": 8.4,
+      "avg_presentation": 8.3,
+      "avg_difficulty": 8.1,
+      "avg_fun": 8.1,
+      "avg_overall": 8.3,
+      "avg_total": 8.2,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Qwen 3.5 27B",
+      "blind_id": "M",
+      "model_key": "model-1인칭 미니 FPS-M",
+      "participant_count": 114,
+      "avg_control": 8.1,
+      "avg_structure": 7.8,
+      "avg_presentation": 7.9,
+      "avg_difficulty": 8.3,
+      "avg_fun": 8.2,
+      "avg_overall": 8.1,
+      "avg_total": 8.1,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Copilot Pro (Deep Thinking)",
+      "blind_id": "O",
+      "model_key": "model-1인칭 미니 FPS-O",
+      "participant_count": 108,
+      "avg_control": 8.2,
+      "avg_structure": 8.3,
+      "avg_presentation": 7.9,
+      "avg_difficulty": 8.0,
+      "avg_fun": 7.9,
+      "avg_overall": 8.4,
+      "avg_total": 8.1,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Meta Muse Spark",
+      "blind_id": "D",
+      "model_key": "model-1인칭 미니 FPS-D",
+      "participant_count": 77,
+      "avg_control": 7.8,
+      "avg_structure": 7.7,
+      "avg_presentation": 8.1,
+      "avg_difficulty": 7.6,
+      "avg_fun": 7.6,
+      "avg_overall": 8.1,
+      "avg_total": 7.8,
+      "comments": []
+    },
+    {
+      "actual_model_name": "Gemma 4 26B A4B",
+      "blind_id": "N",
+      "model_key": "model-1인칭 미니 FPS-N",
+      "participant_count": 113,
+      "avg_control": 7.5,
+      "avg_structure": 7.4,
+      "avg_presentation": 7.5,
+      "avg_difficulty": 7.9,
+      "avg_fun": 7.8,
+      "avg_overall": 7.7,
+      "avg_total": 7.6,
+      "comments": []
+    }
+  ],
+  "is_admin": false
+}

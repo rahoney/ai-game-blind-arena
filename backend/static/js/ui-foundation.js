@@ -515,6 +515,13 @@ function renderGlobalNavigation() {
     const badgeMarkup = headerBadgeKey ? renderBadgeSvg(headerBadgeKey, 30) : '';
     const accountLabel = escapeHtml(getHeaderAccountLabel());
 
+    const isArchive = typeof isArchiveMode === 'function' && isArchiveMode();
+    const archiveBadgeMarkup = isArchive ? `
+        <button type="button" class="header-archive-badge" onclick="showArchiveNoticeModal()" title="VeilPlays Archive Mode">
+            ARCHIVE
+        </button>
+    ` : '';
+
     publicRoot.innerHTML = `
         <div class="header-menu" data-header-menu="game">
             <button type="button" class="header-nav-button" aria-haspopup="true" aria-expanded="false" onclick="toggleHeaderDropdown('game', event)">
@@ -525,6 +532,7 @@ function renderGlobalNavigation() {
             </div>
         </div>
         <button type="button" class="header-nav-button" onclick="headerOpenAbout()">ABOUT</button>
+        ${archiveBadgeMarkup}
     `;
 
     accountRoot.innerHTML = `
@@ -569,6 +577,13 @@ function renderGlobalNavigation() {
                 <button type="button" class="header-mobile-login" onclick="headerOpenLogin()">${t('menu_login')}</button>
             `}
         </div>
+        ${isArchive ? `
+            <div style="padding: 0.5rem 1rem;">
+                <button type="button" class="header-archive-badge" style="width:100%; text-align:center; padding:0.45rem 0.8rem; font-size:0.78rem;" onclick="closeHeaderMenus(); showArchiveNoticeModal();">
+                    ARCHIVE MODE (포트폴리오)
+                </button>
+            </div>
+        ` : ''}
         <div class="header-mobile-section">
             <div class="header-mobile-section-title">GAME</div>
             ${renderHeaderCategoryGroups({ mobile: true })}

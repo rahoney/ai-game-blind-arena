@@ -2,6 +2,7 @@ const RUNTIME_CONFIG = Object.freeze({
     environment: window.VEILPLAYS_CONFIG?.environment || 'development',
     frontendOrigin: window.VEILPLAYS_CONFIG?.frontendOrigin || '',
     apiOrigin: window.VEILPLAYS_CONFIG?.apiOrigin || '',
+    archiveMode: window.VEILPLAYS_CONFIG?.archiveMode !== false,
     gaMeasurementId: window.VEILPLAYS_CONFIG?.gaMeasurementId || '',
 });
 
@@ -19,6 +20,7 @@ const API_BASE = `${API_ORIGIN}/api`;
 const EVALUATION_SCORE_KEYS = Object.freeze(['control', 'structure', 'presentation', 'difficulty', 'fun', 'overall']);
 
 let state = {
+    isArchiveMode: Boolean(RUNTIME_CONFIG.archiveMode),
     authUser: null,
     account: null,
     authConfigured: false,

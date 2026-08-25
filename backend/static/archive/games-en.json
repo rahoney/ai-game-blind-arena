@@ -1,0 +1,510 @@
+{
+  "metadata": {
+    "snapshotAt": "2026-08-25T00:00:00Z",
+    "schemaVersion": "1.0.0",
+    "sourceVersion": "portfolio-archive-v1",
+    "language": "en"
+  },
+  "categories": [
+    {
+      "name": "던전 탐색",
+      "translation_key": "cat_dungeon",
+      "group": "strict",
+      "order": 1
+    },
+    {
+      "name": "강화된 벽돌깨기",
+      "translation_key": "cat_arkanoid",
+      "group": "strict",
+      "order": 2
+    },
+    {
+      "name": "카드배틀",
+      "translation_key": "cat_card",
+      "group": "strict",
+      "order": 3
+    },
+    {
+      "name": "1인칭 미니 FPS",
+      "translation_key": "cat_fps",
+      "group": "advanced",
+      "order": 4
+    },
+    {
+      "name": "서바이벌 디펜스",
+      "translation_key": "cat_survival",
+      "group": "advanced",
+      "order": 5
+    },
+    {
+      "name": "횡스크롤 액션",
+      "translation_key": "cat_side_scroll",
+      "group": "advanced",
+      "order": 6
+    }
+  ],
+  "games": {
+    "던전 탐색": [
+      {
+        "blind_id": "A",
+        "actual_model": "DeepSeek v3.2 (Thinking)",
+        "file": "games/en/던전 탐색/Deepseek-v3.2-Thinking.html"
+      },
+      {
+        "blind_id": "B",
+        "actual_model": "Qwen 3.5 27B",
+        "file": "games/en/던전 탐색/Qwen_3.5-27B.html"
+      },
+      {
+        "blind_id": "C",
+        "actual_model": "GLM 5.1",
+        "file": "games/en/던전 탐색/GLM_5.1.html"
+      },
+      {
+        "blind_id": "D",
+        "actual_model": "Claude 4.6 Sonnet",
+        "file": "games/en/던전 탐색/Claude-Sonnet_4.6.html"
+      },
+      {
+        "blind_id": "E",
+        "actual_model": "Copilot Pro (Deep Thinking)",
+        "file": "games/en/던전 탐색/Copilot-Deep_Thinking.html"
+      },
+      {
+        "blind_id": "F",
+        "actual_model": "DeepSeek V4 Pro",
+        "file": "games/en/던전 탐색/DeepSeek-V4-PRO.html"
+      },
+      {
+        "blind_id": "G",
+        "actual_model": "Gemini 3 (Thinking)",
+        "file": "games/en/던전 탐색/Gemini_3-Thinking.html"
+      },
+      {
+        "blind_id": "H",
+        "actual_model": "Gemma 4 26B A4B",
+        "file": "games/en/던전 탐색/Gemma-4-26B-A4B.html"
+      },
+      {
+        "blind_id": "I",
+        "actual_model": "Gemini 3.1 Pro",
+        "file": "games/en/던전 탐색/Gemini_3.1-PRO.html"
+      },
+      {
+        "blind_id": "J",
+        "actual_model": "Kimi k2.5 (Thinking)",
+        "file": "games/en/던전 탐색/Kimi-k2.5-thinking.html"
+      },
+      {
+        "blind_id": "K",
+        "actual_model": "Meta Muse Spark",
+        "file": "games/en/던전 탐색/Meta-Muse-spark.html"
+      },
+      {
+        "blind_id": "L",
+        "actual_model": "ChatGPT 5.4 (Thinking Standard)",
+        "file": "games/en/던전 탐색/ChatGPT_5.4-Thinking_Standard.html"
+      },
+      {
+        "blind_id": "M",
+        "actual_model": "Grok 4.2 Expert",
+        "file": "games/en/던전 탐색/Grok_4.2-Expert(Thinks_hard).html"
+      },
+      {
+        "blind_id": "N",
+        "actual_model": "Claude 4.7 Opus",
+        "file": "games/en/던전 탐색/Claude-Opus_4.7.html"
+      },
+      {
+        "blind_id": "O",
+        "actual_model": "ChatGPT 5.5 (Thinking Standard)",
+        "file": "games/en/던전 탐색/ChatGPT_5.5-Thinking_Standard.html"
+      }
+    ],
+    "강화된 벽돌깨기": [
+      {
+        "blind_id": "A",
+        "actual_model": "Claude 4.6 Sonnet",
+        "file": "games/en/강화된 벽돌깨기/Claude-Sonnet_4.6.html"
+      },
+      {
+        "blind_id": "B",
+        "actual_model": "Grok 4.2 Expert",
+        "file": "games/en/강화된 벽돌깨기/Grok_4.2-Expert(Thinks_hard).html"
+      },
+      {
+        "blind_id": "C",
+        "actual_model": "Meta Muse Spark",
+        "file": "games/en/강화된 벽돌깨기/Meta-Muse-spark.html"
+      },
+      {
+        "blind_id": "D",
+        "actual_model": "ChatGPT 5.4 (Thinking Standard)",
+        "file": "games/en/강화된 벽돌깨기/ChatGPT_5.4-Thinking_Standard.html"
+      },
+      {
+        "blind_id": "E",
+        "actual_model": "Claude 4.7 Opus",
+        "file": "games/en/강화된 벽돌깨기/Claude-Opus_4.7.html"
+      },
+      {
+        "blind_id": "F",
+        "actual_model": "GLM 5.1",
+        "file": "games/en/강화된 벽돌깨기/GLM_5.1.html"
+      },
+      {
+        "blind_id": "G",
+        "actual_model": "DeepSeek V4 Pro",
+        "file": "games/en/강화된 벽돌깨기/DeepSeek-V4-PRO.html"
+      },
+      {
+        "blind_id": "H",
+        "actual_model": "Copilot Pro (Deep Thinking)",
+        "file": "games/en/강화된 벽돌깨기/Copilot-Deep_Thinking.html"
+      },
+      {
+        "blind_id": "I",
+        "actual_model": "Qwen 3.5 27B",
+        "file": "games/en/강화된 벽돌깨기/Qwen_3.5-27B.html"
+      },
+      {
+        "blind_id": "J",
+        "actual_model": "Gemma 4 26B A4B",
+        "file": "games/en/강화된 벽돌깨기/Gemma-4-26B-A4B.html"
+      },
+      {
+        "blind_id": "K",
+        "actual_model": "Gemini 3.1 Pro",
+        "file": "games/en/강화된 벽돌깨기/Gemini_3.1-PRO.html"
+      },
+      {
+        "blind_id": "L",
+        "actual_model": "DeepSeek v3.2 (Thinking)",
+        "file": "games/en/강화된 벽돌깨기/Deepseek-v3.2-Thinking.html"
+      },
+      {
+        "blind_id": "M",
+        "actual_model": "Gemini 3 (Thinking)",
+        "file": "games/en/강화된 벽돌깨기/Gemini_3-Thinking.html"
+      },
+      {
+        "blind_id": "N",
+        "actual_model": "ChatGPT 5.5 (Thinking Standard)",
+        "file": "games/en/강화된 벽돌깨기/ChatGPT_5.5-Thinking_Standard.html"
+      },
+      {
+        "blind_id": "O",
+        "actual_model": "Kimi k2.5 (Thinking)",
+        "file": "games/en/강화된 벽돌깨기/Kimi-k2.5-thinking.html"
+      }
+    ],
+    "카드배틀": [
+      {
+        "blind_id": "A",
+        "actual_model": "GLM 5.1",
+        "file": "games/en/카드배틀/GLM_5.1.html"
+      },
+      {
+        "blind_id": "B",
+        "actual_model": "Copilot Pro (Deep Thinking)",
+        "file": "games/en/카드배틀/Copilot-Deep_Thinking.html"
+      },
+      {
+        "blind_id": "C",
+        "actual_model": "Gemini 3.1 Pro",
+        "file": "games/en/카드배틀/Gemini_3.1-PRO.html"
+      },
+      {
+        "blind_id": "D",
+        "actual_model": "Qwen 3.5 27B",
+        "file": "games/en/카드배틀/Qwen_3.5-27B.html"
+      },
+      {
+        "blind_id": "E",
+        "actual_model": "Gemini 3 (Thinking)",
+        "file": "games/en/카드배틀/Gemini_3-Thinking.html"
+      },
+      {
+        "blind_id": "F",
+        "actual_model": "Meta Muse Spark",
+        "file": "games/en/카드배틀/Meta-Muse-spark.html"
+      },
+      {
+        "blind_id": "G",
+        "actual_model": "Grok 4.2 Expert",
+        "file": "games/en/카드배틀/Grok_4.2-Expert(Thinks_hard).html"
+      },
+      {
+        "blind_id": "H",
+        "actual_model": "ChatGPT 5.5 (Thinking Standard)",
+        "file": "games/en/카드배틀/ChatGPT_5.5-Thinking_Standard.html"
+      },
+      {
+        "blind_id": "I",
+        "actual_model": "Kimi k2.5 (Thinking)",
+        "file": "games/en/카드배틀/Kimi-k2.5-thinking.html"
+      },
+      {
+        "blind_id": "J",
+        "actual_model": "Gemma 4 26B A4B",
+        "file": "games/en/카드배틀/Gemma-4-26B-A4B.html"
+      },
+      {
+        "blind_id": "K",
+        "actual_model": "Claude 4.6 Sonnet",
+        "file": "games/en/카드배틀/Claude-Sonnet_4.6.html"
+      },
+      {
+        "blind_id": "L",
+        "actual_model": "DeepSeek V4 Pro",
+        "file": "games/en/카드배틀/DeepSeek-V4-PRO.html"
+      },
+      {
+        "blind_id": "M",
+        "actual_model": "DeepSeek v3.2 (Thinking)",
+        "file": "games/en/카드배틀/Deepseek-v3.2-Thinking.html"
+      },
+      {
+        "blind_id": "N",
+        "actual_model": "ChatGPT 5.4 (Thinking Standard)",
+        "file": "games/en/카드배틀/ChatGPT_5.4-Thinking_Standard.html"
+      },
+      {
+        "blind_id": "O",
+        "actual_model": "Claude 4.7 Opus",
+        "file": "games/en/카드배틀/Claude-Opus_4.7.html"
+      }
+    ],
+    "1인칭 미니 FPS": [
+      {
+        "blind_id": "A",
+        "actual_model": "DeepSeek v3.2 (Thinking)",
+        "file": "games/en/1인칭 미니 FPS/Deepseek-v3.2-Thinking.html"
+      },
+      {
+        "blind_id": "B",
+        "actual_model": "Claude 4.7 Opus",
+        "file": "games/en/1인칭 미니 FPS/Claude-Opus_4.7.html"
+      },
+      {
+        "blind_id": "C",
+        "actual_model": "Claude 4.6 Sonnet",
+        "file": "games/en/1인칭 미니 FPS/Claude-Sonnet_4.6.html"
+      },
+      {
+        "blind_id": "D",
+        "actual_model": "Meta Muse Spark",
+        "file": "games/en/1인칭 미니 FPS/Meta-Muse-spark.html"
+      },
+      {
+        "blind_id": "E",
+        "actual_model": "Gemini 3 (Thinking)",
+        "file": "games/en/1인칭 미니 FPS/Gemini_3-Thinking.html"
+      },
+      {
+        "blind_id": "F",
+        "actual_model": "Gemini 3.1 Pro",
+        "file": "games/en/1인칭 미니 FPS/Gemini_3.1-PRO.html"
+      },
+      {
+        "blind_id": "G",
+        "actual_model": "ChatGPT 5.4 (Thinking Standard)",
+        "file": "games/en/1인칭 미니 FPS/ChatGPT_5.4-Thinking_Standard.html"
+      },
+      {
+        "blind_id": "H",
+        "actual_model": "Kimi k2.5 (Thinking)",
+        "file": "games/en/1인칭 미니 FPS/Kimi-k2.5-thinking.html"
+      },
+      {
+        "blind_id": "I",
+        "actual_model": "ChatGPT 5.4 (Thinking Extended)",
+        "file": "games/en/1인칭 미니 FPS/ChatGPT_5.4-Thinking_Extended.html"
+      },
+      {
+        "blind_id": "J",
+        "actual_model": "ChatGPT 5.5 (Thinking Standard)",
+        "file": "games/en/1인칭 미니 FPS/ChatGPT_5.5-Thinking_Standard.html"
+      },
+      {
+        "blind_id": "K",
+        "actual_model": "Grok 4.2 Expert",
+        "file": "games/en/1인칭 미니 FPS/Grok_4.2-Expert(Thinks_hard).html"
+      },
+      {
+        "blind_id": "L",
+        "actual_model": "GLM 5.1",
+        "file": "games/en/1인칭 미니 FPS/GLM_5.1.html"
+      },
+      {
+        "blind_id": "M",
+        "actual_model": "Qwen 3.5 27B",
+        "file": "games/en/1인칭 미니 FPS/Qwen_3.5-27b.html"
+      },
+      {
+        "blind_id": "N",
+        "actual_model": "Gemma 4 26B A4B",
+        "file": "games/en/1인칭 미니 FPS/Gemma-4-26B-A4B.html"
+      },
+      {
+        "blind_id": "O",
+        "actual_model": "Copilot Pro (Deep Thinking)",
+        "file": "games/en/1인칭 미니 FPS/Copilot-Deep_Thinking.html"
+      }
+    ],
+    "서바이벌 디펜스": [
+      {
+        "blind_id": "A",
+        "actual_model": "Claude 4.7 Opus",
+        "file": "games/en/서바이벌 디펜스/Claude-Opus_4.7.html"
+      },
+      {
+        "blind_id": "B",
+        "actual_model": "Qwen 3.5 27B",
+        "file": "games/en/서바이벌 디펜스/Qwen_3.5-27B.html"
+      },
+      {
+        "blind_id": "C",
+        "actual_model": "GLM 5.1",
+        "file": "games/en/서바이벌 디펜스/GLM_5.1.html"
+      },
+      {
+        "blind_id": "D",
+        "actual_model": "Kimi k2.5 (Thinking)",
+        "file": "games/en/서바이벌 디펜스/Kimi-k2.5-thinking.html"
+      },
+      {
+        "blind_id": "E",
+        "actual_model": "Gemma 4 26B A4B",
+        "file": "games/en/서바이벌 디펜스/Gemma-4-26B-A4B.html"
+      },
+      {
+        "blind_id": "F",
+        "actual_model": "Grok 4.2 Expert",
+        "file": "games/en/서바이벌 디펜스/Grok_4.2-Expert(Thinks_hard).html"
+      },
+      {
+        "blind_id": "G",
+        "actual_model": "Gemini 3 (Thinking)",
+        "file": "games/en/서바이벌 디펜스/Gemini_3-Thinking.html"
+      },
+      {
+        "blind_id": "H",
+        "actual_model": "ChatGPT 5.4 (Thinking Extended)",
+        "file": "games/en/서바이벌 디펜스/ChatGPT_5.4-Thinking_Extended.html"
+      },
+      {
+        "blind_id": "I",
+        "actual_model": "DeepSeek v3.2 (Thinking)",
+        "file": "games/en/서바이벌 디펜스/Deepseek-v3.2-Thinking.html"
+      },
+      {
+        "blind_id": "J",
+        "actual_model": "Gemini 3.1 Pro",
+        "file": "games/en/서바이벌 디펜스/Gemini_3.1-PRO.html"
+      },
+      {
+        "blind_id": "K",
+        "actual_model": "Meta Muse Spark",
+        "file": "games/en/서바이벌 디펜스/META-Muse-Spark.html"
+      },
+      {
+        "blind_id": "L",
+        "actual_model": "Claude 4.6 Sonnet",
+        "file": "games/en/서바이벌 디펜스/Claude-Sonnet_4.6.html"
+      },
+      {
+        "blind_id": "M",
+        "actual_model": "Copilot Pro (Deep Thinking)",
+        "file": "games/en/서바이벌 디펜스/Copilot-Deep_Thinking.html"
+      },
+      {
+        "blind_id": "N",
+        "actual_model": "ChatGPT 5.5 (Thinking Standard)",
+        "file": "games/en/서바이벌 디펜스/ChatGPT_5.5-Thinking_Standard.html"
+      },
+      {
+        "blind_id": "O",
+        "actual_model": "ChatGPT 5.4 (Thinking Standard)",
+        "file": "games/en/서바이벌 디펜스/ChatGPT_5.4-Thinking_Standard.html"
+      }
+    ],
+    "횡스크롤 액션": [
+      {
+        "blind_id": "A",
+        "actual_model": "Qwen 3.5 27B",
+        "file": "games/en/횡스크롤 액션/Qwen_3.5-27B.html"
+      },
+      {
+        "blind_id": "B",
+        "actual_model": "Kimi k2.5 (Thinking)",
+        "file": "games/en/횡스크롤 액션/Kimi-k2.5-thinking.html"
+      },
+      {
+        "blind_id": "C",
+        "actual_model": "ChatGPT 5.4 (Thinking Extended)",
+        "file": "games/en/횡스크롤 액션/ChatGPT_5.4-Thinking_Extended.html"
+      },
+      {
+        "blind_id": "D",
+        "actual_model": "Meta Muse Spark",
+        "file": "games/en/횡스크롤 액션/Meta-Muse-spark.html"
+      },
+      {
+        "blind_id": "E",
+        "actual_model": "Gemma 4 26B A4B",
+        "file": "games/en/횡스크롤 액션/Gemma-4-26B-A4B.html"
+      },
+      {
+        "blind_id": "F",
+        "actual_model": "Claude 4.7 Opus",
+        "file": "games/en/횡스크롤 액션/Claude-Opus_4.7.html"
+      },
+      {
+        "blind_id": "G",
+        "actual_model": "Grok 4.2 Expert",
+        "file": "games/en/횡스크롤 액션/Grok_4.2-Expert(Thinks_hard).html"
+      },
+      {
+        "blind_id": "H",
+        "actual_model": "Claude 4.6 Sonnet",
+        "file": "games/en/횡스크롤 액션/Claude-Sonnet_4.6.html"
+      },
+      {
+        "blind_id": "I",
+        "actual_model": "DeepSeek v3.2 (Thinking)",
+        "file": "games/en/횡스크롤 액션/Deepseek-v3.2-Thinking.html"
+      },
+      {
+        "blind_id": "J",
+        "actual_model": "Copilot Pro (Deep Thinking)",
+        "file": "games/en/횡스크롤 액션/Copilot-Deep_Thinking.html"
+      },
+      {
+        "blind_id": "K",
+        "actual_model": "ChatGPT 5.5 (Thinking Standard)",
+        "file": "games/en/횡스크롤 액션/ChatGPT_5.5-Thinking_Standard.html"
+      },
+      {
+        "blind_id": "L",
+        "actual_model": "Gemini 3 (Thinking)",
+        "file": "games/en/횡스크롤 액션/Gemini_3-Thinking.html"
+      },
+      {
+        "blind_id": "M",
+        "actual_model": "ChatGPT 5.4 (Thinking Standard)",
+        "file": "games/en/횡스크롤 액션/ChatGPT_5.4-Thinking_Standard.html"
+      },
+      {
+        "blind_id": "N",
+        "actual_model": "Gemini 3.1 Pro",
+        "file": "games/en/횡스크롤 액션/Gemini_3.1-PRO.html"
+      },
+      {
+        "blind_id": "O",
+        "actual_model": "GLM 5.1",
+        "file": "games/en/횡스크롤 액션/GLM_5.1.html"
+      }
+    ]
+  }
+}

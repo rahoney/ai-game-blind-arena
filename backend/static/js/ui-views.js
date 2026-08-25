@@ -98,6 +98,43 @@ function renderGithubAuthButton(disabled) {
 
 function renderLogin() {
     const el = document.getElementById('view-login');
+    if (!el) return;
+
+    if (typeof isArchiveMode === 'function' && isArchiveMode()) {
+        const isDialog = state.authDialogOpen && state.currentView?.id !== 'login';
+        const showDialogClose = isDialog && (typeof canCloseAuthDialog === 'function' ? canCloseAuthDialog() : true);
+
+        el.innerHTML = `
+            <div class="${isDialog ? 'auth-dialog-shell' : ''}">
+                ${showDialogClose ? `
+                    <button type="button" class="auth-dialog-close" onclick="closeAuthDialog()" aria-label="${t('dialog_close')}">×</button>
+                ` : ''}
+                <div class="card auth-card ${isDialog ? 'auth-card-dialog' : ''}">
+                    <div style="text-align:center; margin-bottom:1.2rem;">
+                        <span class="archive-badge-pill" style="display:inline-block; margin-bottom:0.6rem;">ARCHIVE MODE</span>
+                        <h2 style="font-size:1.6rem; color:var(--primary); margin:0 0 0.5rem 0;">${t('archive_demo_login_title')}</h2>
+                        <p class="auth-description" style="margin:0;">${t('archive_demo_login_desc')}</p>
+                    </div>
+                    <div class="auth-form" style="display:flex; flex-direction:column; gap:1rem;">
+                        <button type="button" class="primary" onclick="handleDemoLogin()" style="width:100%; padding:0.9rem; font-size:1.05rem; font-weight:700;">
+                            ✨ ${t('archive_demo_login_btn')}
+                        </button>
+                        ${isDialog ? `
+                            <button type="button" class="secondary" onclick="closeAuthDialog()" style="width:100%;">
+                                ${t('btn_back')}
+                            </button>
+                        ` : `
+                            <button type="button" class="secondary" onclick="navigateTo('list', renderGameList)" style="width:100%;">
+                                ${t('landing_cta_browse')}
+                            </button>
+                        `}
+                    </div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
     const authLoading = !state.authReady;
     const configFailed = state.authReady && !state.authConfigured;
     const disabled = authLoading || configFailed;

@@ -61,8 +61,11 @@ function renderMyPageProviderIcon(provider) {
 }
 
 function renderMyPageProviderRow(provider) {
+    const isArchive = typeof isArchiveMode === 'function' && isArchiveMode();
     const linked = hasLinkedProvider(provider.key);
-    const canUnlink = canUnlinkProvider(provider.key);
+    const canUnlink = !isArchive && canUnlinkProvider(provider.key);
+    const disabledAttr = isArchive ? `disabled title="${t('archive_write_disabled_notice')}"` : (state.isLoginSubmitting ? 'disabled' : '');
+
     return `
         <div class="mypage-provider-row">
             <div class="mypage-provider-name">
@@ -72,9 +75,9 @@ function renderMyPageProviderRow(provider) {
             ${linked
                 ? (canUnlink ? `<div class="mypage-provider-actions">
                     <span class="mypage-provider-status">${t('mypage_provider_linked')}</span>
-                    <button type="button" class="mypage-provider-unlink-button" onclick="handleMyPageProviderUnlink('${provider.key}')" ${state.isLoginSubmitting ? 'disabled' : ''}>${t('mypage_provider_unlink')}</button>
+                    <button type="button" class="mypage-provider-unlink-button" onclick="handleMyPageProviderUnlink('${provider.key}')" ${disabledAttr}>${t('mypage_provider_unlink')}</button>
                 </div>` : `<span class="mypage-provider-status">${t('mypage_provider_linked')}</span>`)
-                : `<button type="button" class="mypage-provider-link-button" onclick="handleMyPageProviderLink('${provider.key}')" ${state.isLoginSubmitting ? 'disabled' : ''}>${t('mypage_provider_link')}</button>`
+                : `<button type="button" class="mypage-provider-link-button" onclick="handleMyPageProviderLink('${provider.key}')" ${disabledAttr}>${t('mypage_provider_link')}</button>`
             }
         </div>
     `;
@@ -271,17 +274,25 @@ function renderMyPageModalRoot() {
 
 function renderMyPageAccountManagementPanel() {
     if (!state.mypageAccountManagementOpen) return '';
+    const isArchive = typeof isArchiveMode === 'function' && isArchiveMode();
     const realName = getMyPageProfileValue('real_name');
     const email = getMyPageProfileValue('email', firebaseAuth?.currentUser?.email || '');
     const loginId = getMyPageProfileValue('login_id');
     const hasLoginId = !!loginId;
-    const passwordReady = hasPasswordLoginMethod() && hasLoginId;
+    const passwordReady = !isArchive && hasPasswordLoginMethod() && hasLoginId;
+    const disabledAttr = isArchive ? `disabled title="${t('archive_write_disabled_notice')}"` : '';
+
     return `
         <section class="mypage-account-panel">
             <div class="mypage-account-panel-header">
                 <h3>${t('mypage_account_manage')}</h3>
                 <button type="button" class="secondary mypage-account-close-button" onclick="toggleMyPageAccountManagement(false)">${t('mypage_account_manage_close')}</button>
             </div>
+            ${isArchive ? `
+                <div style="padding:0.75rem 1rem; border-radius:8px; background:rgba(239, 68, 68, 0.1); border:1px solid rgba(239, 68, 68, 0.2); color:#fca5a5; font-size:0.88rem; margin-bottom:1rem;">
+                    ℹ️ ${t('archive_write_disabled_notice')}
+                </div>
+            ` : ''}
             <div class="mypage-account-section">
                 <h4>${t('mypage_account_basic_info')}</h4>
                 <dl class="mypage-account-definition-list">
@@ -293,6 +304,7 @@ function renderMyPageAccountManagementPanel() {
                                 type="button"
                                 class="mypage-inline-link"
                                 onclick="handleDisplayNameChangeBtnClick()"
+                                ${disabledAttr}
                             >${t('mypage_display_name_change')}</button>
                         </dd>
                     </div>
@@ -300,7 +312,7 @@ function renderMyPageAccountManagementPanel() {
                         <dt>${t('mypage_login_id_label')}</dt>
                         <dd>
                             <span>${escapeHtml(loginId || '-')}</span>
-                            ${hasLoginId ? '' : `<button type="button" class="mypage-inline-link" onclick="openAccountLoginIdSetupDialog()">${t('account_login_id_create')}</button>`}
+                            ${hasLoginId ? '' : `<button type="button" class="mypage-inline-link" onclick="openAccountLoginIdSetupDialog()" ${disabledAttr}>${t('account_login_id_create')}</button>`}
                         </dd>
                     </div>
                     <div>
@@ -313,7 +325,7 @@ function renderMyPageAccountManagementPanel() {
                             <span>${escapeHtml(email || '-')}</span>
                             ${passwordReady
                                 ? `<button type="button" class="mypage-inline-link" onclick="openAccountEmailChangeDialog()">${t('account_email_change_link')}</button>`
-                                : `<button type="button" class="mypage-inline-link" disabled title="${t('account_email_change_requires_login_id')}">${t('account_email_change_link')}</button>`
+                                : `<button type="button" class="mypage-inline-link" disabled title="${isArchive ? t('archive_write_disabled_notice') : t('account_email_change_requires_login_id')}">${t('account_email_change_link')}</button>`
                             }
                         </dd>
                     </div>
@@ -321,7 +333,7 @@ function renderMyPageAccountManagementPanel() {
             </div>
             <div class="mypage-account-section">
                 <h4>${t('mypage_login_security')}</h4>
-                <button type="button" class="secondary mypage-compact-action" onclick="handleCurrentUserPasswordReset()" ${passwordReady ? '' : `disabled title="${t('mypage_password_reset_requires_login_id')}"`}>${t('mypage_password_reset')}</button>
+                <button type="button" class="secondary mypage-compact-action" onclick="handleCurrentUserPasswordReset()" ${passwordReady ? '' : `disabled title="${isArchive ? t('archive_write_disabled_notice') : t('mypage_password_reset_requires_login_id')}"`}>${t('mypage_password_reset')}</button>
             </div>
             <div class="mypage-account-section">
                 <h4>${t('mypage_social_login')}</h4>
@@ -332,7 +344,7 @@ function renderMyPageAccountManagementPanel() {
             <div class="mypage-account-section danger">
                 <h4>${t('mypage_delete_account')}</h4>
                 <p>${t('mypage_delete_account_desc')}</p>
-                <button type="button" class="secondary mypage-delete-button" onclick="handleDeleteAccount()">${t('mypage_delete_account')}</button>
+                <button type="button" class="secondary mypage-delete-button" onclick="handleDeleteAccount()" ${disabledAttr}>${t('mypage_delete_account')}</button>
             </div>
         </section>
     `;

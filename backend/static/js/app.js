@@ -8,7 +8,6 @@ async function initApp() {
     }
     applyDocumentLanguage();
     initializeVeilPlaysAnalytics();
-    initializeInactivityLogout();
 
     const initialRoute = getInitialStaticRoute();
     if (initialRoute) {
@@ -16,6 +15,24 @@ async function initApp() {
     } else {
         navigateTo('home', renderLanding);
     }
+
+    if (typeof isArchiveMode === 'function' && isArchiveMode()) {
+        if (typeof initArchiveMode === 'function') {
+            await initArchiveMode();
+        }
+        const gamePromise = refreshGameCatalog({ rerender: true }).catch((e) => {
+            console.error("Archive game data load failed", e);
+        });
+        await gamePromise;
+        if (state.authUser) {
+            refreshUserEvaluations({ rerender: true }).catch((e) => {
+                console.error("Archive user evaluation load failed", e);
+            });
+        }
+        return;
+    }
+
+    initializeInactivityLogout();
 
     const authPromise = initializeFirebaseAuth().catch((e) => {
         console.error("Firebase auth initialization failed", e);
